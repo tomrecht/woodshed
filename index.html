@@ -1376,6 +1376,12 @@ function reverb(ctx) {
   for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * 0.6; }
   const c = ctx.createConvolver(); c.buffer = ir; return EAR.rev = c;
 }
+function masterBus(ctx) {
+  if (EAR.bus) return EAR.bus;
+  const comp = ctx.createDynamicsCompressor(), trim = ctx.createGain();
+  comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 8; comp.attack.value = 0.003; comp.release.value = 0.2;
+  trim.gain.value = 0.8; trim.connect(comp).connect(ctx.destination); return EAR.bus = trim;
+}
 function earStop() { if (EAR.out) { try { EAR.out.gain.cancelScheduledValues(M.ctx.currentTime); EAR.out.gain.setTargetAtTime(0, M.ctx.currentTime, 0.04); const o = EAR.out; setTimeout(() => o.disconnect(), 400); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
 // Rootless jazz voicings (semitones above the root), chosen by chord type.
 function voicing(q) {
@@ -1430,7 +1436,7 @@ function drumHit(ctx, out, name, t, vol) {
 function playDrums(ctx, out, t0, beats, bpm) {
   if (!DRUMS.buf.ride1) return;
   const beat = 60 / bpm, swing = beat * 2 / 3, g = ctx.createGain(), lp = ctx.createBiquadFilter();
-  g.gain.value = 0.32; lp.type = 'lowpass'; lp.frequency.value = 6500; g.connect(lp).connect(out);
+  g.gain.value = 0.2; lp.type = 'lowpass'; lp.frequency.value = 6500; g.connect(lp).connect(out);
   for (let b = 0; b < beats; b++) {
     const t = t0 + b * beat + (Math.random() - 0.5) * 0.008, two4 = b % 2 === 1;
     drumHit(ctx, g, two4 ? 'ride2' : 'ride1', t, two4 ? 0.75 : 0.6);                 // ride on every beat, 2 and 4 a bit stronger
@@ -1447,7 +1453,7 @@ async function playChords(list, bpm = 132, opts = {}) {
   if (!loaded || (wantDrums && !DRUMS.buf.ride1)) { const p = Promise.all([loadPiano(), wantDrums ? loadDrums() : null]); await Promise.race([p, new Promise(r => setTimeout(r, 2500))]); }
   const out = EAR.out = ctx.createGain(); out.gain.value = 0.9;
   const dry = ctx.createGain(), wet = ctx.createGain(); dry.gain.value = 0.85; wet.gain.value = 0.25;
-  out.connect(dry).connect(ctx.destination); out.connect(reverb(ctx)).connect(wet).connect(ctx.destination);
+  const bus = masterBus(ctx); out.connect(dry).connect(bus); out.connect(reverb(ctx)).connect(wet).connect(bus);
   const note = Object.keys(PIANO.buf).length ? playSample : playSynth;
   const beat = 60 / bpm, swing = beat * 2 / 3; let t = ctx.currentTime + 0.12, center = 64; const t0 = t;
   if (wantDrums) playDrums(ctx, out, t0, Math.round(list.reduce((a, c) => a + c.beats, 0)), bpm);
@@ -1525,7 +1531,7 @@ function earNew(kind) {
     const part = earPart(e, S.settings.earPart || 'any');
     EG.answer = t.name; EG.choices = shuffle([t.name, ...sample(pool.map(x => x.name), 3, t.name)]);
     const semis = t.custom ? TO_CONCERT[instTr()] : 3;   // library charts are Eb parts: +3 semitones = concert
-    EG.chords = barsToChords(part.bars, semis); EG.partName = part.name; EG.tuneId = t.id; EG.bpm = 150;
+    EG.chords = barsToChords(part.bars, semis); EG.partName = part.name; EG.partPick = part.pick; EG.tuneId = t.id; EG.bpm = 150;
   }
   EG.n = (EG.n || 0);
 }
@@ -1542,7 +1548,7 @@ function earPart(e, want) {
   const bridgeIdx = bars.findIndex((b, i) => i > 0 && b.sec && b.sec !== (bars[0].sec || 'A') && !/intro|verse/i.test(b.sec));
   const pick = want === 'bridge' || (want === 'any' && bridgeIdx > 0 && Math.random() < 0.5) ? (bridgeIdx > 0 ? 'bridge' : 'start') : 'start';
   const from = pick === 'bridge' ? bridgeIdx : Math.max(0, bars.findIndex(b => !/intro|verse/i.test(b.sec || '')));
-  return { name: pick === 'bridge' ? 'the bridge' : 'the opening', bars: bars.slice(from, from + 8) };
+  return { pick, name: pick === 'bridge' ? 'the bridge' : 'the opening', bars: bars.slice(from, from + 8) };
 }
 function earSheet() {
   const title = { prog: 'Name the progression', qual: 'Chord qualities', tune: 'Name that tune' }[EG.kind];
@@ -1555,7 +1561,7 @@ function earSheet() {
     <button class="btn primary big" data-act="earPlay">▶ ${EG.played ? 'Play again' : 'Play'}</button>
     ${EG.kind === 'tune' ? `<p class="muted" style="font-size:.9rem;margin:8px 0 0">Played in concert pitch.</p>` : ''}
     <div class="earopts">${EG.choices.map(c => `<button data-act="earAnswer" data-v="${esc(c)}" class="${EG.answered == null ? '' : c === EG.answer ? 'right' : c === EG.answered ? 'wrong' : ''}" ${EG.answered != null ? 'disabled' : ''}>${esc(c)}</button>`).join('')}</div>
-    ${fb}${EG.answered != null && EG.answered !== EG.answer && (EG.kind === 'prog' || EG.kind === 'qual') ? `<div class="row" style="margin:6px 0"><button class="btn grow" data-act="earPlay">▶ Correct: ${esc(EG.answer)}</button><button class="btn grow" data-act="earPlayMine">▶ Yours: ${esc(EG.answered)}</button></div>` : ''}${extra}
+    ${fb}${EG.answered != null && EG.answered !== EG.answer && (EG.kind === 'prog' || EG.kind === 'qual' || EG.kind === 'tune') ? `<div class="row" style="margin:6px 0"><button class="btn grow" data-act="earPlay">▶ Correct: ${esc(EG.answer)}</button><button class="btn grow" data-act="earPlayMine">▶ Yours: ${esc(EG.answered)}</button></div>` : ''}${extra}
     ${EG.answered != null ? `<button class="btn primary big" data-act="earNext">Next</button>` : ''}`, endTrain);
 }
 
@@ -1790,7 +1796,9 @@ const A = {
   earStart: el => { EG.n = 0; startTrain('ear'); const go = () => { earNew(el.dataset.k); EG.played = false; earSheet(); };
     if (el.dataset.k === 'tune') loadLibrary().then(go).catch(() => toast('Could not load charts – are you offline?')); else go(); },
   earPlay: () => { EG.played = true; playChords(EG.chords, EG.bpm, { drums: EG.kind !== 'qual' }); const b = $('#panel [data-act=earPlay]'); if (b) b.textContent = '▶ Play again'; },
-  earPlayMine: () => { if (EG.kind === 'prog') playChords(progChords(EG.answered, EG.key), EG.bpm); else playChords([{ sym: pcName(EG.root, false) + EG.answered, beats: 4 }], EG.bpm, { drums: false }); },
+  earPlayMine: () => { if (EG.kind === 'tune') { const t = S.lib.tunes.find(x => x.name === EG.answered), e = t && libEntry(t); if (!e) return;
+      const part = earPart(e, EG.partPick); playChords(barsToChords(part.bars, t.custom ? TO_CONCERT[instTr()] : 3), EG.bpm); toast('Playing ' + part.name + ' of ' + t.name); return; }
+    if (EG.kind === 'prog') playChords(progChords(EG.answered, EG.key), EG.bpm); else playChords([{ sym: pcName(EG.root, false) + EG.answered, beats: 4 }], EG.bpm, { drums: false }); },
   earAnswer: el => { if (EG.answered != null) return; EG.answered = el.dataset.v; trainScore(EG.answered === EG.answer, EG.kind); earSheet(); },
   earNext: () => { earNew(EG.kind); EG.played = false; earSheet(); setTimeout(() => A.earPlay(), 150); },
   trainSet: el => { const v = el.dataset.v; S.settings[el.dataset.k] = /^\d+$/.test(v) ? +v : v; save(true); render(); },
