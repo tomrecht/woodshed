@@ -1045,7 +1045,7 @@ function vMore() {
       <form class="row" id="syncForm"><input type="password" id="syncToken" placeholder="ghp_…" autocomplete="off"><button class="btn primary" type="submit">Connect</button></form>`}
     <h3 style="margin:16px 0 6px">Backup file</h3>
     <p class="muted" style="margin-top:0">${S.settings.lastBackup ? 'Last exported ' + ago(S.settings.lastBackup) + '.' : 'A file copy of everything, for safekeeping.'}</p>
-    <div class="row wrap"><button class="btn" data-act="gotoTab" data-tab2="grid">Table entry</button><button class="btn" data-act="exportData">Export backup</button><button class="btn" data-act="importData">Restore backup</button></div></section>`;
+    <div class="row wrap"><button class="btn" data-act="gotoTab" data-tab2="grid">Table entry</button><button class="btn" data-act="exportData">Export backup</button><button class="btn" data-act="importData">Restore backup</button></div><p class="muted" style="font-size:.75rem;margin:14px 0 0">Piano sound: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Chord charts from iReal Pro exports and the iReal Pro forums.</p></section>`;
 }
 const curInst = () => S.inst.find(i => i.id === S.cur);
 
@@ -1355,36 +1355,86 @@ function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent
 function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) mStop(); }
 $('#mBpm').addEventListener('change', e => mSet(e.target.value));
 
-/* ---------- chord playback (ear training) ---------- */
+/* ---------- chord playback: sampled piano, jazz voicings, comping ----------
+   Piano samples: Salamander Grand Piano by Alexander Holm (CC BY 3.0). */
 const EAR = { out: null };
+const PIANO = { buf: {}, loading: null };
+const PIANO_NOTES = { C1: 24, Ds1: 27, Fs1: 30, A1: 33, C2: 36, Ds2: 39, Fs2: 42, A2: 45, C3: 48, Ds3: 51, Fs3: 54, A3: 57, C4: 60, Ds4: 63, Fs4: 66, A4: 69, C5: 72, Ds5: 75, Fs5: 78 };
 function audioCtx() { M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (M.ctx.state !== 'running') M.ctx.resume(); return M.ctx; }
-function earStop() { if (EAR.out) { try { EAR.out.gain.setValueAtTime(0, M.ctx.currentTime); EAR.out.disconnect(); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
-function chordTones(q) {
+function loadPiano() {
+  if (PIANO.loading) return PIANO.loading;
+  const ctx = audioCtx();
+  return PIANO.loading = Promise.all(Object.entries(PIANO_NOTES).map(([n, m]) => fetch('piano/' + n + '.mp3').then(r => r.arrayBuffer())
+    .then(a => new Promise((res, rej) => ctx.decodeAudioData(a, res, rej))).then(b => { PIANO.buf[m] = b; }).catch(() => {})));
+}
+// A small room: generated impulse response, so no extra file.
+function reverb(ctx) {
+  if (EAR.rev) return EAR.rev;
+  const len = ctx.sampleRate * 1.8, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * 0.6; }
+  const c = ctx.createConvolver(); c.buffer = ir; return EAR.rev = c;
+}
+function earStop() { if (EAR.out) { try { EAR.out.gain.cancelScheduledValues(M.ctx.currentTime); EAR.out.gain.setTargetAtTime(0, M.ctx.currentTime, 0.04); const o = EAR.out; setTimeout(() => o.disconnect(), 400); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
+// Rootless jazz voicings (semitones above the root), chosen by chord type.
+function voicing(q) {
   const f = family(q);
-  let t = { maj: [4, 7, 11], '7': [4, 7, 10], m: [3, 7, 10], m6: [3, 7, 9], 'mΔ': [3, 7, 11], 'ø': [3, 6, 10], '°': [3, 6, 9], sus: [5, 7, 10], '+': [4, 8] }[f];
-  if (f === 'maj' && /^6/.test(q)) t = [4, 7, 9];
-  if (f === 'm' && !/\d/.test(q)) t = [3, 7, 10];
-  if (f === '7') { if (/alt/.test(q)) t = [4, 10, 13, 20]; else { if (/b9/.test(q)) t = [...t, 13]; if (/#9/.test(q)) t = [...t, 15]; if (/#11/.test(q)) t = [...t, 18]; if (/13/.test(q)) t = [...t, 21]; } }
-  return t;
+  if (f === '7') {
+    if (/alt/.test(q)) return [4, 10, 13, 20];
+    if (/#9/.test(q)) return [4, 10, 15, 20];
+    if (/b9/.test(q)) return [4, 10, 13, /b13|b5/.test(q) ? 20 : 21];
+    if (/#11|b5/.test(q)) return [4, 10, 14, 18];
+    if (/\+|#5/.test(q)) return [4, 10, 14, 20];
+    return [4, 9, 10, 14];
+  }
+  return { maj: /^6|69/.test(q) ? [4, 7, 9, 14] : [4, 7, 11, 14], m: [3, 7, 10, 14], m6: [3, 7, 9, 14], 'mΔ': [3, 7, 11, 14], 'ø': [3, 6, 10, 12], '°': [3, 6, 9, 12], sus: [5, 10, 14, 19], '+': [4, 8, 12, 16] }[f];
 }
-function playTone(ctx, out, midi, t, dur, gain) {
-  const fr = 440 * Math.pow(2, (midi - 69) / 12), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), g2 = ctx.createGain();
-  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = fr; o2.frequency.value = fr * 2; g2.gain.value = 0.12;
-  o.connect(g); o2.connect(g2).connect(g); g.connect(out);
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(gain * 0.45, t + 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.start(t); o2.start(t); o.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+// Place a voicing near the previous one (smooth voice leading), kept between E3 and E5.
+function placeVoicing(root, ivs, prevCenter) {
+  const pcs = ivs.map(i => mod12(root + i)); let best = null;
+  for (let r = 0; r < pcs.length; r++) {
+    const order = pcs.slice(r).concat(pcs.slice(0, r)); let notes = [], n = 50;
+    for (const pc of order) { n = n + mod12(pc - n); if (notes.length && n <= notes[notes.length - 1]) n += 12; notes.push(n); }
+    for (const shift of [-12, 0, 12]) { const v = notes.map(x => x + shift); if (v[0] < 51 || v[v.length - 1] > 77) continue;
+      const c = v.reduce((a, b) => a + b, 0) / v.length, d = Math.abs(c - prevCenter) + (v[v.length - 1] - v[0]) * 0.15; if (!best || d < best.d) best = { v, c, d }; }
+  }
+  return best || { v: pcs.map(pc => 60 + pc), c: 66 };
 }
-// Play chords: list of {sym, beats}. Symbols are in concert pitch. Returns total seconds.
-function playChords(list, bpm = 132) {
-  earStop(); const ctx = audioCtx(); const out = EAR.out = ctx.createGain(); out.gain.value = 0.5; out.connect(ctx.destination);
-  let t = ctx.currentTime + 0.1; const beat = 60 / bpm;
+function playSample(ctx, out, midi, t, dur, vel) {
+  const keys = Object.keys(PIANO.buf).map(Number); if (!keys.length) return false;
+  const k = keys.reduce((a, b) => Math.abs(b - midi) < Math.abs(a - midi) ? b : a);
+  const src = ctx.createBufferSource(), g = ctx.createGain();
+  src.buffer = PIANO.buf[k]; src.playbackRate.value = Math.pow(2, (midi - k) / 12);
+  g.gain.setValueAtTime(vel, t); g.gain.setTargetAtTime(0, t + dur, 0.12);
+  src.connect(g).connect(out); src.start(t); src.stop(t + dur + 0.8); return true;
+}
+function playSynth(ctx, out, midi, t, dur, vel) {   // fallback while samples load / offline
+  const fr = 440 * Math.pow(2, (midi - 69) / 12), o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+  o.type = 'triangle'; o.frequency.value = fr; lp.type = 'lowpass'; lp.frequency.value = 1800;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vel * 0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(vel * 0.15, t + 0.5); g.gain.setTargetAtTime(0, t + dur, 0.1);
+  o.connect(lp).connect(g).connect(out); o.start(t); o.stop(t + dur + 0.6);
+}
+// Play chords: list of {sym, beats}. Symbols are in concert pitch. Swung comping with a bass note under each chord.
+async function playChords(list, bpm = 132) {
+  earStop(); const ctx = audioCtx();
+  const loaded = Object.keys(PIANO.buf).length > 0;
+  if (!loaded) { const p = loadPiano(); await Promise.race([p, new Promise(r => setTimeout(r, 2500))]); }
+  const out = EAR.out = ctx.createGain(); out.gain.value = 0.9;
+  const dry = ctx.createGain(), wet = ctx.createGain(); dry.gain.value = 0.85; wet.gain.value = 0.25;
+  out.connect(dry).connect(ctx.destination); out.connect(reverb(ctx)).connect(wet).connect(ctx.destination);
+  const note = Object.keys(PIANO.buf).length ? playSample : playSynth;
+  const beat = 60 / bpm, swing = beat * 2 / 3; let t = ctx.currentTime + 0.12, center = 64;
   for (const { sym, beats } of list) {
     const c = parseChord(sym); if (!c) { t += beats * beat; continue; }
-    const dur = beats * beat * 0.95, bass = 36 + mod12(c.bass != null ? c.bass : c.root);
-    playTone(ctx, out, bass, t, dur, 0.32);
-    const notes = chordTones(c.q).map(iv => { let m = 48 + mod12(c.root + iv); if (m < 53) m += 12; return m; }).sort((a, b) => a - b);
-    notes.forEach(m => playTone(ctx, out, m, t + 0.005, dur, 0.13));
-    t += beats * beat;
+    const v = placeVoicing(c.root, voicing(c.q), center); center = v.c;
+    const bass = 36 + mod12(c.bass != null ? c.bass : c.root);   // C2..B2 – audible on phone speakers
+    const len = beats * beat, hum = () => (Math.random() - 0.5) * 0.012;
+    // bass: half notes (or one note for short chords)
+    note(ctx, out, bass, t, Math.min(len, 2 * beat) * 0.95, 0.75);
+    if (beats >= 4) note(ctx, out, Math.random() < 0.5 ? bass : (bass + 7 > 47 ? bass - 5 : bass + 7), t + 2 * beat, 2 * beat * 0.95, 0.6);
+    // comping: Charleston (1, and-of-2) for a full bar, a single hit otherwise
+    const hits = beats >= 4 ? [[0, 1.4 * beat, 0.42], [beat + swing, len - beat - swing - 0.05, 0.34]] : [[0, len - 0.05, 0.42]];
+    for (const [off, dur, vel] of hits) v.v.forEach((m, i) => note(ctx, out, m, t + off + i * 0.008 + hum(), Math.max(0.2, dur), vel * (i === v.v.length - 1 ? 1.1 : 0.9)));
+    t += len;
   }
   return t - ctx.currentTime;
 }
