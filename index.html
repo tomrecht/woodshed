@@ -126,6 +126,14 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .pips{display:flex;gap:4px}
 .pips i{width:10px;height:10px;border-radius:50%;background:var(--empty)}
 .pips i.on{background:var(--accent)}
+.pips i.w{background:linear-gradient(90deg,var(--accent) 50%,var(--empty) 50%)}
+.lvl3{display:flex;gap:4px}
+.lvl3 button{flex:1;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 2px;font-size:.8rem;color:var(--muted)}
+.lvl3 button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
+.stage{background:var(--surface2);border-radius:10px;padding:10px;margin-bottom:6px}
+.stage b{display:block;margin-bottom:6px}
+.tagchip{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:16px;padding:4px 6px 4px 10px;margin:0 6px 6px 0;font-size:.9rem}
+.tagchip button{background:none;border:0;color:var(--muted);padding:0 4px}
 .stages label{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:6px}
 .stages input{width:20px;height:20px;accent-color:var(--accent)}
 
@@ -242,7 +250,9 @@ const WT = ['Eb-F','E-F#'];
 const NONE = ['—'];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
-const STAGES = ['Listened','Melody','Changes','Memorized','Soloing'];
+const STAGES = ['Melody', 'Changes', 'Soloing'];
+const LEVELS = ['Not started', 'Working on it', 'Solid'];
+const TUNE_STEP_XP = 15;
 
 function defaultLib() {
   const sec = (name, list) => ({ id: slug(name), name, ex: list.map(([n, k]) => ({ id: slug(name + ' ' + n), name: n, keys: [...k] })) });
@@ -287,20 +297,28 @@ function migrate() {
       const id = 'lick-' + (i + 1); let l = S.lib.licks.find(x => x.id === id);
       if (!l) { l = { id, name: 'Lick ' + (i + 1), img: null, notes: '' }; S.lib.licks.push(l); }
       if (!l.img) l.img = 'licks/' + id + '.png';
-      l.src = src;
     });
     for (const [name, style, composer] of FAV_TUNES) {
       let t = S.lib.tunes.find(x => x.id === slug(name) || x.name.toLowerCase() === name.toLowerCase());
       if (!t) { t = { id: slug(name), name, tags: '' }; S.lib.tunes.push(t); }
       t.style = t.style || style; t.composer = t.composer || composer;
-      const tags = (t.tags || '').split(',').map(x => x.trim()).filter(Boolean);
-      if (!tags.includes('favorites')) tags.push('favorites');
-      t.tags = tags.join(', ');
+
     }
     S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name));
     S.libRev = 2;
   }
+  if (S.libRev < 3) {
+    for (const l of S.lib.licks) delete l.src;
+    for (const t of S.lib.tunes) t.tags = splitTags(t.tags).filter(x => x !== 'favorites').join(', ');
+    // old 5 checkboxes (Listened, Melody, Changes, Memorized, Soloing) -> 3 stages with levels
+    for (const id in S.prog) for (const tid in S.prog[id].tunes || {}) {
+      const o = S.prog[id].tunes[tid]; if (!o.st) continue;
+      o.lv = [o.st[1] ? 2 : 0, o.st[2] ? 2 : 0, o.st[4] ? 2 : 0]; delete o.st;
+    }
+    S.libRev = 3;
+  }
 }
+const splitTags = s => [...new Set((s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean))];
 const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
 
 /* ---------- state ---------- */
@@ -317,6 +335,7 @@ function save() {
   catch (e) { toast('Could not save – storage full?'); }
 }
 const P = () => S.prog[S.cur];
+const allTags = () => [...new Set(S.lib.tunes.flatMap(t => splitTags(t.tags)))].sort();
 const allEx = () => S.lib.sections.flatMap(sec => sec.ex.map(ex => ({ sec, ex })));
 const findEx = id => allEx().find(o => o.ex.id === id);
 const exKey = (ex, k) => 'e:' + ex.id + '|' + k;
@@ -380,8 +399,18 @@ function exInfo(ex) {
   return { vals, logged, min, mk, n: ex.keys.length, floor: ex.keys.length >= 5, full: logged === ex.keys.length };
 }
 const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
-const tuneState = id => P().tunes[id] || { st: [false, false, false, false, false], notes: '' };
-const tuneStatus = id => { const n = tuneState(id).st.filter(Boolean).length; return n === 0 ? 'new' : n === 5 ? 'done' : 'learning'; };
+const tuneState = id => P().tunes[id] || { lv: [0, 0, 0], notes: '' };
+const tuneRec = id => { const p = P(); return p.tunes[id] = p.tunes[id] || { lv: [0, 0, 0], notes: '' }; };
+// Learned = melody and changes solid. Soloing keeps growing after that.
+const tuneStatus = id => { const lv = tuneState(id).lv; return lv[0] === 2 && lv[1] === 2 ? 'done' : lv.some(Boolean) ? 'learning' : 'new'; };
+const tunePips = id => `<span class="pips" title="${STAGES.join(' · ')}">${tuneState(id).lv.map(v => `<i class="${v === 2 ? 'on' : v === 1 ? 'w' : ''}"></i>`).join('')}</span>`;
+function setTuneLevel(id, stage, lv) {
+  const r = tuneRec(id), prev = r.lv[stage]; if (prev === lv) return;
+  const wasDone = tuneStatus(id) === 'done';
+  r.lv[stage] = lv; touch('t:' + id); save();
+  if (lv > prev) toast(STAGES[stage] + ': ' + LEVELS[lv].toLowerCase() + '  +' + TUNE_STEP_XP * (lv - prev) + ' XP' + (!wasDone && tuneStatus(id) === 'done' ? '  · Tune learned! 🎶' : ''));
+  checkBadges();
+}
 
 function totalMinutes(p = P()) { return p.sessions.reduce((a, s) => a + s.min, 0); }
 const totalHours = (p = P()) => (p.priorHours || 0) + totalMinutes(p) / 60;
@@ -402,7 +431,7 @@ const BADGE_XP = 50;
 function xpCalc(p = P()) {
   let xp = totalMinutes(p);
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
-  for (const id in p.tunes) xp += 25 * p.tunes[id].st.filter(Boolean).length;
+  for (const id in p.tunes) xp += TUNE_STEP_XP * (p.tunes[id].lv || []).reduce((a, b) => a + b, 0);
   xp += BADGE_XP * Object.keys(p.badges || {}).length;
   return xp;
 }
@@ -417,8 +446,8 @@ function badgeList() {
   const maxFloor = floors.length ? Math.max(...floors) : 0;
   const pbs = p.hist.filter(x => x.prev != null && x.bpm > x.prev).length;
   const licks = S.lib.licks.filter(l => p.bpm['l:' + l.id]).length;
-  const memo = S.lib.tunes.filter(t => tuneState(t.id).st[3]).length;
-  const tfull = S.lib.tunes.filter(t => tuneStatus(t.id) === 'done').length;
+  const memo = S.lib.tunes.filter(t => tuneStatus(t.id) === 'done').length;
+  const tfull = S.lib.tunes.filter(t => tuneState(t.id).lv.every(v => v === 2)).length;
   const B = [
     ['first', '🎷', 'First session', 'Log a practice session', p.sessions.length >= 1],
     ['s10', '📅', 'Regular', '10 sessions', p.sessions.length >= 10],
@@ -433,9 +462,11 @@ function badgeList() {
     ['pb100', '🏔️', 'Summit', '100 tempo records broken', pbs >= 100],
     ['l5', '🎼', 'Lick collector', '5 licks at tempo', licks >= 5],
     ['l24', '📚', 'Lick book', '24 licks at tempo', licks >= 24],
-    ['t1', '🎵', 'First tune', 'Memorize a tune', memo >= 1],
-    ['t10', '🎶', 'Repertoire', '10 tunes memorized', memo >= 10],
-    ['tfull', '🌟', 'Full treatment', 'All 5 stages on a tune', tfull >= 1],
+    ['t1', '🎵', 'First tune', 'Learn a tune (melody and changes solid)', memo >= 1],
+    ['t5', '🎶', 'Set list', '5 tunes learned', memo >= 5],
+    ['t10', '🎼', 'Repertoire', '10 tunes learned', memo >= 10],
+    ['t25', '📖', 'Real book', '25 tunes learned', memo >= 25],
+    ['tfull', '🌟', 'Full treatment', 'Melody, changes and soloing all solid', tfull >= 1],
     ['inst2', '🎺', 'Doubler', 'Add a second instrument', S.inst.length >= 2],
     ...S.lib.sections.map(sec => ['sec:' + sec.id, '🏆', sec.name, 'Category complete – every exercise in every key', secDone(sec)]),
   ];
@@ -467,7 +498,7 @@ function pickFor(t, items) {
   if (t === 'lick') { const c = best(S.lib.licks.filter(l => !inPlan.has(l.id)).map(l => ({ l, s: staleScore(p.touched['l:' + l.id]) })));
     return c && { t, id: c.l.id }; }
   const pool = S.lib.tunes.filter(x => !inPlan.has(x.id));
-  const c = best(pool.map(x => ({ x, s: staleScore(p.touched['t:' + x.id]) + (tuneStatus(x.id) === 'learning' ? 25 : tuneStatus(x.id) === 'done' ? -30 : 0) })));
+  const c = best(pool.map(x => ({ x, s: staleScore(p.touched['t:' + x.id]) + (tuneStatus(x.id) === 'learning' ? 30 : tuneStatus(x.id) === 'done' ? 0 : -25) })));
   return c && { t, id: c.x.id };
 }
 function makePlan() {
@@ -507,7 +538,7 @@ function vHome() {
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>♩${b}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>♩${b}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
-    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = 'Tune'; label = esc(t.name); const s = tuneState(t.id).st; const nx = s.indexOf(false); key = nx >= 0 ? ` <small>next: ${STAGES[nx]}</small>` : ''; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
+    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
     return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
       <button class="iconbtn" data-act="planSwap" data-i="${idx}" title="Suggest something else" aria-label="Swap">⇄</button><button class="iconbtn" data-act="planDel" data-i="${idx}" title="Remove" aria-label="Remove">✕</button></li>`;
   }).join('') || '<li class="muted">Empty – add something below.</li>';
@@ -574,7 +605,7 @@ function vGrid() {
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${p.bpm['l:' + l.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`).join('');
-  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).st; return `<tr><th>${esc(t.name)}</th>${STAGES.map((n, i) => `<td><input type="checkbox" data-tstage="${esc(t.id)}" data-i="${i}" ${s[i] ? 'checked' : ''} tabindex="${++tabIdx}"></td>`).join('')}<td><input type="number" data-gkey="t:${esc(t.id)}" value="${p.bpm['t:' + t.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
+  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="number" data-gkey="t:${esc(t.id)}" value="${p.bpm['t:' + t.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
   return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
     <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Easiest on a computer – when you're done, use
     <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
@@ -590,10 +621,7 @@ function bindGrid() {
     if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
       if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? '♩' + i.min + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
   }));
-  $$('#view input[data-tstage]').forEach(cb => cb.addEventListener('change', () => {
-    const p = P(), id = cb.dataset.tstage; p.tunes[id] = p.tunes[id] || { st: [false, false, false, false, false], notes: '' };
-    p.tunes[id].st[+cb.dataset.i] = cb.checked; save(); checkBadges();
-  }));
+  $$('#view select[data-tstage]').forEach(sel => sel.addEventListener('change', () => setTuneLevel(sel.dataset.tstage, +sel.dataset.i, +sel.value)));
 }
 
 function vLicks() {
@@ -604,14 +632,14 @@ function vLicks() {
     <button class="btn ghost" data-act="addLick">+ Add lick</button>`;
 }
 function vTunes() {
-  const p = P(); const tags = [...new Set(S.lib.tunes.flatMap(t => (t.tags || '').split(',').map(s => s.trim()).filter(Boolean)))];
-  const filters = [['all', 'All'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Done'], ...tags.map(t => ['#' + t, '#' + t])];
-  const list = S.lib.tunes.filter(t => tuneFilter === 'all' ? true : tuneFilter.startsWith('#') ? (t.tags || '').split(',').map(s => s.trim()).includes(tuneFilter.slice(1)) : tuneStatus(t.id) === tuneFilter);
+  const p = P(); const tags = allTags();
+  const filters = [['all', 'All'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Learned'], ...tags.map(t => ['#' + t, '#' + t])];
+  const list = S.lib.tunes.filter(t => tuneFilter === 'all' ? true : tuneFilter.startsWith('#') ? splitTags(t.tags).includes(tuneFilter.slice(1)) : tuneStatus(t.id) === tuneFilter);
   const counts = { learning: 0, done: 0 }; S.lib.tunes.forEach(t => { const s = tuneStatus(t.id); if (s in counts) counts[s]++; });
   return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}</button>`).join('')}</div>
-    <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} done · ${S.lib.tunes.length} total</p>
-    ${list.map(t => { const s = tuneState(t.id).st; const b = p.bpm['t:' + t.id];
-      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}${t.style ? `<br><small>${esc(t.style)}</small>` : ''}</span>${b ? `<small>♩${b}</small>` : ''}<span class="pips">${s.map(x => `<i class="${x ? 'on' : ''}"></i>`).join('')}</span></button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
+    <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} learned · ${S.lib.tunes.length} total · dots: melody, changes, soloing</p>
+    ${list.map(t => { const b = p.bpm['t:' + t.id]; const last = p.touched['t:' + t.id];
+      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}<br><small>${[t.style, last ? 'played ' + ago(last) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${b ? `<small>♩${b}</small>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
     <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
 }
 function vMore() {
@@ -733,7 +761,7 @@ function sheetEx(id) {
 
 function sheetLick(id) {
   const l = S.lib.licks.find(x => x.id === id); if (!l) return; const key = 'l:' + l.id; const p = P();
-  openSheet(`${head(l.name, (l.src ? l.src + ' · ' : '') + 'all 12 keys')}
+  openSheet(`${head(l.name, 'all 12 keys')}
     ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
     <label class="f">Best tempo through all 12 keys</label>
     <div class="row"><input type="number" inputmode="numeric" id="lickBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
@@ -751,29 +779,33 @@ function sheetLick(id) {
 function sheetTune(id) {
   const t = S.lib.tunes.find(x => x.id === id); if (!t) return; const key = 't:' + t.id; const p = P();
   const ts = tuneState(id);
+  const stageHtml = () => STAGES.map((s, i) => `<div class="stage"><b>${s}</b><div class="lvl3">${LEVELS.map((L, v) =>
+    `<button data-act="tuneLv" data-id="${esc(id)}" data-i="${i}" data-v="${v}" class="${tuneState(id).lv[i] === v ? 'on' : ''}">${L}</button>`).join('')}</div></div>`).join('');
+  const tagHtml = () => splitTags(t.tags).map(x => `<span class="tagchip">#${esc(x)}<button data-act="tagDel" data-id="${esc(id)}" data-tag="${esc(x)}" aria-label="Remove tag">✕</button></span>`).join('') || '<small class="muted">No tags yet.</small>';
   openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
-    <div class="stages">${STAGES.map((s, i) => `<label><input type="checkbox" data-stage="${i}" ${ts.st[i] ? 'checked' : ''}><span class="grow">${s}</span><small>+25 XP</small></label>`).join('')}</div>
+    <div id="stages">${stageHtml()}</div>
     <label class="f">Tempo (optional – for tunes where speed matters)</label>
     <div class="row"><input type="number" inputmode="numeric" id="tuneBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
     <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
     <div class="sp"></div>
-    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(t.id)}">+ Today's plan</button></div>
+    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Played it today</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(t.id)}">+ Today's plan</button></div>
     ${histList(key, () => t.name)}
-    <label class="f">Tags (comma separated)</label><input type="text" id="tuneTags" value="${esc(t.tags || '')}">
+    <label class="f">Tags</label><div id="tagbox">${tagHtml()}</div>
+    <form class="row" id="tagForm"><input type="text" id="tagIn" list="tagList" placeholder="Add tag, e.g. ballad, gig"><datalist id="tagList">${allTags().map(x => `<option value="${esc(x)}">`).join('')}</datalist><button class="btn" type="submit">Add</button></form>
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(t.id)}">Rename</button><button class="btn sm danger" data-act="delTune" data-id="${esc(t.id)}">Delete</button></div>`);
-  const st = () => { const p = P(); p.tunes[id] = p.tunes[id] || { st: [false, false, false, false, false], notes: '' }; return p.tunes[id]; };
-  $$('#panel input[data-stage]').forEach(cb => cb.onchange = () => { st().st[+cb.dataset.stage] = cb.checked; touch(key); save(); if (cb.checked) toast(STAGES[+cb.dataset.stage] + ' ✓  +25 XP'); checkBadges(); });
+  sheetTune.refresh = () => { $('#stages').innerHTML = stageHtml(); $('#tagbox').innerHTML = tagHtml(); };
   $('#tuneBpm').onchange = e => setBpm(key, e.target.value);
-  $('#tuneNotes').onchange = e => { st().notes = e.target.value; save(); };
-  $('#tuneTags').onchange = e => { t.tags = e.target.value; save(); };
+  $('#tuneNotes').onchange = e => { tuneRec(id).notes = e.target.value; save(); };
+  $('#tagForm').onsubmit = e => { e.preventDefault(); const v = $('#tagIn').value.trim().toLowerCase().replace(/^#/, ''); if (!v) return;
+    t.tags = splitTags(t.tags + ',' + v).join(', '); $('#tagIn').value = ''; save(); sheetTune.refresh(); };
 }
 
 function pickerSheet(t) {
   const p = P(); let rows;
   if (t === 'ex') rows = S.lib.sections.map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
     return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? '♩' + i.vals[0] : ''}</small></button>`; }).join('')).join('');
-  else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}${l.src ? `<br><small>${esc(l.src)}</small>` : ''}</span><small>${p.bpm['l:' + l.id] ? '♩' + p.bpm['l:' + l.id] : ''}</small></button>`).join('');
-  else rows = S.lib.tunes.map(x => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="grow">${esc(x.name)}</span><span class="pips">${tuneState(x.id).st.map(v => `<i class="${v ? 'on' : ''}"></i>`).join('')}</span></button>`).join('');
+  else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? '♩' + p.bpm['l:' + l.id] : ''}</small></button>`).join('');
+  else rows = S.lib.tunes.map(x => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="grow">${esc(x.name)}</span>${tunePips(x.id)}</button>`).join('');
   openSheet(`${head('Add ' + (t === 'ex' ? 'an exercise' : t === 'lick' ? 'a lick' : 'a tune') + ' to today')}
     <input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">${rows}`);
   $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase();
@@ -869,6 +901,8 @@ const A = {
   pickItem: el => { const t = el.dataset.t, id = el.dataset.id;
     if (t === 'ex') { const o = findEx(id); if (o.ex.keys.length > 1) return pickKeySheet(o.ex); addToPlan({ t, id, key: o.ex.keys[0] }); }
     else addToPlan({ t, id }); closeSheet(); },
+  tuneLv: el => { setTuneLevel(el.dataset.id, +el.dataset.i, +el.dataset.v); sheetTune.refresh(); },
+  tagDel: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); t.tags = splitTags(t.tags).filter(x => x !== el.dataset.tag).join(', '); save(); sheetTune.refresh(); },
   pickKey: el => { const o = findEx(el.dataset.id); const k = el.dataset.k || weakestKey(o.ex); addToPlan({ t: 'ex', id: o.ex.id, key: k }); closeSheet(); },
   tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
   practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id); }); P().touched['x:' + o.ex.id] = Date.now(); save(); toast('Marked practiced'); },
@@ -916,7 +950,7 @@ const A = {
   delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {});
     S.lib.licks = S.lib.licks.filter(x => x !== l); save(); closeSheet(); },
   addTune: () => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required><label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">`,
-    fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: fd.tags.trim() }); save(); }),
+    fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: splitTags(fd.tags).join(', ') }); S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); save(); }),
   renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); sheetTune(t.id); } },
   delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
   addInst: () => formSheet('New instrument', `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Tenor sax">
