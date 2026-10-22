@@ -519,7 +519,7 @@ function setBpm(k, v, exId) {
   if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
   touch(k, exId); save(); checkBadges(); return v != null && prev != null && v > prev;
 }
-const FLOOR_MIN = 3;   // exercises with at least this many keys get a floor (slowest key)
+const FLOOR_MIN = 2;   // every exercise with keys gets a floor (slowest key); keyless ones have a single tempo
 function exInfo(ex) {
   const p = P(); const vals = ex.keys.map(k => p.bpm[exKey(ex, k)] ?? null);
   let min = null, mk = null; vals.forEach((v, i) => { if (v != null && (min == null || v < min)) { min = v; mk = ex.keys[i]; } });
