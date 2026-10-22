@@ -1382,7 +1382,8 @@ function masterBus(ctx) {
   comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 8; comp.attack.value = 0.003; comp.release.value = 0.2;
   trim.gain.value = 0.8; trim.connect(comp).connect(ctx.destination); return EAR.bus = trim;
 }
-function earStop() { if (EAR.out) { try { EAR.out.gain.cancelScheduledValues(M.ctx.currentTime); EAR.out.gain.setTargetAtTime(0, M.ctx.currentTime, 0.04); const o = EAR.out; setTimeout(() => o.disconnect(), 400); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
+function earStop() {
+  if (EAR.drumOut) { const d = EAR.drumOut; try { d.gain.setTargetAtTime(0, M.ctx.currentTime, 0.03); setTimeout(() => d.disconnect(), 300); } catch (e) {} EAR.drumOut = null; } if (EAR.out) { try { EAR.out.gain.cancelScheduledValues(M.ctx.currentTime); EAR.out.gain.setTargetAtTime(0, M.ctx.currentTime, 0.04); const o = EAR.out; setTimeout(() => o.disconnect(), 400); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
 // Rootless jazz voicings (semitones above the root), chosen by chord type.
 function voicing(q) {
   const f = family(q);
@@ -1428,21 +1429,22 @@ function loadDrums() {
   return DRUMS.loading = Promise.all(['ride1', 'ride2', 'hat1', 'hat2', 'kick'].map(n => fetch('drums/' + n + '.mp3').then(r => r.arrayBuffer())
     .then(a => new Promise((res, rej) => ctx.decodeAudioData(a, res, rej))).then(b => { DRUMS.buf[n] = b; }).catch(() => {})));
 }
-function drumHit(ctx, out, name, t, vol) {
+function drumHit(ctx, out, name, t, vol, ring = 0.25) {   // ring: how long the hit sustains before it is damped (s)
   const b = DRUMS.buf[name]; if (!b) return;
-  const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = b; src.playbackRate.value = 0.985 + Math.random() * 0.03; g.gain.value = vol;
-  src.connect(g).connect(out); src.start(t);
+  const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = b; src.playbackRate.value = 0.985 + Math.random() * 0.03;
+  g.gain.setValueAtTime(vol, t); g.gain.setTargetAtTime(0, t + ring, ring / 3);
+  src.connect(g).connect(out); src.start(t); src.stop(t + ring * 3 + 0.1);
 }
 function playDrums(ctx, out, t0, beats, bpm) {
   if (!DRUMS.buf.ride1) return;
   const beat = 60 / bpm, swing = beat * 2 / 3, g = ctx.createGain(), lp = ctx.createBiquadFilter();
-  g.gain.value = 0.2; lp.type = 'lowpass'; lp.frequency.value = 6500; g.connect(lp).connect(out);
+  g.gain.value = 0.14; lp.type = 'lowpass'; lp.frequency.value = 6500; g.connect(lp).connect(out);
   for (let b = 0; b < beats; b++) {
     const t = t0 + b * beat + (Math.random() - 0.5) * 0.008, two4 = b % 2 === 1;
-    drumHit(ctx, g, two4 ? 'ride2' : 'ride1', t, two4 ? 0.75 : 0.6);                 // ride on every beat, 2 and 4 a bit stronger
-    if (two4) { drumHit(ctx, g, 'ride1', t + swing, 0.35);                          // skip note
-      drumHit(ctx, g, Math.random() < 0.5 ? 'hat1' : 'hat2', t + 0.005, 0.5); }      // hi-hat foot on 2 and 4
-    drumHit(ctx, g, 'kick', t, 0.22);                                                 // feathered bass drum
+    drumHit(ctx, g, two4 ? 'ride2' : 'ride1', t, two4 ? 0.75 : 0.6, 0.35);                 // ride on every beat, 2 and 4 a bit stronger
+    if (two4) { drumHit(ctx, g, 'ride1', t + swing, 0.35, 0.15);                          // skip note
+      drumHit(ctx, g, Math.random() < 0.5 ? 'hat1' : 'hat2', t + 0.005, 0.5, 0.08); }      // hi-hat foot on 2 and 4
+    drumHit(ctx, g, 'kick', t, 0.22, 0.12);                                                 // feathered bass drum
   }
 }
 // Play chords: list of {sym, beats}. Symbols are in concert pitch. Swung comping with a bass note under each chord.
@@ -1456,7 +1458,8 @@ async function playChords(list, bpm = 132, opts = {}) {
   const bus = masterBus(ctx); out.connect(dry).connect(bus); out.connect(reverb(ctx)).connect(wet).connect(bus);
   const note = Object.keys(PIANO.buf).length ? playSample : playSynth;
   const beat = 60 / bpm, swing = beat * 2 / 3; let t = ctx.currentTime + 0.12, center = 64; const t0 = t;
-  if (wantDrums) playDrums(ctx, out, t0, Math.round(list.reduce((a, c) => a + c.beats, 0)), bpm);
+  const drumOut = EAR.drumOut = ctx.createGain(); drumOut.connect(bus);
+  if (wantDrums) playDrums(ctx, drumOut, t0, Math.round(list.reduce((a, c) => a + c.beats, 0)), bpm);
   for (const { sym, beats } of list) {
     const c = parseChord(sym); if (!c) { t += beats * beat; continue; }
     const v = placeVoicing(c.root, voicing(c.q), center); center = v.c;
@@ -1525,7 +1528,8 @@ function earNew(kind) {
     const [q] = QUALS[Math.floor(Math.random() * QUALS.length)], root = Math.floor(Math.random() * 12);
     EG.answer = q; EG.choices = QUALS.map(x => x[0]); EG.chords = [{ sym: pcName(root, false) + q, beats: 4 }]; EG.root = root; EG.reveal = ''; EG.bpm = 100;
   } else if (kind === 'tune') {
-    const pool = earTunePool(); if (pool.length < 4) { EG.error = 'Name that tune needs at least 4 of your tunes with charts. Mark some tunes as learning, or switch the pool to all your tunes.'; return; }
+    let pool = earTunePool(); if ((S.settings.earPart || 'any') === 'bridge') pool = pool.filter(t => bridgeStart(libEntry(t).b) >= 0);
+    if (pool.length < 4) { EG.error = 'Name that tune needs at least 4 of your tunes with charts. Mark some tunes as learning, or switch the pool to all your tunes.'; return; }
     EG.error = null;
     const t = pool[Math.floor(Math.random() * pool.length)], e = libEntry(t);
     const part = earPart(e, S.settings.earPart || 'any');
@@ -1543,9 +1547,21 @@ function earTunePool() {
   return withChart.filter(t => versionsOf(t).some(v => tuneStatus(v) !== 'new'));
 }
 // A part of a tune: its opening 8 bars, or its bridge (first section not labelled A after the start).
+// A bridge only exists in an AABA-type form: A, A (or A'), the bridge, then A again. A repeated A counts twice.
+function bridgeStart(bars) {
+  const secs = []; bars.forEach((b, i) => { if (i === 0 || b.sec) secs.push({ label: b.sec || 'A', start: i, rep: false }); if (b.rc && secs.length) secs[secs.length - 1].rep = true; });
+  const seq = []; for (const s of secs.filter(s => !/intro|verse/i.test(s.label))) { seq.push(s); if (s.rep) seq.push(s); }
+  if (seq.length >= 4 && seq[2].label !== seq[0].label && seq[3].label === seq[0].label) return seq[2].start;   // AABA, or A A' B A (e.g. Joy Spring)
+  // Labels differ but the music says AABA: the section after the bridge starts with the same chords as the first (e.g. All The Things You Are)
+  const head = i => bars.slice(seq[i].start, seq[i].start + 2).map(b => b.c.join(' ')).join('|');
+  if (seq.length >= 4 && seq[2].label !== seq[0].label && head(3) === head(0) && head(2) !== head(0)) return seq[2].start;
+  // AAB + D.C./D.S. back to the top (last A not written out, e.g. Cherokee)
+  if (seq.length === 3 && seq[0].label === seq[1].label && seq[2].label !== seq[0].label && bars.slice(seq[2].start).some(b => (b.mk || []).some(m => /^D\.[CS]\./.test(m)))) return seq[2].start;
+  return -1;
+}
 function earPart(e, want) {
   const bars = e.b, starts = bars.map((b, i) => b.sec ? i : -1).filter(i => i >= 0);
-  const bridgeIdx = bars.findIndex((b, i) => i > 0 && b.sec && b.sec !== (bars[0].sec || 'A') && !/intro|verse/i.test(b.sec));
+  const bridgeIdx = bridgeStart(bars);
   const pick = want === 'bridge' || (want === 'any' && bridgeIdx > 0 && Math.random() < 0.5) ? (bridgeIdx > 0 ? 'bridge' : 'start') : 'start';
   const from = pick === 'bridge' ? bridgeIdx : Math.max(0, bars.findIndex(b => !/intro|verse/i.test(b.sec || '')));
   return { pick, name: pick === 'bridge' ? 'the bridge' : 'the opening', bars: bars.slice(from, from + 8) };
