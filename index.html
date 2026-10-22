@@ -164,10 +164,11 @@ nav#tabs button.on{color:var(--accent)}
 #metro{position:fixed;left:8px;right:8px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:50;background:var(--surface2);border:1px solid var(--line);
   border-radius:16px;padding:8px 10px;display:none;align-items:center;gap:6px;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:520px;margin:0 auto}
 #metro.on{display:flex}
-#metro input{width:70px;text-align:center;font-weight:700;font-size:1.1rem;padding:6px}
+#metro input{width:56px;text-align:center;font-weight:700;font-size:1.1rem;padding:6px}
 #metro .beat{width:12px;height:12px;border-radius:50%;background:var(--empty);flex:none}
 #metro .beat.hit{background:var(--accent)}
-#metro button{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-weight:650}
+#metro button{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 6px;font-weight:650;font-size:.85rem;min-width:30px}
+#metro{gap:4px!important;padding:8px 6px!important}
 #metro button.play{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-width:44px}
 
 /* sheet */
@@ -181,6 +182,35 @@ nav#tabs button.on{color:var(--accent)}
   color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hide{display:none!important}
+.chart{font-size:.92rem;margin:4px 0}
+.crow{display:grid;grid-template-columns:repeat(4,1fr);border-left:2px solid var(--line)}
+.cbar{position:relative;border-right:2px solid var(--line);border-bottom:1px solid var(--line);padding:15px 4px 6px;min-height:48px}
+.cbar.off{border-right:0;border-bottom:0}
+.cn{position:absolute;top:1px;right:3px;font-size:.6rem;color:var(--muted)}
+.csec{position:absolute;top:2px;left:3px;font-size:.62rem;background:var(--accent);color:var(--accent-ink);border-radius:3px;padding:0 3px;font-weight:700}
+.cend{position:absolute;top:1px;left:22px;font-size:.65rem;color:var(--accent);font-weight:700}
+.cch{font-weight:600;word-break:break-word;line-height:1.25}
+.crep{color:var(--muted);font-weight:400;margin:0 2px}
+.qq{display:inline-block;background:var(--accent);color:var(--accent-ink);border-radius:5px;padding:0 7px;font-weight:800}
+.qh{color:var(--muted)}
+.qok{color:var(--good)}.qno{color:var(--danger);text-decoration:line-through;text-decoration-thickness:1px}
+.qfb .qno{text-decoration:none}
+.qfb{min-height:1.6em;margin:8px 0;font-size:1.05rem}
+.qroots,.qfams{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:6px}
+.qfams{grid-template-columns:repeat(3,1fr)}
+.qroots button,.qfams button,.earopts button{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:10px 2px;font-weight:650}
+.qroots button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.earopts{display:grid;gap:8px;margin-top:12px}
+.earopts button{padding:13px 10px;text-align:left}
+.earopts button.right{background:var(--good);color:#0d2416}.earopts button.wrong{background:var(--danger);color:#fff}
+.cprow{display:flex;align-items:center;gap:10px;padding:7px 2px}
+.cprow input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.duebadge{font-size:.7rem;background:var(--accent);color:var(--accent-ink);border-radius:6px;padding:1px 6px;vertical-align:1px}
+th.cph{font-size:.7rem;font-weight:500;color:var(--muted)}
+.rhbox{background:var(--surface2);border-radius:12px;padding:6px;max-height:46vh;overflow-y:auto}
+.rhline+.rhline{margin-top:4px}
+.rhpad{width:100%;height:150px;margin-top:12px;border-radius:16px;border:2px dashed var(--line);background:var(--surface2);font-size:1.4rem;font-weight:800;color:var(--muted);touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.rhpad.hit{background:var(--accent);color:var(--accent-ink)}
 .nt{height:1.05em;width:.6em;vertical-align:-.18em;margin-right:1px}
 body.metro-on #sheet .panel{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
 button.krow{width:100%;border:0;text-align:left}
@@ -212,9 +242,11 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
 <main id="view"></main>
 <div id="metro">
   <span class="beat" id="beat"></span>
-  <button data-act="mStep" data-d="-4">−</button>
+  <button data-act="mStep" data-d="-5">−5</button>
+  <button data-act="mStep" data-d="-1">−1</button>
   <input id="mBpm" type="number" inputmode="numeric" min="20" max="400" value="120" aria-label="Metronome BPM">
-  <button data-act="mStep" data-d="4">+</button>
+  <button data-act="mStep" data-d="1">+1</button>
+  <button data-act="mStep" data-d="5">+5</button>
   <button data-act="mTap">Tap</button>
   <button class="play" data-act="mPlay" id="mPlay">▶</button>
   <div class="grow"></div>
@@ -225,6 +257,7 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
   <button data-tab="ex"><span>♯</span>Exercises</button>
   <button data-tab="licks"><span>♫</span>Licks</button>
   <button data-tab="tunes"><span>♬</span>Tunes</button>
+  <button data-tab="train"><span>🎧</span>Train</button>
   <button data-tab="more"><span>★</span>Progress</button>
 </nav>
 <div id="sheet"><div class="bk" data-act="closeSheet"></div><div class="panel" id="panel"></div></div>
@@ -258,9 +291,6 @@ const WT = ['Eb-F','E-F#'];
 const NONE = ['—'];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
-const STAGES = ['Melody', 'Changes', 'Soloing'];
-const LEVELS = ['Not started', 'Working on it', 'Solid'];
-const TUNE_STEP_XP = 15;
 
 function defaultLib() {
   const sec = (name, list) => ({ id: slug(name), name, ex: list.map(([n, k]) => ({ id: slug(name + ' ' + n), name: n, keys: [...k] })) });
@@ -336,6 +366,16 @@ function migrate() {
       if (ex.unit == null && match && !/16ths/i.test(ex.name)) ex.unit = 2;
     }
     S.libRev = 5;
+  }
+  if (!S.libRevT) {
+    // old Melody/Changes/Soloing levels -> checkpoints
+    for (const id in S.prog) { const tunes = S.prog[id].tunes || {}; for (const tid in tunes) { const o = tunes[tid]; if (!o.lv) continue;
+      o.cp = o.cp || {}; const now = Date.now();
+      [['m1', 'm2', 'm3'], ['c1', 'c2', 'c3', 'c4'], ['s1', 's2', 's3']].forEach((ids, gi) => { if (o.lv[gi] === 2) ids.forEach(c => o.cp[c] = now); });
+      if (o.lv.some(Boolean)) o.started = true;
+      if (o.cp.m3 && o.cp.c4) o.rv = { ivl: 3, due: now + 3 * DAY, n: 0 };
+      delete o.lv; } }
+    S.libRevT = 7;
   }
   if (S.libRev < 6) {
     for (const l of S.lib.licks) if (l.unit == null) l.unit = 2;   // licks default to half-note tempo
@@ -489,7 +529,7 @@ window.addEventListener('online', () => Sync.now());
 function itemOfKey(k) {
   if (k.startsWith('e:')) return findEx(k.slice(2).split('|')[0])?.ex;
   if (k.startsWith('l:')) return S.lib.licks.find(x => x.id === k.slice(2));
-  if (k.startsWith('t:')) return S.lib.tunes.find(x => x.id === k.slice(2));
+  if (k.startsWith('t:')) return tuneOf(k.slice(2));
 }
 const unitOf = it => it && it.unit === 2 ? 2 : 1;
 // Unit for one stored tempo. Exercise keys can override the exercise's unit.
@@ -539,18 +579,155 @@ function exInfo(ex) {
   return { vals, logged, min, mk, n: ex.keys.length, floor: ex.keys.length >= FLOOR_MIN, full: logged === ex.keys.length };
 }
 const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
-const tuneState = id => P().tunes[id] || { lv: [0, 0, 0], notes: '' };
-const tuneRec = id => { const p = P(); return p.tunes[id] = p.tunes[id] || { lv: [0, 0, 0], notes: '' }; };
-// Learned = melody and changes solid. Soloing keeps growing after that.
-const tuneStatus = id => { const lv = tuneState(id).lv; return lv[0] === 2 && lv[1] === 2 ? 'done' : lv.some(Boolean) ? 'learning' : 'new'; };
-const tunePips = id => `<span class="pips" title="${STAGES.join(' · ')}">${tuneState(id).lv.map(v => `<i class="${v === 2 ? 'on' : v === 1 ? 'w' : ''}"></i>`).join('')}</span>`;
-function setTuneLevel(id, stage, lv) {
-  const r = tuneRec(id), prev = r.lv[stage]; if (prev === lv) return;
-  const wasDone = tuneStatus(id) === 'done';
-  r.lv[stage] = lv; touch('t:' + id); save();
-  if (lv > prev) toast(STAGES[stage] + ': ' + LEVELS[lv].toLowerCase() + '  +' + TUNE_STEP_XP * (lv - prev) + ' XP' + (!wasDone && tuneStatus(id) === 'done' ? '  · Tune learned! 🎶' : ''));
+/* ---------- tunes: keys (versions), checkpoints, spaced review ---------- */
+const CP_GROUPS = [
+  ['Melody', [['m1', 'Sing it'], ['m2', 'Play from the chart'], ['m3', 'Play from memory']]],
+  ['Changes', [['c1', 'Roots through the form'], ['c2', 'Guide tones (3rds & 7ths)'], ['c3', 'Arpeggios'], ['c4', 'All from memory']]],
+  ['Soloing', [['s1', 'Solo 1 chorus'], ['s2', 'Solo 3 choruses'], ['s3', 'Play-along at target tempo']]],
+];
+const CP_ALL = CP_GROUPS.flatMap(([g, l]) => l.map(([id, n]) => ({ g, id, n })));
+const CP_XP = 10, REVIEW_XP = 5;
+// A tune can be learned in several keys. Version id = tune id (main key) or "tuneid@Key".
+const tuneOf = vid => S.lib.tunes.find(x => x.id === String(vid).split('@')[0]);
+const vKey = vid => String(vid).includes('@') ? String(vid).split('@')[1] : null;
+const versionsOf = t => [t.id, ...(t.keys || []).map(k => t.id + '@' + k)];
+const allVersions = () => S.lib.tunes.flatMap(versionsOf);
+const tuneState = vid => P().tunes[vid] || { cp: {}, notes: '' };
+const tuneRec = vid => { const p = P(); const r = p.tunes[vid] = p.tunes[vid] || { cp: {}, notes: '' }; r.cp = r.cp || {}; return r; };
+// Learned = melody and changes both from memory. Soloing keeps growing after that.
+const tuneStatus = vid => { const r = tuneState(vid), cp = r.cp || {}; return cp.m3 && cp.c4 ? 'done' : (r.started || Object.keys(cp).length) ? 'learning' : 'new'; };
+const reviewDue = vid => tuneStatus(vid) === 'done' && (tuneState(vid).rv?.due || 0) <= Date.now();
+const tunePips = vid => { const cp = tuneState(vid).cp || {};
+  return `<span class="pips" title="Melody · Changes · Soloing">${CP_GROUPS.map(([, l]) => { const n = l.filter(([id]) => cp[id]).length; return `<i class="${n === l.length ? 'on' : n ? 'w' : ''}"></i>`; }).join('')}</span>`; };
+const vLabel = vid => { const t = tuneOf(vid), k = vKey(vid); return t ? t.name + (k ? ' (in ' + k + ')' : '') : vid; };
+function setCheckpoint(vid, id, on) {
+  const r = tuneRec(vid), was = tuneStatus(vid);
+  if (on) r.cp[id] = Date.now(); else delete r.cp[id];
+  touch('t:' + vid);
+  const now = tuneStatus(vid), learned = now === 'done' && was !== 'done';
+  if (learned && !r.rv) r.rv = { ivl: 3, due: Date.now() + 3 * DAY, n: 0 };
+  save();
+  if (on) toast(CP_ALL.find(c => c.id === id).n + ' ✓  +' + CP_XP + ' XP' + (learned ? '  · Tune learned! 🎶 First review in 3 days' : ''));
   checkBadges();
 }
+// rating: 0 shaky, 1 OK, 2 solid. The gap to the next review shrinks or grows accordingly.
+function applyReview(vid, rating) {
+  const r = tuneRec(vid), rv = r.rv = r.rv || { ivl: 3, n: 0 };
+  rv.ivl = rating === 0 ? Math.max(1, Math.round(rv.ivl * 0.4)) : rating === 1 ? Math.max(3, Math.round(rv.ivl * 1.5)) : Math.max(7, Math.round(rv.ivl * 2.5));
+  rv.due = Date.now() + rv.ivl * DAY; rv.n = (rv.n || 0) + 1; rv.last = Date.now();
+  touch('t:' + vid); save(); checkBadges();
+  return rv.ivl;
+}
+const dueText = vid => { const d = tuneState(vid).rv?.due; if (!d) return ''; const days = Math.ceil((d - Date.now()) / DAY);
+  return days <= 0 ? 'review due' : 'next review in ' + days + ' day' + (days === 1 ? '' : 's'); };
+
+/* ---------- chords, keys, transposition ---------- */
+const PCS = { C: 0, 'B#': 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, Fb: 4, F: 5, 'E#': 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11, Cb: 11 };
+const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'], SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const MAJOR_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'], MINOR_KEYS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
+const keyRoot = k => k.replace(/m$/, ''), isMinorKey = k => /m$/.test(k);
+const mod12 = n => ((n % 12) + 12) % 12;
+const sharpKey = k => { const pc = PCS[keyRoot(k)]; return isMinorKey(k) ? [4, 11, 6, 1, 8].includes(pc) : [7, 2, 9, 4, 11, 6].includes(pc); };
+const pcName = (pc, sharp) => (sharp ? SHARPS : FLATS)[mod12(pc)];
+const transposeKeyName = (k, semis) => (isMinorKey(k) ? MINOR_KEYS : MAJOR_KEYS)[mod12(PCS[keyRoot(k)] + semis)];
+function parseChord(sym) { const m = /^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/.exec(sym || ''); return m ? { root: PCS[m[1]], q: m[2], bass: m[3] ? PCS[m[3]] : null } : null; }
+// Broad chord family used for grading: extensions and bass notes don't matter.
+function family(q) {
+  if (q.includes('ø')) return 'ø';
+  if (q.includes('°')) return '°';
+  if (/^m\(maj/.test(q)) return 'mΔ';
+  if (/^m(?!aj)/.test(q)) return /^m6/.test(q) ? 'm6' : 'm';
+  if (q.includes('sus')) return 'sus';
+  if (q === '+') return '+';
+  if (q === '' || /^(maj|6|add)/.test(q)) return 'maj';
+  return '7';
+}
+const FAMS = [['maj', 'maj7 / 6'], ['7', '7'], ['m', 'm7'], ['m6', 'm6'], ['mΔ', 'm(maj7)'], ['ø', 'ø7'], ['°', '°7'], ['sus', 'sus'], ['+', '+']];
+const famSym = f => ({ maj: 'maj7', '7': '7', m: 'm7', m6: 'm6', 'mΔ': 'm(maj7)', 'ø': 'ø7', '°': '°7', sus: '7sus', '+': '+' })[f];
+function transposeSym(sym, semis, sharp) { const c = parseChord(sym); if (!c) return sym;
+  return pcName(c.root + semis, sharp) + c.q + (c.bass != null ? '/' + pcName(c.bass + semis, sharp) : ''); }
+
+/* ---------- chart library (1,349 iReal charts, alto/Eb) ---------- */
+let LIB = null, libPromise = null;
+const normT = s => String(s).toLowerCase().replace(/^the /, '').replace(/[^a-z0-9]/g, '');
+function loadLibrary() {
+  return libPromise || (libPromise = fetch('library.json').then(r => r.json()).then(d => {
+    LIB = d; LIB.byNorm = new Map(d.map(e => [normT(e.t), e])); linkCharts(); return d;
+  }).catch(e => { libPromise = null; throw e; }));
+}
+function linkCharts() {
+  let changed = false;
+  for (const t of S.lib.tunes) if (t.chart === undefined) {
+    const e = LIB.byNorm.get(normT(t.name)); t.chart = e ? e.t : null; changed = true;
+    if (e) { t.style = t.style || e.s; t.composer = t.composer || e.c; }
+  }
+  if (changed) save(true);
+}
+const libEntry = t => t.custom || (LIB && t.chart ? LIB.byNorm.get(normT(t.chart)) : null);
+const hasChart = t => !!t.custom || !!t.chart;
+// Instrument transposition. Library charts are Eb (alto) parts.
+const TRANSP = { Eb: 0, Bb: 5, C: 3 }, TO_CONCERT = { Eb: 3, Bb: 10, C: 0 };
+const instTr = () => curInst()?.tr || 'Eb';
+function chartFor(vid) {
+  const t = tuneOf(vid), e = t && libEntry(t); if (!e) return null;
+  const shift0 = t.custom ? 0 : TRANSP[instTr()];          // custom charts are typed in the player's own key
+  const mainKey = transposeKeyName(t.chartKey || e.k, shift0);
+  const key = vKey(vid) || mainKey;
+  const semis = shift0 + mod12(PCS[keyRoot(key)] - PCS[keyRoot(mainKey)]);
+  const sharp = sharpKey(key);
+  return { key, mainKey, ts: e.ts || '4/4', toConcert: TO_CONCERT[instTr()], bars: e.b.map(b => ({ ...b, c: b.c.map(x => transposeSym(x, semis, sharp)) })) };
+}
+function chartHtml(ch, view) {
+  const rows = []; let row = [];
+  ch.bars.forEach((b, bi) => { if ((b.sec && row.length) || row.length === 4) { rows.push(row); row = []; } row.push({ b, bi }); });
+  if (row.length) rows.push(row);
+  return `<div class="chart">${rows.map(r => `<div class="crow">${r.map(({ b, bi }) => `<div class="cbar">${b.sec ? `<span class="csec">${esc(b.sec)}</span>` : ''}${b.end ? `<span class="cend">${b.end}.</span>` : ''}<span class="cn">${b.n}</span>
+    <div class="cch">${b.ro ? '<span class="crep">‖:</span>' : ''}${b.c.map((x, ci) => view ? view(bi, ci, x, b) : (b.rep ? (ci ? '' : '%') : esc(x))).join(' ')}${b.rc ? '<span class="crep">:‖</span>' : ''}</div></div>`).join('')}${'<div class="cbar off"></div>'.repeat(4 - r.length)}</div>`).join('')}</div>`;
+}
+function parseCustomChart(text) {
+  const bars = []; let n = 0, sec = null;
+  for (let line of text.split('\n')) {
+    line = line.trim(); if (!line) continue;
+    const m = /^\[?([A-Za-z][A-Za-z0-9 ]{0,12}?)\]?\s*:\s*(.*)$/.exec(line);
+    if (m && !/^[A-G][#b]?(m|maj|7|6|9|ø|°|dim|sus|\+|-|$)/.test(m[1].trim() + ' ') || (m && m[1].length > 2)) { sec = m[1].trim(); line = m[2]; }
+    for (const cell of line.split('|')) {
+      const toks = cell.trim().split(/\s+/).filter(Boolean); if (!toks.length) continue;
+      const b = { n: ++n, c: [] }; if (sec) { b.sec = sec; sec = null; }
+      for (let x of toks) {
+        if (x === '%' && bars.length) { b.c = [...bars[bars.length - 1].c]; b.rep = 1; continue; }
+        x = x.replace('Δ', 'maj').replace(/^([A-G][#b]?)-/, '$1m').replace('m7b5', 'ø7').replace(/dim7?|o7?$/, '°7').replace(/h7?$/, 'ø7');
+        if (/^[A-G][#b]?/.test(x)) b.c.push(x);
+      }
+      if (b.c.length) bars.push(b); else n--;
+    }
+  }
+  return bars;
+}
+
+/* ---------- smart changes quiz ----------
+   Walks the form in order ("what comes next?"). Chords that follow from what's already shown are not asked:
+   repeated bars, a chord equal to the previous one, a V7 after its ii, and repeats of a section already answered. */
+function quizSlots(ch) {
+  const slots = [], first = {}; let secName = '_', pos = 0, prev = null;
+  ch.bars.forEach((b, bi) => b.c.forEach((x, ci) => {
+    const c = parseChord(x); if (!c) return;
+    if (ci === 0 && b.sec) { secName = b.sec; pos = 0; }
+    const s = { bi, ci, x, root: c.root, fam: family(c.q) };
+    const occ = first[secName] = first[secName] || { slots: [], done: false, owner: bi };
+    const repeatOf = occ.done ? occ.slots[pos] : null;
+    if (!occ.done) occ.slots.push(s);
+    if (b.rep || (prev && prev.root === s.root && prev.fam === s.fam)) s.imp = 'skip';
+    else if (repeatOf && repeatOf.root === s.root && repeatOf.fam === s.fam) s.imp = 'rpt';
+    else if (!prev || (ci === 0 && b.sec)) s.imp = 'key';
+    else { const iv = mod12(s.root - prev.root);
+      s.imp = (['m', 'ø'].includes(prev.fam) && s.fam === '7' && iv === 5) ? 'easy' : (prev.fam === '7' && (iv === 5 || iv === 11)) ? 'std' : 'key'; }
+    slots.push(s); prev = s; pos++;
+    const nb = ch.bars[bi + 1]; if (ci === b.c.length - 1 && nb && nb.sec) { occ.done = true; }
+  }));
+  return slots;
+}
+const QUIZ_LEVELS = { key: ['key'], std: ['key', 'std'], all: ['key', 'std', 'easy', 'rpt'] };
+const QUIZ_LEVEL_NAMES = { key: 'Key moments', std: 'Standard', all: 'Every change' };
 
 function totalMinutes(p = P()) { return p.sessions.reduce((a, s) => a + s.min, 0); }
 const fmtHM = h => { const m = Math.round(h * 60); return Math.floor(m / 60).toLocaleString() + ' h ' + (m % 60) + ' m'; };
@@ -576,7 +753,8 @@ const BADGE_XP = 50;
 function xpCalc(p = P()) {
   let xp = totalMinutes(p);
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
-  for (const id in p.tunes) xp += TUNE_STEP_XP * (p.tunes[id].lv || []).reduce((a, b) => a + b, 0);
+  for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0) + (r.qz?.xp || 0); }
+  xp += p.train?.xp || 0;
   xp += BADGE_XP * Object.keys(p.badges || {}).filter(id => !(p.badgesNoXp || {})[id]).length;
   return xp;
 }
@@ -591,8 +769,11 @@ function badgeList() {
   const maxFloor = floors.length ? Math.max(...floors) : 0;
   const pbs = p.hist.filter(x => x.prev != null && x.bpm > x.prev).length;
   const licks = S.lib.licks.filter(l => p.bpm['l:' + l.id]).length;
-  const memo = S.lib.tunes.filter(t => tuneStatus(t.id) === 'done').length;
-  const tfull = S.lib.tunes.filter(t => tuneState(t.id).lv.every(v => v === 2)).length;
+  const vers = allVersions(), memo = vers.filter(v => tuneStatus(v) === 'done').length;
+  const tfull = vers.filter(v => CP_ALL.every(c => tuneState(v).cp?.[c.id])).length;
+  const reviews = vers.reduce((a, v) => a + (tuneState(v).rv?.n || 0), 0);
+  const quizzes = vers.reduce((a, v) => a + (tuneState(v).qz?.n || 0), 0), perfect = vers.some(v => tuneState(v).qz?.perfect);
+  const earOk = p.train?.ok || 0;
   const B = [
     ['first', '🎷', 'First session', 'Log a practice session', p.sessions.length >= 1],
     ['s10', '📅', 'Regular', '10 sessions', p.sessions.length >= 10],
@@ -607,11 +788,16 @@ function badgeList() {
     ['pb100', '🏔️', 'Summit', '100 tempo records broken', pbs >= 100],
     ['l5', '🎼', 'Lick collector', '5 licks at tempo', licks >= 5],
     ['l24', '📚', 'Lick book', '24 licks at tempo', licks >= 24],
-    ['t1', '🎵', 'First tune', 'Learn a tune (melody and changes solid)', memo >= 1],
+    ['t1', '🎵', 'First tune', 'Learn a tune (melody and changes from memory)', memo >= 1],
     ['t5', '🎶', 'Set list', '5 tunes learned', memo >= 5],
     ['t10', '🎼', 'Repertoire', '10 tunes learned', memo >= 10],
     ['t25', '📖', 'Real book', '25 tunes learned', memo >= 25],
-    ['tfull', '🌟', 'Full treatment', 'Melody, changes and soloing all solid', tfull >= 1],
+    ['tfull', '🌟', 'Full treatment', 'Every checkpoint on a tune', tfull >= 1],
+    ['rev10', '🔁', 'Keeping it fresh', '10 tune reviews', reviews >= 10],
+    ['quiz1', '🧠', 'Chart reader', 'Finish a changes quiz', quizzes >= 1],
+    ['quizP', '💯', 'Perfect changes', '100% on an "every change" quiz', perfect],
+    ['ear50', '🎧', 'Good ears', '50 ear-training answers right', earOk >= 50],
+    ['ear250', '👂', 'Big ears', '250 ear-training answers right', earOk >= 250],
     ['inst2', '🎺', 'Doubler', 'Add a second instrument', S.inst.length >= 2],
     ...S.lib.sections.map(sec => ['sec:' + sec.id, '🏆', sec.name, 'Category complete – every exercise in every key', secDone(sec)]),
   ];
@@ -647,14 +833,15 @@ function pickFor(t, items) {
   }
   if (t === 'lick') { const c = best(S.lib.licks.filter(l => !inPlan.has(l.id)).map(l => ({ l, s: staleScore(p.touched['l:' + l.id]) })));
     return c && { t, id: c.l.id }; }
-  // Pick a kind of tune first (learning 40%, not started 40%, review of learned 20%), then the most neglected of that kind.
-  const pool = S.lib.tunes.filter(x => !inPlan.has(x.id));
-  const kinds = [['learning', 40], ['new', 40], ['done', 20]].filter(([k]) => pool.some(x => tuneStatus(x.id) === k));
+  // Tunes: pick a kind first (review due 45, learning 35, not started 30 – only kinds that exist), then the most pressing of that kind.
+  const kindOf = v => reviewDue(v) ? 'due' : tuneStatus(v);
+  const pool = allVersions().filter(v => !inPlan.has(v) && kindOf(v) !== 'done');
+  const kinds = [['due', 45], ['learning', 35], ['new', 30]].filter(([k]) => pool.some(v => kindOf(v) === k));
   if (!kinds.length) return null;
   let r = Math.random() * kinds.reduce((a, k) => a + k[1], 0), kind = kinds[0][0];
   for (const [k, w] of kinds) { if ((r -= w) < 0) { kind = k; break; } }
-  const c = best(pool.filter(x => tuneStatus(x.id) === kind).map(x => ({ x, s: staleScore(p.touched['t:' + x.id]) })));
-  return c && { t, id: c.x.id };
+  const c = best(pool.filter(v => kindOf(v) === kind).map(v => ({ v, s: kind === 'due' ? (Date.now() - tuneState(v).rv.due) / DAY + Math.random() * 5 : staleScore(p.touched['t:' + v]) })));
+  return c && { t, id: c.v };
 }
 function makePlan() {
   const items = [], sz = planSize();
@@ -693,7 +880,9 @@ function vHome() {
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${Tk(exKey(o.ex, it.key), b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
-    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; if (t.tempo && p.bpm['t:' + t.id]) key = ` <small>${T(t, p.bpm['t:' + t.id])}</small>` + key; }
+    if (it.t === 'tune') { const t = tuneOf(it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(vLabel(it.id)); const st = tuneStatus(it.id), nx = CP_ALL.find(c => !tuneState(it.id).cp?.[c.id]);
+      key = st === 'done' ? ' <small>review due</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>next: ${esc(nx ? nx.n.toLowerCase() : '')}</small>`; done = dayKey(p.touched['t:' + it.id] || 0) === today;
+      if (t.tempo && p.bpm['t:' + it.id]) key = ` <small>${Tk('t:' + it.id, p.bpm['t:' + it.id])}</small>` + key; }
     return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
       <button class="iconbtn" data-act="planSwap" data-i="${idx}" title="Suggest something else" aria-label="Swap">⇄</button><button class="iconbtn" data-act="planDel" data-i="${idx}" title="Remove" aria-label="Remove">✕</button></li>`;
   }).join('') || '<li class="muted">Empty – add something below.</li>';
@@ -723,7 +912,7 @@ function vHome() {
 function itemLabel(k) {
   if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'); const o = findEx(id); return o ? `${o.sec.name} · ${o.ex.name}${key !== '—' ? ' · ' + key : ''}` : k; }
   if (k.startsWith('l:')) { const l = S.lib.licks.find(x => x.id === k.slice(2)); return l ? l.name : k; }
-  if (k.startsWith('t:')) { const t = S.lib.tunes.find(x => x.id === k.slice(2)); return t ? t.name : k; }
+  if (k.startsWith('t:')) return vLabel(k.slice(2));
   return k;
 }
 
@@ -760,14 +949,15 @@ function vGrid() {
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)} ${unitBtn('lick', l)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${dv('l:' + l.id, p.bpm['l:' + l.id])}" tabindex="${++tabIdx}"></td></tr>`).join('');
-  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)} ${unitBtn('tune', t)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${dv('t:' + t.id, p.bpm['t:' + t.id])}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
+  const tuneRows = S.lib.tunes.map(t => { const cp = tuneState(t.id).cp || {}; return `<tr><th>${esc(t.name)} ${unitBtn('tune', t)}</th>${CP_ALL.map(c => `<td><input type="checkbox" data-tcp="${esc(t.id)}" data-c="${c.id}" ${cp[c.id] ? 'checked' : ''} title="${esc(c.g + ': ' + c.n)}"></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${dv('t:' + t.id, p.bpm['t:' + t.id])}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
   return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
     <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Tap the note next to a name to switch the whole row between quarter and half notes. For a single key, type e.g. <b>110h</b> (half notes) or <b>220q</b> (quarter notes); a note in a cell means that key differs from the rest of its row (click it to undo). Easiest on a computer – when you're done, use
     <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" data-act="gotoTab" data-tab2="ex">← Back to exercises</button></div></section>
     ${sections}
     <section class="card"><h3>Licks</h3><div class="gwrap"><table class="grid"><thead><tr><th></th><th>BPM (all 12 keys)</th></tr></thead><tbody>${lickRows}</tbody></table></div></section>
-    <section class="card"><h3>Tunes</h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${STAGES.map(s => `<th>${s}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
+    <section class="card"><h3>Tunes <small>(main key)</small></h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${CP_GROUPS.map(([g, l]) => `<th colspan="${l.length}" style="text-align:center">${g}</th>`).join('')}<th></th><th></th></tr>
+      <tr><th></th>${CP_ALL.map(c => `<th class="cph" title="${esc(c.n)}">${esc({ m1: 'Sing', m2: 'Chart', m3: 'Mem', c1: 'Roots', c2: 'Guide', c3: 'Arps', c4: 'Mem', s1: '1×', s2: '3×', s3: 'Tempo' }[c.id])}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
 }
 function bindGrid() {
   $$('#view input[data-gkey]').forEach(inp => inp.addEventListener('change', () => {
@@ -783,7 +973,7 @@ function bindGrid() {
       if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? Tk(exKey(o.ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
   }));
   $$('#view input[data-ttempo]').forEach(cb => cb.addEventListener('change', () => { S.lib.tunes.find(x => x.id === cb.dataset.ttempo).tempo = cb.checked; save(); }));
-  $$('#view select[data-tstage]').forEach(sel => sel.addEventListener('change', () => setTuneLevel(sel.dataset.tstage, +sel.dataset.i, +sel.value)));
+  $$('#view input[data-tcp]').forEach(cb => cb.addEventListener('change', () => setCheckpoint(cb.dataset.tcp, cb.dataset.c, cb.checked)));
 }
 
 function vLicks() {
@@ -795,13 +985,19 @@ function vLicks() {
 }
 function vTunes() {
   const p = P(); const tags = allTags();
-  const filters = [['all', 'All'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Learned'], ['tempo', 'Tempo tunes'], ...tags.map(t => ['#' + t, '#' + t])];
-  const list = S.lib.tunes.filter(t => tuneFilter === 'all' ? true : tuneFilter.startsWith('#') ? splitTags(t.tags).includes(tuneFilter.slice(1)) : (tuneFilter === 'tempo' ? !!t.tempo : tuneStatus(t.id) === tuneFilter));
-  const counts = { learning: 0, done: 0 }; S.lib.tunes.forEach(t => { const s = tuneStatus(t.id); if (s in counts) counts[s]++; });
-  return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}</button>`).join('')}</div>
-    <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} learned · ${S.lib.tunes.length} total · dots: melody, changes, soloing</p>
-    ${list.map(t => { const b = p.bpm['t:' + t.id]; const last = p.touched['t:' + t.id];
-      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}<br><small>${[t.style, last ? 'played ' + ago(last) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${t.tempo ? `<b style="color:${b ? 'var(--accent)' : 'var(--muted)'};margin-right:4px">${b ? T(t, b) : NOTE(unitOf(t)) + '—'}</b>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
+  const filters = [['all', 'All'], ['due', 'Review due'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Learned'], ['tempo', 'Tempo tunes'], ...tags.map(t => ['#' + t, '#' + t])];
+  const match = t => { const vs = versionsOf(t);
+    if (tuneFilter === 'all') return true; if (tuneFilter === 'tempo') return !!t.tempo; if (tuneFilter.startsWith('#')) return splitTags(t.tags).includes(tuneFilter.slice(1));
+    if (tuneFilter === 'due') return vs.some(reviewDue); return vs.some(v => tuneStatus(v) === tuneFilter); };
+  const list = S.lib.tunes.filter(match);
+  const vs = allVersions(), nDue = vs.filter(reviewDue).length;
+  const counts = { learning: vs.filter(v => tuneStatus(v) === 'learning').length, done: vs.filter(v => tuneStatus(v) === 'done').length };
+  return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}${k === 'due' && nDue ? ' · ' + nDue : ''}</button>`).join('')}</div>
+    <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} learned · ${nDue} review${nDue === 1 ? '' : 's'} due · dots: melody, changes, soloing</p>
+    ${list.map(t => { const b = p.bpm['t:' + t.id]; const last = Math.max(...versionsOf(t).map(v => p.touched['t:' + v] || 0));
+      const extra = (t.keys || []).length ? 'also in ' + t.keys.join(', ') : '';
+      const due = versionsOf(t).some(reviewDue);
+      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}${due ? ' <span class="duebadge">review</span>' : ''}<br><small>${[t.style, extra, last ? 'played ' + ago(last) : '', hasChart(t) ? '' : 'no chart'].filter(Boolean).map(esc).join(' · ')}</small></span>${t.tempo ? `<b style="color:${b ? 'var(--accent)' : 'var(--muted)'};margin-right:4px">${b ? T(t, b) : NOTE(unitOf(t)) + '—'}</b>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
     <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
 }
 function vMore() {
@@ -844,7 +1040,7 @@ const curInst = () => S.inst.find(i => i.id === S.cur);
 
 function render() {
   const v = $('#view');
-  v.innerHTML = tab === 'home' ? vHome() : tab === 'ex' ? vEx() : tab === 'grid' ? vGrid() : tab === 'licks' ? vLicks() : tab === 'tunes' ? vTunes() : vMore();
+  v.innerHTML = tab === 'home' ? vHome() : tab === 'ex' ? vEx() : tab === 'grid' ? vGrid() : tab === 'licks' ? vLicks() : tab === 'tunes' ? vTunes() : tab === 'train' ? vTrain() : vMore();
   v.classList.toggle('wide', tab === 'grid');
   if (tab === 'grid') bindGrid();
   $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'grid' ? 'ex' : tab)));
@@ -855,6 +1051,7 @@ function render() {
     f.oninput = () => { exFilterVal = f.value; applyExFilter(); };
     $$('details.sec').forEach(d => d.addEventListener('toggle', () => d.open ? openSecs.add(d.dataset.sec) : openSecs.delete(d.dataset.sec)));
   }
+  if (tab === 'train') { const r = $('#rhBpm'); if (r) { r.oninput = () => { $('#rhBpmV').textContent = r.value; }; r.onchange = () => { S.settings.rhBpm = +r.value; save(true); }; } }
   if (tab === 'more') {
     const setPrior = () => { P().priorHours = priorFrom($('#priorH').value, $('#priorM').value); save(); checkBadges(); render(); };
     $('#priorH').onchange = setPrior; $('#priorM').onchange = setPrior;
@@ -964,39 +1161,105 @@ function sheetLick(id) {
   $('#lickNotes').onchange = e => { l.notes = e.target.value; save(); };
 }
 
-function sheetTune(id) {
-  const t = S.lib.tunes.find(x => x.id === id); if (!t) return; const key = 't:' + t.id; const p = P();
-  const ts = tuneState(id);
-  const stageHtml = () => STAGES.map((s, i) => `<div class="stage"><b>${s}</b><div class="lvl3">${LEVELS.map((L, v) =>
-    `<button data-act="tuneLv" data-id="${esc(id)}" data-i="${i}" data-v="${v}" class="${tuneState(id).lv[i] === v ? 'on' : ''}">${L}</button>`).join('')}</div></div>`).join('');
+function sheetTune(vid, opts = {}) {
+  const t = tuneOf(vid); if (!t) return; const id = t.id; const key = 't:' + vid; const p = P();
+  const ts = tuneState(vid), st = tuneStatus(vid), ch = chartFor(vid);
+  const vers = versionsOf(t);
+  const keyName = v => vKey(v) || (chartFor(t.id)?.mainKey || 'main key');
+  const tabs = `<div class="chips" style="margin:6px 0 8px">${vers.map(v => `<button class="chip ${v === vid ? 'on' : ''}" data-act="openTune" data-id="${esc(v)}">${esc(keyName(v))}${reviewDue(v) ? ' 🔁' : ''}</button>`).join('')}<button class="chip" data-act="addTuneKey" data-id="${esc(id)}">+ key</button></div>`;
+  const cpHtml = CP_GROUPS.map(([g, l]) => `<div class="stage"><b>${g}</b>${l.map(([cid, n]) => `<label class="cprow"><input type="checkbox" data-cp="${cid}" ${ts.cp?.[cid] ? 'checked' : ''}><span class="grow">${n}</span>${ts.cp?.[cid] ? `<small>${new Date(ts.cp[cid]).toLocaleDateString()}</small>` : ''}</label>`).join('')}</div>`).join('');
+  const review = st === 'done' ? `<div class="card" style="background:var(--surface2);margin:8px 0"><b>${reviewDue(vid) ? '🔁 Review due' : '🔁 ' + esc(dueText(vid))}</b>
+      <p class="muted" style="margin:4px 0 8px;font-size:.9rem">Play it through from memory, then rate how it went. Shaky brings it back soon; solid pushes it further out.</p>
+      <div class="lvl3"><button data-act="review" data-id="${esc(vid)}" data-r="0">Shaky</button><button data-act="review" data-id="${esc(vid)}" data-r="1">OK</button><button data-act="review" data-id="${esc(vid)}" data-r="2">Solid</button></div></div>` : '';
+  const qz = ts.qz;
+  const chartBox = hasChart(t) ? `<div class="row wrap" style="margin:10px 0"><button class="btn primary grow" data-act="quizStart" data-id="${esc(vid)}">🧠 Quiz the changes</button><button class="btn grow" data-act="showChart" data-id="${esc(vid)}">${opts.chart ? 'Hide chart' : 'Show chart'}</button></div>
+      ${qz ? `<small class="muted">Changes quiz: last ${qz.last}% · best ${qz.best}% · ${qz.n} done</small>` : ''}
+      ${opts.chart && ch ? `<div style="margin-top:8px">${chartHtml(ch)}</div><div class="row" style="margin-top:6px"><small class="muted grow">Key ${esc(ch.key)}${t.custom ? ' · typed in by you' : ' · from your iReal export'}</small>${vid === id && !t.custom ? `<button class="btn sm" data-act="setChartKey" data-id="${esc(id)}">Wrong key?</button>` : ''}${t.custom ? `<button class="btn sm" data-act="editChart" data-id="${esc(id)}">Edit</button>` : ''}</div>` : ''}`
+    : `<div class="card" style="background:var(--surface2);margin:10px 0"><b>No chart for this tune</b><p class="muted" style="margin:4px 0 8px;font-size:.9rem">It isn't in your iReal export under this name. You can search the library or type the changes in.</p>
+      <div class="row wrap"><button class="btn sm" data-act="findChart" data-id="${esc(id)}">Search library</button><button class="btn sm" data-act="editChart" data-id="${esc(id)}">Type in changes</button></div></div>`;
   const tagHtml = () => splitTags(t.tags).map(x => `<span class="tagchip">#${esc(x)}<button data-act="tagDel" data-id="${esc(id)}" data-tag="${esc(x)}" aria-label="Remove tag">✕</button></span>`).join('') || '<small class="muted">No tags yet.</small>';
   openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
-    ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${T(t, p.bpm[key])}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
+    ${tabs}
+    ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${Tk(key, p.bpm[key])}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
     <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">New tempo</label>${unitBtn('tune', t, true)}</div>
     <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
-    <div id="stages">${stageHtml()}</div>
+    ${review}
+    ${chartBox}
+    <div id="cps">${cpHtml}</div>
+    ${st === 'new' ? `<button class="btn" style="width:100%;margin-bottom:8px" data-act="tuneStart" data-id="${esc(vid)}">Start learning this tune</button>` : ''}
     <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
-    <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
+    <label class="f">Notes (form, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
     <div class="sp"></div>
-    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Played it today</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(t.id)}">+ Today's plan</button></div>
-    ${histList(key, () => t.name)}
+    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Played it today</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(vid)}">+ Today's plan</button></div>
+    ${histList(key, () => vLabel(vid))}
     <label class="f">Tags</label><div id="tagbox">${tagHtml()}</div>
     <form class="row" id="tagForm"><input type="text" id="tagIn" list="tagList" placeholder="Add tag, e.g. ballad, gig"><datalist id="tagList">${allTags().map(x => `<option value="${esc(x)}">`).join('')}</datalist><button class="btn" type="submit">Add</button></form>
-    <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(t.id)}">Rename</button><button class="btn sm danger" data-act="delTune" data-id="${esc(t.id)}">Delete</button></div>`);
-  sheetTune.refresh = () => { $('#stages').innerHTML = stageHtml(); $('#tagbox').innerHTML = tagHtml(); };
-  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + Ttxt(t, P().bpm[key]) + '  +10 XP'); sheetTune(id); };
-  $('#tuneTempo').onchange = e => { t.tempo = e.target.checked; save(); sheetTune(id); };
-  $('#tuneNotes').onchange = e => { tuneRec(id).notes = e.target.value; save(); };
+    <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(id)}">Rename</button>${vid !== id ? `<button class="btn sm danger" data-act="delTuneKey" data-id="${esc(vid)}">Remove key ${esc(vKey(vid))}</button>` : ''}<button class="btn sm danger" data-act="delTune" data-id="${esc(id)}">Delete tune</button></div>`);
+  sheetTune.refresh = () => sheetTune(vid, opts);
+  $$('#panel input[data-cp]').forEach(cb => cb.onchange = () => { setCheckpoint(vid, cb.dataset.cp, cb.checked); sheetTune(vid, opts); });
+  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + TtxtK(key, P().bpm[key]) + '  +10 XP'); sheetTune(vid, opts); };
+  $('#tuneTempo').onchange = e => { t.tempo = e.target.checked; save(); sheetTune(vid, opts); };
+  $('#tuneNotes').onchange = e => { tuneRec(vid).notes = e.target.value; save(); };
   $('#tagForm').onsubmit = e => { e.preventDefault(); const v = $('#tagIn').value.trim().toLowerCase().replace(/^#/, ''); if (!v) return;
-    t.tags = splitTags(t.tags + ',' + v).join(', '); $('#tagIn').value = ''; save(); sheetTune.refresh(); };
+    t.tags = splitTags(t.tags + ',' + v).join(', '); save(); sheetTune(vid, opts); };
 }
+// Open a tune once the chart library is ready (so keys and charts show).
+function openTuneSheet(vid, opts) { if (LIB) return sheetTune(vid, opts); sheetTune(vid, opts); loadLibrary().then(() => { if (sheetOpen) sheetTune(vid, opts); }).catch(() => {}); }
 
+/* ---------- quiz UI ---------- */
+let Q = null;
+function quizSetup(vid) {
+  const t = tuneOf(vid);
+  openSheet(`${head('Changes quiz', vLabel(vid))}
+    <p class="muted" style="margin-top:0">The chart is revealed bar by bar. Name each chord when you reach a <b>?</b> – root and type (extensions and bass notes don't count).</p>
+    <label class="f">How much to ask</label>
+    <div class="stages">${Object.entries(QUIZ_LEVEL_NAMES).map(([k, n]) => `<label class="cprow"><input type="radio" name="ql" value="${k}" ${k === (S.settings.quizLevel || 'key') ? 'checked' : ''}><span class="grow"><b>${n}</b><br><small class="muted">${{ key: 'Section starts and chords you can\'t guess from the previous one', std: 'Also where dominants resolve to', all: 'Every chord change, including ii–Vs and repeated sections' }[k]}</small></span></label>`).join('')}</div>
+    <button class="btn primary big" data-act="quizGo" data-id="${esc(vid)}">Start</button>`, endTrain);
+}
+function quizRender() {
+  const sharp = sharpKey(Q.ch.key), cur = Q.pos < Q.ask.length ? Q.ask[Q.pos] : Infinity, done = cur === Infinity;
+  const view = (bi, ci, x, b) => { const si = Q.idx[bi + ':' + ci]; if (si == null) return esc(x);
+    if (si > cur) return '<span class="qh">·</span>';
+    if (si === cur) return '<span class="qq">?</span>';
+    const r = Q.res[si], txt = b.rep ? (ci ? '' : '%') : esc(x);
+    return r === true ? `<span class="qok">${txt}</span>` : r === false ? `<span class="qno">${txt}</span>` : txt; };
+  const right = Object.values(Q.res).filter(v => v).length, answered = Object.keys(Q.res).length;
+  const body = done ? (() => { const pct = Q.ask.length ? Math.round(100 * right / Q.ask.length) : 100;
+      return `<div class="card" style="background:var(--surface2)"><h2>${pct}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${QUIZ_LEVEL_NAMES[Q.level]}</p>${Q.summary || ''}</div>
+      <div class="row"><button class="btn grow" data-act="quizStart" data-id="${esc(Q.vid)}">Again</button><button class="btn grow" data-act="openTune" data-id="${esc(Q.vid)}">Back to tune</button></div>`; })()
+    : `<div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
+      <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${pcName(pc, sharp)}</button>`).join('')}</div>
+      <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
+      <div class="row" style="margin-top:8px"><small class="muted grow">${answered}/${Q.ask.length} · ${right} right</small><button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
+  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + QUIZ_LEVEL_NAMES[Q.level])}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
+  const q = $('#panel .qq'); if (q) q.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+function quizAnswer(pc, fam) {
+  const s = Q.slots[Q.ask[Q.pos]], sharp = sharpKey(Q.ch.key);
+  const ok = pc === s.root && fam === s.fam;
+  Q.res[Q.ask[Q.pos]] = ok;
+  Q.fb = ok ? `<span class="qok">✓ ${esc(s.x)}</span>` : (pc == null ? `It's <b>${esc(s.x)}</b>` : `<span class="qno">✗ ${esc(pcName(pc, sharp) + famSym(fam))}</span> – it's <b>${esc(s.x)}</b>`);
+  Q.pick = null; Q.pos++;
+  if (Q.pos >= Q.ask.length) quizFinish();
+  quizRender();
+}
+function quizFinish() {
+  const right = Object.values(Q.res).filter(v => v).length, pct = Q.ask.length ? Math.round(100 * right / Q.ask.length) : 100;
+  const r = tuneRec(Q.vid), qz = r.qz = r.qz || { n: 0, best: 0, xp: 0 };
+  qz.n++; qz.last = pct; qz.best = Math.max(qz.best || 0, pct); qz.xp = (qz.xp || 0) + 2 * right; qz.at = Date.now();
+  if (pct === 100 && Q.level === 'all') qz.perfect = true;
+  touch('t:' + Q.vid);
+  let summary = `<small>+${2 * right} XP</small>`;
+  if (Q.level !== 'key' && tuneStatus(Q.vid) === 'done') { const ivl = applyReview(Q.vid, pct >= 90 ? 2 : pct >= 70 ? 1 : 0); summary += `<br><small>Counted as a review – next one in ${ivl} day${ivl === 1 ? '' : 's'}.</small>`; }
+  if (pct === 100 && Q.level === 'all' && !r.cp?.c4) summary += `<div style="margin-top:8px"><button class="btn sm" data-act="cpQuick" data-id="${esc(Q.vid)}" data-c="c4">Tick "Changes: all from memory"</button></div>`;
+  Q.summary = summary; save(); checkBadges();
+}
 function pickerSheet(t) {
   const p = P(); let rows;
   if (t === 'ex') rows = S.lib.sections.map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
     return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? Tk(exKey(ex, ex.keys[0]), i.vals[0]) : ''}</small></button>`; }).join('')).join('');
   else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? T(l, p.bpm['l:' + l.id]) : ''}</small></button>`).join('');
-  else rows = S.lib.tunes.map(x => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="grow">${esc(x.name)}</span>${tunePips(x.id)}</button>`).join('');
+  else rows = allVersions().map(v => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}</span>${tunePips(v)}</button>`).join('');
   openSheet(`${head('Add ' + (t === 'ex' ? 'an exercise' : t === 'lick' ? 'a lick' : 'a tune') + ' to today')}
     <input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">${rows}`);
   $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase();
@@ -1073,6 +1336,288 @@ function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent
 function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) mStop(); }
 $('#mBpm').addEventListener('change', e => mSet(e.target.value));
 
+/* ---------- chord playback (ear training) ---------- */
+const EAR = { out: null };
+function audioCtx() { M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (M.ctx.state !== 'running') M.ctx.resume(); return M.ctx; }
+function earStop() { if (EAR.out) { try { EAR.out.gain.setValueAtTime(0, M.ctx.currentTime); EAR.out.disconnect(); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
+function chordTones(q) {
+  const f = family(q);
+  let t = { maj: [4, 7, 11], '7': [4, 7, 10], m: [3, 7, 10], m6: [3, 7, 9], 'mΔ': [3, 7, 11], 'ø': [3, 6, 10], '°': [3, 6, 9], sus: [5, 7, 10], '+': [4, 8] }[f];
+  if (f === 'maj' && /^6/.test(q)) t = [4, 7, 9];
+  if (f === 'm' && !/\d/.test(q)) t = [3, 7, 10];
+  if (f === '7') { if (/alt/.test(q)) t = [4, 10, 13, 20]; else { if (/b9/.test(q)) t = [...t, 13]; if (/#9/.test(q)) t = [...t, 15]; if (/#11/.test(q)) t = [...t, 18]; if (/13/.test(q)) t = [...t, 21]; } }
+  return t;
+}
+function playTone(ctx, out, midi, t, dur, gain) {
+  const fr = 440 * Math.pow(2, (midi - 69) / 12), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), g2 = ctx.createGain();
+  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = fr; o2.frequency.value = fr * 2; g2.gain.value = 0.12;
+  o.connect(g); o2.connect(g2).connect(g); g.connect(out);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(gain * 0.45, t + 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.start(t); o2.start(t); o.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+}
+// Play chords: list of {sym, beats}. Symbols are in concert pitch. Returns total seconds.
+function playChords(list, bpm = 132) {
+  earStop(); const ctx = audioCtx(); const out = EAR.out = ctx.createGain(); out.gain.value = 0.5; out.connect(ctx.destination);
+  let t = ctx.currentTime + 0.1; const beat = 60 / bpm;
+  for (const { sym, beats } of list) {
+    const c = parseChord(sym); if (!c) { t += beats * beat; continue; }
+    const dur = beats * beat * 0.95, bass = 36 + mod12(c.bass != null ? c.bass : c.root);
+    playTone(ctx, out, bass, t, dur, 0.32);
+    const notes = chordTones(c.q).map(iv => { let m = 48 + mod12(c.root + iv); if (m < 53) m += 12; return m; }).sort((a, b) => a - b);
+    notes.forEach(m => playTone(ctx, out, m, t + 0.005, dur, 0.13));
+    t += beats * beat;
+  }
+  return t - ctx.currentTime;
+}
+const barsToChords = (bars, semis) => bars.flatMap(b => b.c.map(x => ({ sym: transposeSym(x, semis, false), beats: 4 / b.c.length })));
+
+/* ---------- away-from-the-horn practice log ---------- */
+const TR = { start: null, kind: null };
+function startTrain(kind) { if (!TR.start) { TR.start = Date.now(); TR.kind = kind; } }
+function endTrain() {
+  earStop(); if (RH.timer) rhStop();
+  if (!TR.start) return; const min = Math.round((Date.now() - TR.start) / 60000);
+  if (min >= 1) { const p = P(); p.away = p.away || []; p.away.push({ t: TR.start, min: Math.min(min, 90), kind: TR.kind }); save(); }
+  TR.start = null;
+}
+function trainScore(ok, kind) { const p = P(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); }
+const awayMinutes = (since = 0) => (P().away || []).filter(a => a.t >= since).reduce((s, a) => s + a.min, 0);
+
+/* ---------- ear training: progressions ---------- */
+// Chords as [semitones above the key, quality]; one inner array per bar.
+const PROGS = [
+  ['ii–V–I (major)', [[[2, 'm7']], [[7, '7']], [[0, 'maj7']], [[0, 'maj7']]]],
+  ['ii–V–i (minor)', [[[2, 'ø7']], [[7, '7b9']], [[0, 'm6']], [[0, 'm6']]]],
+  ['I–vi–ii–V turnaround', [[[0, 'maj7'], [9, 'm7']], [[2, 'm7'], [7, '7']], [[0, 'maj7'], [9, 'm7']], [[2, 'm7'], [7, '7']], [[0, 'maj7']]]],
+  ['iii–VI–ii–V turnaround', [[[4, 'm7'], [9, '7']], [[2, 'm7'], [7, '7']], [[0, 'maj7']], [[0, 'maj7']]]],
+  ['Tritone sub (ii–♭II7–I)', [[[2, 'm7']], [[1, '7']], [[0, 'maj7']], [[0, 'maj7']]]],
+  ['Backdoor (iv–♭VII7–I)', [[[5, 'm7']], [[10, '7']], [[0, 'maj7']], [[0, 'maj7']]]],
+  ['Minor plagal (I–iv6–I)', [[[0, 'maj7']], [[5, 'm6']], [[0, 'maj7']], [[0, 'maj7']]]],
+  ['I–♯I°–ii–V', [[[0, 'maj7'], [1, '°7']], [[2, 'm7'], [7, '7']], [[0, 'maj7']], [[0, 'maj7']]]],
+  ['Rhythm changes bridge', [[[4, '7']], [[4, '7']], [[9, '7']], [[9, '7']], [[2, '7']], [[2, '7']], [[7, '7']], [[7, '7']]]],
+  ['Jazz blues', [[[0, '7']], [[5, '7']], [[0, '7']], [[7, 'm7'], [0, '7']], [[5, '7']], [[6, '°7']], [[0, '7']], [[9, '7']], [[2, 'm7']], [[7, '7']], [[0, '7'], [9, '7']], [[2, 'm7'], [7, '7']]]],
+  ['Minor blues', [[[0, 'm7']], [[5, 'm7']], [[0, 'm7']], [[0, 'm7']], [[5, 'm7']], [[5, 'm7']], [[0, 'm7']], [[0, 'm7']], [[8, '7']], [[7, '7alt']], [[0, 'm7']], [[2, 'ø7'], [7, '7alt']]]],
+  ['Bird blues (opening)', [[[0, 'maj7']], [[11, 'ø7'], [4, '7b9']], [[9, 'm7'], [2, '7']], [[7, 'm7'], [0, '7']], [[5, '7']]]],
+  ['Coltrane changes (Giant Steps)', [[[0, 'maj7'], [3, '7']], [[8, 'maj7'], [11, '7']], [[4, 'maj7']], [[4, 'maj7']]]],
+  ['Ladybird turnaround (I–♭III–♭VI–♭II)', [[[0, 'maj7'], [3, 'maj7']], [[8, 'maj7'], [1, 'maj7']], [[0, 'maj7']]]],
+  ['ii–V–I down a whole step', [[[2, 'm7']], [[7, '7']], [[0, 'maj7']], [[0, 'maj7']], [[0, 'm7']], [[5, '7']], [[10, 'maj7']], [[10, 'maj7']]]],
+  ['Major ii–V–I then relative minor ii–V–i', [[[2, 'm7']], [[7, '7']], [[0, 'maj7']], [[5, 'maj7']], [[11, 'ø7']], [[4, '7b9']], [[9, 'm6']], [[9, 'm6']]]],
+  ['Modal vamp, up a half step', [[[2, 'm7']], [[2, 'm7']], [[2, 'm7']], [[2, 'm7']], [[3, 'm7']], [[3, 'm7']], [[3, 'm7']], [[3, 'm7']]]],
+];
+const QUALS = [['maj7', 'maj7'], ['7', '7'], ['m7', 'm7'], ['m6', 'm6'], ['ø7', 'ø7 (half-dim)'], ['°7', '°7 (dim)'], ['m(maj7)', 'm(maj7)'], ['7alt', '7alt'], ['7sus', '7sus'], ['+', 'augmented']];
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const sample = (arr, n, not) => shuffle(arr.filter(x => x !== not)).slice(0, n);
+
+const EG = {};   // current ear game
+function earNew(kind) {
+  EG.kind = kind; EG.answered = null; EG.fb = '';
+  if (kind === 'prog') {
+    const opts = S.settings.earProgs?.length ? PROGS.filter(p => S.settings.earProgs.includes(p[0])) : PROGS;
+    const pr = opts[Math.floor(Math.random() * opts.length)], key = Math.floor(Math.random() * 12);
+    EG.answer = pr[0]; EG.choices = shuffle([pr[0], ...sample(opts.map(p => p[0]), 3, pr[0])]);
+    EG.chords = pr[1].flatMap(bar => bar.map(([iv, q]) => ({ sym: pcName(key + iv, false) + q, beats: 4 / bar.length })));
+    EG.reveal = pr[1].map(bar => bar.map(([iv, q]) => pcName(key + iv + TRANSP_FROM_CONCERT(), sharpKey(MAJOR_KEYS[mod12(key + TRANSP_FROM_CONCERT())])) + q).join(' ')).join(' | ');
+    EG.bpm = 132;
+  } else if (kind === 'qual') {
+    const [q] = QUALS[Math.floor(Math.random() * QUALS.length)], root = Math.floor(Math.random() * 12);
+    EG.answer = q; EG.choices = QUALS.map(x => x[0]); EG.chords = [{ sym: pcName(root, false) + q, beats: 4 }]; EG.reveal = ''; EG.bpm = 100;
+  } else if (kind === 'tune') {
+    const pool = earTunePool(); if (pool.length < 4) { EG.error = 'Name that tune needs at least 4 of your tunes with charts. Mark some tunes as learning, or switch the pool to all your tunes.'; return; }
+    EG.error = null;
+    const t = pool[Math.floor(Math.random() * pool.length)], e = libEntry(t);
+    const part = earPart(e, S.settings.earPart || 'any');
+    EG.answer = t.name; EG.choices = shuffle([t.name, ...sample(pool.map(x => x.name), 3, t.name)]);
+    const semis = t.custom ? TO_CONCERT[instTr()] : 3;   // library charts are Eb parts: +3 semitones = concert
+    EG.chords = barsToChords(part.bars, semis); EG.partName = part.name; EG.tuneId = t.id; EG.bpm = 150;
+  }
+  EG.n = (EG.n || 0);
+}
+const TRANSP_FROM_CONCERT = () => mod12(-TO_CONCERT[instTr()]);
+function earTunePool() {
+  const withChart = S.lib.tunes.filter(t => LIB && libEntry(t));
+  if ((S.settings.earPool || 'mine') === 'all') return withChart;
+  return withChart.filter(t => versionsOf(t).some(v => tuneStatus(v) !== 'new'));
+}
+// A part of a tune: its opening 8 bars, or its bridge (first section not labelled A after the start).
+function earPart(e, want) {
+  const bars = e.b, starts = bars.map((b, i) => b.sec ? i : -1).filter(i => i >= 0);
+  const bridgeIdx = bars.findIndex((b, i) => i > 0 && b.sec && b.sec !== (bars[0].sec || 'A') && !/intro|verse/i.test(b.sec));
+  const pick = want === 'bridge' || (want === 'any' && bridgeIdx > 0 && Math.random() < 0.5) ? (bridgeIdx > 0 ? 'bridge' : 'start') : 'start';
+  const from = pick === 'bridge' ? bridgeIdx : Math.max(0, bars.findIndex(b => !/intro|verse/i.test(b.sec || '')));
+  return { name: pick === 'bridge' ? 'the bridge' : 'the opening', bars: bars.slice(from, from + 8) };
+}
+function earSheet() {
+  const title = { prog: 'Name the progression', qual: 'Chord qualities', tune: 'Name that tune' }[EG.kind];
+  const st = P().train?.[EG.kind];
+  if (EG.error) { openSheet(`${head(title)}<p>${esc(EG.error)}</p>`, endTrain); return; }
+  const fb = EG.answered == null ? '' : EG.answered === EG.answer ? `<div class="qfb"><span class="qok">✓ ${esc(EG.answer)}</span></div>` : `<div class="qfb"><span class="qno">✗</span> It was <b>${esc(EG.answer)}</b></div>`;
+  const extra = EG.answered == null ? '' : EG.kind === 'prog' ? `<p class="muted" style="font-size:.9rem">For you (${esc(curInst().name)}): ${esc(EG.reveal)}</p>`
+    : EG.kind === 'tune' ? `<p class="muted" style="font-size:.9rem">That was ${esc(EG.partName)}. <button class="btn sm" data-act="openTune" data-id="${esc(EG.tuneId)}">Open tune</button></p>` : '';
+  openSheet(`${head(title, st ? `${st.ok}/${st.n} right so far` : '')}
+    <button class="btn primary big" data-act="earPlay">▶ ${EG.played ? 'Play again' : 'Play'}</button>
+    ${EG.kind === 'tune' ? `<p class="muted" style="font-size:.9rem;margin:8px 0 0">Played in concert pitch.</p>` : ''}
+    <div class="earopts">${EG.choices.map(c => `<button data-act="earAnswer" data-v="${esc(c)}" class="${EG.answered == null ? '' : c === EG.answer ? 'right' : c === EG.answered ? 'wrong' : ''}" ${EG.answered != null ? 'disabled' : ''}>${esc(c)}</button>`).join('')}</div>
+    ${fb}${extra}
+    ${EG.answered != null ? `<button class="btn primary big" data-act="earNext">Next</button>` : ''}`, endTrain);
+}
+
+/* ---------- rhythm reading ---------- */
+const RH = { timer: null };
+// Beat patterns as [duration in beats, isRest]; some span two beats.
+const RH_LEVELS = [
+  ['Quarters & eighths', [[[1, 0]], [[.5, 0], [.5, 0]], [[1, 1]], [[2, 0]]]],
+  ['Rests & syncopation', [[[1, 0]], [[.5, 0], [.5, 0]], [[1, 1]], [[.5, 1], [.5, 0]], [[.5, 0], [.5, 1]], [[1.5, 0], [.5, 0]], [[.5, 0], [1, 0], [.5, 0]], [[2, 0]]]],
+  ['Sixteenths', [[[1, 0]], [[.5, 0], [.5, 0]], [[.25, 0], [.25, 0], [.25, 0], [.25, 0]], [[.5, 0], [.25, 0], [.25, 0]], [[.25, 0], [.25, 0], [.5, 0]], [[.75, 0], [.25, 0]], [[.25, 1], [.25, 0], [.5, 0]], [[.5, 1], [.5, 0]], [[1, 1]]]],
+  ['Triplets', [[[1, 0]], [[.5, 0], [.5, 0]], [[1 / 3, 0, 3], [1 / 3, 0, 3], [1 / 3, 0, 3]], [[1 / 3, 1, 3], [1 / 3, 0, 3], [1 / 3, 0, 3]], [[2 / 3, 0, 3], [1 / 3, 0, 3]], [[.5, 1], [.5, 0]], [[1, 1]]]],
+];
+function rhGenerate(level, bars) {
+  const pats = RH_LEVELS[level][1], notes = [];
+  for (let bar = 0; bar < bars; bar++) {
+    let beat = 0;
+    while (beat < 4) {
+      const fits = pats.filter(p => p.reduce((a, n) => a + n[0], 0) <= 4 - beat + 1e-9);
+      const p = fits[Math.floor(Math.random() * fits.length)];
+      for (const [d, r, tup] of p) { notes.push({ t: bar * 4 + beat, d, rest: !!r, tup: tup || 0 }); beat += d; }
+      beat = Math.round(beat * 12) / 12;
+    }
+  }
+  if (notes.every(n => n.rest)) notes[0].rest = false;
+  return notes;
+}
+// Rhythm notation as SVG: up to 2 bars per line, each line with its own cursor.
+const RH_PER = bars => Math.min(bars, 2);
+const rhGeo = per => { const W = Math.max(320, per * 300), x0 = 18, bw = (W - x0 - 10) / per; return { W, x0, bw, bx: t => x0 + 14 + (t % 4) / 4 * (bw - 24) + Math.floor(t / 4) * bw }; };
+function rhSvg(notes, bars, marks) {
+  const per = RH_PER(bars), lines = Math.ceil(bars / per); let out = '';
+  for (let L = 0; L < lines; L++) {
+    const nb = Math.min(per, bars - L * per), t0 = L * per * 4;
+    const sub = notes.map((n, i) => ({ ...n, t: n.t - t0, _i: i })).filter(n => n.t > -1e-6 && n.t < nb * 4 - 1e-6);
+    out += rhLine(sub, nb, per, marks, L, L === lines - 1);
+  }
+  return out;
+}
+function rhLine(notes, nb, per, marks, L, last) {
+  const { W, x0, bw, bx } = rhGeo(per), H = 110, y = 70;
+  let g = `<line x1="${x0}" y1="${y}" x2="${x0 + nb * bw}" y2="${y}" stroke="currentColor" stroke-width="1"/>`;
+  for (let b = 0; b <= nb; b++) g += `<line x1="${x0 + b * bw}" y1="${y - 14}" x2="${x0 + b * bw}" y2="${y + 14}" stroke="currentColor" stroke-width="${b === nb && last ? 3 : 1.2}"/>`;
+  // group notes by beat for beaming
+  const groups = {};
+  notes.forEach((n, i) => { const k = Math.floor(n.t + 1e-6); (groups[k] = groups[k] || []).push(i); });
+  notes.forEach((n, i) => {
+    const x = bx(n.t), col = marks ? (n.rest ? 'currentColor' : marks[n._i] ? 'var(--good)' : 'var(--danger)') : 'currentColor';
+    if (n.rest) {
+      if (n.d >= 1) g += `<path d="M${x - 3} ${y - 16} l6 7 l-5 6 l6 7 q-7 -2 -4 6" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round"/>`;
+      else g += `<circle cx="${x - 1}" cy="${y - 6}" r="2.6" fill="${col}"/><path d="M${x - 1} ${y - 4} q4 1 6 -3 l-5 15" fill="none" stroke="${col}" stroke-width="1.6"/>${n.d < .5 - 1e-6 && !n.tup ? `<circle cx="${x - 3}" cy="${y + 2}" r="2.4" fill="${col}"/>` : ''}`;
+      return;
+    }
+    const hollow = n.d >= 2 - 1e-6;
+    g += `<ellipse cx="${x}" cy="${y}" rx="6" ry="4.4" transform="rotate(-20 ${x} ${y})" fill="${hollow ? 'none' : col}" stroke="${col}" stroke-width="1.6"/>`;
+    g += `<line x1="${x + 5.5}" y1="${y - 2}" x2="${x + 5.5}" y2="${y - 32}" stroke="${col}" stroke-width="1.6"/>`;
+    if (Math.abs(n.d - 1.5) < 1e-6 || Math.abs(n.d - .75) < 1e-6) g += `<circle cx="${x + 11}" cy="${y + 1}" r="1.8" fill="${col}"/>`;
+  });
+  // beams / flags per beat group
+  for (const k in groups) {
+    const idx = groups[k].filter(i => !notes[i].rest && notes[i].d < 1 - 1e-6 && !(Math.abs(notes[i].d - 2 / 3) < 1e-6 && false));
+    const short = groups[k].filter(i => !notes[i].rest && notes[i].d < 1 - 1e-6);
+    if (short.length >= 2) {
+      const xa = bx(notes[short[0]].t) + 5.5, xb = bx(notes[short[short.length - 1]].t) + 5.5;
+      g += `<rect x="${xa}" y="${y - 33}" width="${xb - xa + 1.6}" height="3.6" fill="currentColor"/>`;
+      // secondary beams for 16ths
+      short.forEach((i, j) => { const n = notes[i]; if (n.d < .5 - 1e-6 && !n.tup) { const x = bx(n.t) + 5.5; const nb = short[j + 1] != null && notes[short[j + 1]].d < .5 - 1e-6 ? bx(notes[short[j + 1]].t) + 5.5 : (short[j - 1] != null && notes[short[j - 1]].d < .5 - 1e-6 ? null : (j === short.length - 1 ? x - 7 : x + 7));
+          if (nb != null) g += `<rect x="${Math.min(x, nb)}" y="${y - 27}" width="${Math.abs(nb - x) + 1.6}" height="3.4" fill="currentColor"/>`; } });
+    } else if (short.length === 1) {
+      const n = notes[short[0]], x = bx(n.t) + 5.5;
+      g += `<path d="M${x} ${y - 32} q8 6 6 16" fill="none" stroke="currentColor" stroke-width="2"/>`;
+      if (n.d < .5 - 1e-6 && !n.tup) g += `<path d="M${x} ${y - 25} q8 6 6 16" fill="none" stroke="currentColor" stroke-width="2"/>`;
+    }
+    const tup = groups[k].filter(i => notes[i].tup === 3);
+    if (tup.length) { const xa = bx(notes[tup[0]].t), xb = bx(notes[tup[tup.length - 1]].t) + 6; g += `<text x="${(xa + xb) / 2 + 3}" y="${y - 40}" font-size="12" text-anchor="middle" fill="currentColor" font-style="italic">3</text>`; }
+  }
+  g += `<line class="rhcur" data-l="${L}" x1="-30" y1="18" x2="-30" y2="98" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>`;
+  return `<svg class="rhline" data-l="${L}" viewBox="0 0 ${W} ${H}" width="100%" style="color:var(--text);max-height:160px;display:block">${g}</svg>`;
+}
+function rhNew() {
+  const lv = S.settings.rhLevel ?? 0, bars = S.settings.rhBars || 1;
+  RH.notes = rhGenerate(lv, bars); RH.bars = bars; RH.taps = []; RH.marks = null; RH.result = null;
+  rhSheet();
+}
+function rhSheet() {
+  const bpm = S.settings.rhBpm || 80, st = P().train?.rhythm;
+  openSheet(`${head('Rhythm reading', `${RH_LEVELS[S.settings.rhLevel ?? 0][0]} · ${RH.bars} bar${RH.bars > 1 ? 's' : ''} · ♩=${bpm}` + (st ? ` · ${st.ok}/${st.n} passed` : ''))}
+    <div class="rhbox">${rhSvg(RH.notes, RH.bars, RH.marks)}</div>
+    ${RH.result ? `<div class="qfb">${RH.result}</div>` : `<p class="muted" style="font-size:.9rem;margin:6px 0">Press Start: you get a 4-beat count-in, then tap the rhythm on the pad (any key works on a computer).</p>`}
+    <div class="row"><button class="btn grow" data-act="rhListen">👂 Hear it</button><button class="btn primary grow" data-act="rhGo">${RH.result ? 'Try again' : 'Start'}</button><button class="btn grow" data-act="rhNext">New rhythm</button></div>
+    <button class="rhpad" id="rhPad" data-act="rhTap">${RH.timer ? 'TAP' : 'tap pad'}</button>`, endTrain);
+}
+function rhClick(ctx, out, t, hi) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = hi ? 1500 : 1000; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(hi ? .5 : .3, t + .002); g.gain.exponentialRampToValueAtTime(0.0001, t + .04); o.connect(g).connect(out); o.start(t); o.stop(t + .05); }
+function rhWood(ctx, out, t) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = 800; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(.25, t + .002); g.gain.exponentialRampToValueAtTime(0.0001, t + .08); o.connect(g).connect(out); o.start(t); o.stop(t + .1); }
+function rhRun(listen) {
+  rhStop(); earStop(); const ctx = audioCtx(); const out = EAR.out = ctx.createGain(); out.gain.value = 1; out.connect(ctx.destination);
+  const bpm = S.settings.rhBpm || 80, beat = 60 / bpm, t0 = ctx.currentTime + 0.15, start = t0 + 4 * beat, total = RH.bars * 4;
+  for (let i = 0; i < 4 + total; i++) rhClick(ctx, out, t0 + i * beat, i % 4 === 0);
+  if (listen) RH.notes.forEach(n => { if (!n.rest) rhWood(ctx, out, start + n.t * beat); });
+  RH.startPerf = performance.now() + (start - ctx.currentTime) * 1000; RH.beatMs = beat * 1000; RH.taps = []; RH.listen = listen; RH.marks = null; RH.result = null;
+  rhSheet(); const pad = $('#rhPad'); pad.textContent = listen ? 'listen…' : 'count-in…';
+  setTimeout(() => { const p = $('#rhPad'); if (p) p.textContent = listen ? 'listen…' : 'TAP'; }, (start - ctx.currentTime) * 1000);
+  RH.timer = setTimeout(() => { RH.timer = null; cancelAnimationFrame(RH.raf); if (!listen) rhGrade(); else rhSheet(); }, (start - ctx.currentTime + (total + .6) * beat) * 1000);
+  RH.curLine = -1; RH.raf = requestAnimationFrame(rhCursor);
+}
+function rhStop() { clearTimeout(RH.timer); RH.timer = null; cancelAnimationFrame(RH.raf); }
+function rhCursor() {
+  const pos = (performance.now() - RH.startPerf) / RH.beatMs, per = RH_PER(RH.bars), geo = rhGeo(per), curs = $$('#panel .rhcur');
+  const t = Math.max(0, Math.min(RH.bars * 4 - 1e-3, pos)), L = Math.floor(t / (per * 4)), tl = t - L * per * 4;
+  curs.forEach(c => { const x = +c.dataset.l === L && pos > -4 ? geo.bx(tl) - 4 : -30; c.setAttribute('x1', x); c.setAttribute('x2', x); });
+  if (L !== RH.curLine) { RH.curLine = L; const ln = $(`#panel .rhline[data-l="${L}"]`); if (ln && RH.bars > 2) ln.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  if (RH.timer) RH.raf = requestAnimationFrame(rhCursor);
+}
+function rhTap() { if (!RH.timer || RH.listen) return; RH.taps.push((performance.now() - RH.startPerf) / RH.beatMs); const p = $('#rhPad'); if (p) { p.classList.add('hit'); setTimeout(() => p.classList.remove('hit'), 80); } }
+function rhGrade() {
+  const exp = RH.notes.map((n, i) => ({ i, t: n.t })).filter(e => !RH.notes[e.i].rest);
+  // Remove a constant delay (e.g. Bluetooth audio): use the median offset of taps near expected notes.
+  const offs = RH.taps.map(tp => { const e = exp.reduce((a, b) => Math.abs(b.t - tp) < Math.abs(a.t - tp) ? b : a); return tp - e.t; }).filter(o => Math.abs(o) < .4).sort((a, b) => a - b);
+  const lag = offs.length ? Math.max(-.3, Math.min(.3, offs[Math.floor(offs.length / 2)])) : 0;
+  const taps = RH.taps.map(t => t - lag), used = new Set(), tol = .14;
+  RH.marks = {}; let hit = 0;
+  for (const e of exp) { let bi = -1, bd = tol; taps.forEach((tp, j) => { const d = Math.abs(tp - e.t); if (!used.has(j) && d <= bd) { bd = d; bi = j; } }); if (bi >= 0) { used.add(bi); RH.marks[e.i] = true; hit++; } else RH.marks[e.i] = false; }
+  const extra = taps.length - used.size, score = Math.round(100 * hit / (exp.length + extra));
+  const ok = score >= 90; trainScore(ok, 'rhythm');
+  const lagMs = Math.round(lag * RH.beatMs);
+  RH.result = `${ok ? '<span class="qok">✓ ' + score + '%</span>' : '<span class="qno">' + score + '%</span>'} · ${hit}/${exp.length} notes${extra ? ` · ${extra} extra tap${extra > 1 ? 's' : ''}` : ''}${Math.abs(lagMs) > 25 ? ` <small class="muted">(you were ${Math.abs(lagMs)} ms ${lagMs > 0 ? 'late' : 'early'} overall – not counted)</small>` : ''}`;
+  rhSheet();
+}
+
+/* ---------- Train tab ---------- */
+function vTrain() {
+  const p = P(), wk = awayMinutes(monday(Date.now()).getTime()), tot = awayMinutes(0), tr = p.train || {};
+  const pct = k => tr[k]?.n ? Math.round(100 * tr[k].ok / tr[k].n) + '% of ' + tr[k].n : 'not tried yet';
+  const vs = allVersions(), quizzes = vs.reduce((a, v) => a + (tuneState(v).qz?.n || 0), 0);
+  const chip = (set, k, v, n) => `<button class="chip ${(S.settings[set] ?? (set === 'rhLevel' ? 0 : set === 'rhBars' ? 1 : set === 'earPool' ? 'mine' : 'any')) === v ? 'on' : ''}" data-act="trainSet" data-k="${set}" data-v="${v}">${n}</button>`;
+  return `<section class="card"><h3>Away from the horn</h3><div class="stats3"><div><small>This week</small><strong>${fmtMin(wk)}</strong></div><div><small>Total</small><strong>${fmtMin(tot)}</strong></div><div><small>Answers right</small><strong>${tr.ok || 0}</strong></div></div>
+    <small class="muted">Time here is logged separately from your playing hours.</small></section>
+  <section class="card"><h3>🧠 Changes quiz</h3><p class="muted" style="margin-top:0">Fill in the changes of a tune from memory, bar by bar. ${quizzes} quiz${quizzes === 1 ? '' : 'zes'} done.</p>
+    <button class="btn primary" style="width:100%" data-act="quizPick">Choose a tune</button></section>
+  <section class="card"><h3>🎧 Name that tune</h3><p class="muted" style="margin-top:0">Hear the changes of one of your tunes and pick which it is. ${pct('tune')}.</p>
+    <div class="chips">${chip('earPool', 0, 'mine', 'Tunes I\'m learning or know')}${chip('earPool', 0, 'all', 'All my tunes')}</div>
+    <div class="chips">${chip('earPart', 0, 'any', 'Any part')}${chip('earPart', 0, 'start', 'Opening')}${chip('earPart', 0, 'bridge', 'Bridge')}</div>
+    <button class="btn primary" style="width:100%" data-act="earStart" data-k="tune">Start</button></section>
+  <section class="card"><h3>🎧 Progressions</h3><p class="muted" style="margin-top:0">Common jazz progressions in random keys. ${pct('prog')}.</p>
+    <button class="btn primary" style="width:100%" data-act="earStart" data-k="prog">Start</button></section>
+  <section class="card"><h3>🎧 Chord qualities</h3><p class="muted" style="margin-top:0">Hear a chord, name its type. ${pct('qual')}.</p>
+    <button class="btn primary" style="width:100%" data-act="earStart" data-k="qual">Start</button></section>
+  <section class="card"><h3>🥁 Rhythm reading</h3><p class="muted" style="margin-top:0">See a rhythm, tap it in time. ${tr.rhythm?.n ? tr.rhythm.ok + ' of ' + tr.rhythm.n + ' passed (90%+)' : 'Not tried yet'}.</p>
+    <div class="chips">${RH_LEVELS.map((l, i) => chip('rhLevel', 0, i, l[0])).join('')}</div>
+    <div class="chips">${[1, 2, 4, 8].map(n => chip('rhBars', 0, n, n + ' bar' + (n > 1 ? 's' : ''))).join('')}</div>
+    <label class="f">Tempo ♩=<span id="rhBpmV">${S.settings.rhBpm || 80}</span></label><input type="range" id="rhBpm" min="50" max="160" step="5" value="${S.settings.rhBpm || 80}" style="width:100%">
+    <button class="btn primary" style="width:100%;margin-top:8px" data-act="rhStart">Start</button></section>`;
+}
+function quizPickSheet() {
+  const order = { due: 0, learning: 1, done: 2, new: 3 };
+  const vs = allVersions().filter(v => hasChart(tuneOf(v))).map(v => ({ v, k: reviewDue(v) ? 'due' : tuneStatus(v) })).sort((a, b) => order[a.k] - order[b.k] || vLabel(a.v).localeCompare(vLabel(b.v)));
+  openSheet(`${head('Changes quiz', 'Pick a tune')}<input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">
+    ${vs.map(({ v, k }) => `<button class="trow" data-act="quizStart" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}<br><small>${{ due: 'review due', learning: 'learning', done: 'learned', new: 'not started' }[k]}${tuneState(v).qz ? ' · best ' + tuneState(v).qz.best + '%' : ''}</small></span>${tunePips(v)}</button>`).join('')}`);
+  $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#panel .trow').forEach(r => r.classList.toggle('hide', !!q && !r.dataset.name.includes(q))); };
+}
+
 /* ---------- actions ---------- */
 const A = {
   closeSheet: () => closeSheet(),
@@ -1085,7 +1630,7 @@ const A = {
     else it.unit = unitOf(it) === 2 ? 1 : 2;
     delete it.unitKeys; save();
     toast((it.unit === 2 ? 'Half' : 'Quarter') + ' notes for ' + (ty === 'ex' ? 'all keys of ' : '') + it.name);
-    if (sheetOpen) { ty === 'ex' ? sheetEx(id) : ty === 'lick' ? sheetLick(id) : sheetTune(id); } else render();
+    if (sheetOpen) { ty === 'ex' ? sheetEx(id) : ty === 'lick' ? sheetLick(id) : sheetTune.refresh(); } else render();
   },
   keyUnitGrid: el => { const ex = findEx(el.dataset.ex).ex, k = el.dataset.k; setKeyUnit(ex, k, unitOf(ex)); save();
     const inp = el.closest('td').querySelector('input'); inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]); el.parentElement.innerHTML = ''; },
@@ -1094,8 +1639,8 @@ const A = {
   gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
-  openTune: el => sheetTune(el.dataset.id),
-  openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : sheetTune(el.dataset.id),
+  openTune: el => openTuneSheet(el.dataset.id),
+  openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
   replan: () => { makePlan(); save(); render(); },
   planDel: el => { S.plan.items.splice(+el.dataset.i, 1); save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
@@ -1107,7 +1652,52 @@ const A = {
   pickItem: el => { const t = el.dataset.t, id = el.dataset.id;
     if (t === 'ex') { const o = findEx(id); if (o.ex.keys.length > 1) return pickKeySheet(o.ex); addToPlan({ t, id, key: o.ex.keys[0] }); }
     else addToPlan({ t, id }); closeSheet(); },
-  tuneLv: el => { setTuneLevel(el.dataset.id, +el.dataset.i, +el.dataset.v); sheetTune.refresh(); },
+  tuneStart: el => { tuneRec(el.dataset.id).started = true; touch('t:' + el.dataset.id); save(); toast('Added to your learning list'); sheetTune.refresh(); },
+  review: el => { const ivl = applyReview(el.dataset.id, +el.dataset.r); toast(['Shaky', 'OK', 'Solid'][+el.dataset.r] + ' – next review in ' + ivl + ' day' + (ivl === 1 ? '' : 's') + '  +' + REVIEW_XP + ' XP'); sheetTune.refresh(); },
+  cpQuick: el => { setCheckpoint(el.dataset.id, el.dataset.c, true); el.remove(); },
+  showChart: el => { loadLibrary().then(() => sheetTune(el.dataset.id, { chart: !/Hide/.test(el.textContent) })).catch(() => toast('Could not load charts – are you offline?')); },
+  addTuneKey: el => { const t = tuneOf(el.dataset.id); loadLibrary().catch(() => {}).finally(() => {
+    const ch = chartFor(t.id), minor = ch ? isMinorKey(ch.mainKey) : false, keys = minor ? MINOR_KEYS : MAJOR_KEYS;
+    formSheet('Learn ' + t.name + ' in another key', `<label class="f">Key</label><select name="k">${keys.filter(k => k !== ch?.mainKey && !(t.keys || []).includes(k)).map(k => `<option>${k}</option>`).join('')}</select>
+      <p class="muted" style="font-size:.9rem">Tracked separately: its own checkpoints, reviews, tempo and quizzes. The chart is transposed for you.</p>`,
+      fd => { t.keys = [...(t.keys || []), fd.k]; save(); setTimeout(() => openTuneSheet(t.id + '@' + fd.k), 0); }); }); },
+  delTuneKey: el => { const vid = el.dataset.id, t = tuneOf(vid), k = vKey(vid); if (!confirm(`Stop tracking ${t.name} in ${k}? Its progress is removed.`)) return;
+    t.keys = (t.keys || []).filter(x => x !== k); delete P().tunes[vid]; save(); openTuneSheet(t.id); },
+  setChartKey: el => { const t = tuneOf(el.dataset.id); const e = libEntry(t);
+    formSheet('Chart key', `<p class="muted">The key is guessed from the chart's chords. If it's wrong, transposed keys will be off too.</p><label class="f">Key the chart is written in (alto)</label>
+      <select name="k">${[...MAJOR_KEYS, ...MINOR_KEYS].map(k => `<option ${k === (t.chartKey || e.k) ? 'selected' : ''}>${k}</option>`).join('')}</select>`, fd => { t.chartKey = fd.k; save(); setTimeout(() => openTuneSheet(t.id, { chart: true }), 0); }); },
+  findChart: el => { const t = tuneOf(el.dataset.id); loadLibrary().then(() => {
+    formSheet('Find a chart for ' + t.name, `<label class="f">Title in the library</label><input type="text" name="q" list="libList" value="${esc(t.name)}"><datalist id="libList">${LIB.map(e => `<option value="${esc(e.t)}">`).join('')}</datalist>`,
+      fd => { const e = LIB.byNorm.get(normT(fd.q)); if (!e) { toast('No chart with that title'); return false; } t.chart = e.t; delete t.custom; t.style = t.style || e.s; t.composer = t.composer || e.c; save(); toast('Chart linked'); setTimeout(() => openTuneSheet(t.id, { chart: true }), 0); });
+  }).catch(() => toast('Could not load charts – are you offline?')); },
+  editChart: el => { const t = tuneOf(el.dataset.id), c = t.custom;
+    const txt = c ? c.b.map(b => (b.sec ? '\n' + b.sec + ': ' : '') + (b.rep ? '%' : b.c.join(' '))).join(' | ').trim() : '';
+    formSheet('Type in the changes', `<p class="muted" style="font-size:.9rem;margin-top:0">One bar between each <b>|</b>, chords separated by spaces, <b>%</b> repeats the previous bar. Start a line with <b>A:</b> or <b>Bridge:</b> to mark a section. Write chords for your instrument (as you read them), e.g. <i>A: Dm7 G7 | Cmaj7 | % | Bø7 E7b9 |</i></p>
+      <textarea name="txt" rows="8" style="font-family:monospace">${esc(txt)}</textarea><label class="f">Key</label><select name="k">${[...MAJOR_KEYS, ...MINOR_KEYS].map(k => `<option ${c && k === c.k ? 'selected' : ''}>${k}</option>`).join('')}</select>`,
+      fd => { const b = parseCustomChart(fd.txt); if (!b.length) { toast('No chords found'); return false; } t.custom = { k: fd.k, ts: '4/4', b }; save(); toast(b.length + ' bars saved'); setTimeout(() => openTuneSheet(t.id, { chart: true }), 0); }); },
+  quizPick: () => loadLibrary().then(quizPickSheet).catch(() => toast('Could not load charts – are you offline?')),
+  quizStart: el => loadLibrary().then(() => quizSetup(el.dataset.id)).catch(() => toast('Could not load charts – are you offline?')),
+  quizGo: el => { const lv = ($('#panel input[name=ql]:checked') || {}).value || 'key'; S.settings.quizLevel = lv; save(true);
+    const ch = chartFor(el.dataset.id); if (!ch) { toast('No chart'); return; }
+    const slots = quizSlots(ch), want = QUIZ_LEVELS[lv], idx = {};
+    slots.forEach((sl, i) => idx[sl.bi + ':' + sl.ci] = i);
+    Q = { vid: el.dataset.id, ch, slots, idx, level: lv, ask: slots.map((sl, i) => want.includes(sl.imp) ? i : -1).filter(i => i >= 0), pos: 0, res: {}, pick: null, fb: '' };
+    startTrain('quiz'); if (!Q.ask.length) { toast('Nothing to ask at this level'); return; } quizRender(); },
+  quizRoot: el => { Q.pick = +el.dataset.pc; $$('#panel .qroots button').forEach(b => b.classList.toggle('on', +b.dataset.pc === Q.pick)); },
+  quizFam: el => { if (Q.pick == null) { toast('Pick the root first'); return; } quizAnswer(Q.pick, el.dataset.f); },
+  quizReveal: () => quizAnswer(null, null),
+  quizEnd: () => { Q.ask = Q.ask.slice(0, Q.pos); quizFinish(); quizRender(); },
+  earStart: el => { EG.n = 0; startTrain('ear'); const go = () => { earNew(el.dataset.k); EG.played = false; earSheet(); };
+    if (el.dataset.k === 'tune') loadLibrary().then(go).catch(() => toast('Could not load charts – are you offline?')); else go(); },
+  earPlay: () => { EG.played = true; playChords(EG.chords, EG.bpm); const b = $('#panel [data-act=earPlay]'); if (b) b.textContent = '▶ Play again'; },
+  earAnswer: el => { if (EG.answered != null) return; EG.answered = el.dataset.v; trainScore(EG.answered === EG.answer, EG.kind); earSheet(); },
+  earNext: () => { earNew(EG.kind); EG.played = false; earSheet(); setTimeout(() => A.earPlay(), 150); },
+  trainSet: el => { const v = el.dataset.v; S.settings[el.dataset.k] = /^\d+$/.test(v) ? +v : v; save(true); render(); },
+  rhStart: () => { startTrain('rhythm'); rhNew(); },
+  rhNext: () => rhNew(),
+  rhGo: () => rhRun(false),
+  rhListen: () => rhRun(true),
+  rhTap: () => {},
   tagDel: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); t.tags = splitTags(t.tags).filter(x => x !== el.dataset.tag).join(', '); save(); sheetTune.refresh(); },
   pickKey: el => { const o = findEx(el.dataset.id); const k = el.dataset.k || weakestKey(o.ex); addToPlan({ t: 'ex', id: o.ex.id, key: k }); closeSheet(); },
   tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
@@ -1155,15 +1745,22 @@ const A = {
   renameLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const n = prompt('Lick name', l.name); if (n && n.trim()) { l.name = n.trim(); save(); sheetLick(l.id); } },
   delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {});
     S.lib.licks = S.lib.licks.filter(x => x !== l); save(); closeSheet(); },
-  addTune: () => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required><label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">
+  addTune: () => { loadLibrary().catch(() => {}).finally(() => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required list="libList" placeholder="Start typing – charts are looked up automatically">
+      <datalist id="libList">${(LIB || []).map(e => `<option value="${esc(e.t)}">`).join('')}</datalist>
+      <label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">
       <div class="stages" style="margin-top:10px"><label><input type="checkbox" name="tempo"><span class="grow">Tempo tune – track BPM</span></label></div>`,
-    fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: splitTags(fd.tags).join(', '), tempo: !!fd.tempo }); S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); save(); }),
-  renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); sheetTune(t.id); } },
-  delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
+    fd => { const n = fd.name.trim(); if (!n) return false; const e = LIB && LIB.byNorm.get(normT(n));
+      const t = { id: slug(n) + '-' + uid(), name: e ? e.t : n, tags: splitTags(fd.tags).join(', '), tempo: !!fd.tempo, chart: e ? e.t : null };
+      if (e) { t.style = e.s; t.composer = e.c; }
+      S.lib.tunes.push(t); S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); save();
+      toast(e ? 'Chart found ✓' : 'No chart found – you can type the changes in'); setTimeout(() => openTuneSheet(t.id), 0); })); },
+  renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); openTuneSheet(t.id); } },
+  delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; versionsOf(t).forEach(v => delete P().tunes[v]); S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
   addInst: () => formSheet('New instrument', `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Tenor sax">
       <label class="f">Practice time on it so far</label>${priorFields(0)}
+      <label class="f">Reads in</label><select name="tr"><option value="Eb">E♭ (alto, baritone sax)</option><option value="Bb">B♭ (tenor, soprano sax, trumpet, clarinet)</option><option value="C">C (concert: flute, piano, guitar…)</option></select>
       <p class="muted" style="font-size:.9rem">Uses the same exercises, licks and tunes, with its own tempos, sessions and badges.</p>`,
-    fd => { const n = fd.name.trim(); if (!n) return false; const id = slug(n) + '-' + uid(); S.inst.push({ id, name: n }); S.prog[id] = Object.assign(newProg(), { priorHours: priorFrom(fd.ph, fd.pm) }); S.cur = id; S.plan = null; save(); checkBadges(); toast('Switched to ' + n); }),
+    fd => { const n = fd.name.trim(); if (!n) return false; const id = slug(n) + '-' + uid(); S.inst.push({ id, name: n, tr: fd.tr || 'Eb' }); S.prog[id] = Object.assign(newProg(), { priorHours: priorFrom(fd.ph, fd.pm) }); S.cur = id; S.plan = null; save(); checkBadges(); toast('Switched to ' + n); }),
   renameInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); const n = prompt('Instrument name', i.name); if (n && n.trim()) { i.name = n.trim(); save(); render(); } },
   delInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); if (prompt(`This deletes all progress for ${i.name}. Type DELETE to confirm.`) !== 'DELETE') return;
     S.inst = S.inst.filter(x => x !== i); delete S.prog[i.id]; if (S.cur === i.id) S.cur = S.inst[0].id; S.plan = null; save(); render(); },
@@ -1192,12 +1789,17 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-act]'); if (!a || !A[a.dataset.act]) return;
   A[a.dataset.act](a, e);
 });
+document.addEventListener('keydown', e => { if (RH.timer && !RH.listen && !e.repeat && sheetOpen) { e.preventDefault(); rhTap(); } });
+// pointerdown on the pad: lower latency than click
+document.addEventListener('pointerdown', e => { if (e.target.closest('#rhPad')) { e.preventDefault(); rhTap(); } });
 $('#instSel').addEventListener('change', e => { S.cur = e.target.value; S.plan = null; save(); render(); toast('Now tracking ' + curInst().name); });
 
 /* ---------- boot ---------- */
 load();
 checkBadges(true);
 render(); tickSession(); Sync.paint(); Sync.now();
+// Load the chart library in the background so tunes get linked to their charts.
+setTimeout(() => loadLibrary().then(() => { if (tab === 'tunes' && !sheetOpen) render(); }).catch(() => {}), 300);
 if (S.session && S.session.runSince) keepAwake();
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
