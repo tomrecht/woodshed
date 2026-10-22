@@ -190,7 +190,9 @@ table.grid{border-collapse:collapse;font-size:.9rem}
 table.grid th{text-align:left;font-weight:500;padding:4px 8px 4px 0;white-space:nowrap;color:var(--muted)}
 table.grid thead th{text-align:center;color:var(--text);font-weight:650}
 table.grid td{padding:2px}
-table.grid td input.half{box-shadow:inset 0 -3px 0 var(--accent)}
+table.grid td.gc{white-space:nowrap}
+.cuw{display:inline-block;width:14px}
+.cu{padding:0;color:var(--accent)}
 table.grid td input[type=text],table.grid td input[type=number]{width:62px;padding:6px 4px;text-align:center}
 table.grid td.fl{padding-left:10px;white-space:nowrap;color:var(--accent);font-weight:650}
 table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);display:block;margin:0 auto}
@@ -484,6 +486,9 @@ function uk(k) {
     const o = ex.unitKeys && ex.unitKeys[key]; return o === 1 || o === 2 ? o : unitOf(ex); }
   return unitOf(itemOfKey(k));
 }
+// Table cell marker: shown only when a key's unit differs from its exercise's.
+const cellUnit = (ex, k) => { const u = uk(exKey(ex, k)); return u === unitOf(ex) ? '' :
+  `<button type="button" class="iconbtn cu" data-act="keyUnitGrid" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="${u === 2 ? 'Half' : 'Quarter'} notes for this key – click to match the exercise">${NOTE(u)}</button>`; };
 const mixedUnits = ex => !!(ex.unitKeys && Object.keys(ex.unitKeys).length);
 function setKeyUnit(ex, key, u) {
   ex.unitKeys = ex.unitKeys || {};
@@ -737,14 +742,14 @@ function vGrid() {
     for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
     return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= 5 ? '<th>Floor</th>' : ''}</tr></thead><tbody>
       ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)} ${unitBtn('ex', ex)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
-        return `<td><input type="text" inputmode="numeric" class="${uk(key) === 2 ? 'half' : ''}" title="${uk(key) === 2 ? 'Half-note tempo' : 'Quarter-note tempo'}" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
+        return `<td class="gc"><span class="cuw">${cellUnit(ex, k)}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
         ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? Tk(exKey(ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)} ${unitBtn('lick', l)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${dv('l:' + l.id, p.bpm['l:' + l.id])}" tabindex="${++tabIdx}"></td></tr>`).join('');
   const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)} ${unitBtn('tune', t)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${dv('t:' + t.id, p.bpm['t:' + t.id])}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
   return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
-    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Tap the note next to a name to switch the whole row between quarter and half notes. For a single key, type e.g. <b>110h</b> (half notes) or <b>220q</b> (quarter notes); half-note cells have an orange underline. Easiest on a computer – when you're done, use
+    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Tap the note next to a name to switch the whole row between quarter and half notes. For a single key, type e.g. <b>110h</b> (half notes) or <b>220q</b> (quarter notes); a note in a cell means that key differs from the rest of its row (click it to undo). Easiest on a computer – when you're done, use
     <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" data-act="gotoTab" data-tab2="ex">← Back to exercises</button></div></section>
     ${sections}
@@ -759,7 +764,7 @@ function bindGrid() {
     if (val && !/^\d+$/.test(val)) { toast('Type a number, optionally followed by h (half) or q (quarter)'); inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]); return; }
     setBpm(inp.dataset.gkey, val, inp.dataset.ex);
     inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]);
-    if (inp.dataset.ex) { const h = uk(inp.dataset.gkey) === 2; inp.classList.toggle('half', h); inp.title = h ? 'Half-note tempo' : 'Quarter-note tempo'; }
+    if (inp.dataset.ex) { const ex = findEx(inp.dataset.ex).ex; inp.closest('td').querySelector('.cuw').innerHTML = cellUnit(ex, inp.dataset.k); }
     const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v) : '';
     if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
       if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? Tk(exKey(o.ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
@@ -1069,6 +1074,8 @@ const A = {
     toast((it.unit === 2 ? 'Half' : 'Quarter') + ' notes for ' + (ty === 'ex' ? 'all keys of ' : '') + it.name);
     if (sheetOpen) { ty === 'ex' ? sheetEx(id) : ty === 'lick' ? sheetLick(id) : sheetTune(id); } else render();
   },
+  keyUnitGrid: el => { const ex = findEx(el.dataset.ex).ex, k = el.dataset.k; setKeyUnit(ex, k, unitOf(ex)); save();
+    const inp = el.closest('td').querySelector('input'); inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]); el.parentElement.innerHTML = ''; },
   keyUnit: el => { const ex = findEx(el.dataset.ex).ex, k = el.dataset.k; setKeyUnit(ex, k, uk(exKey(ex, k)) === 2 ? 1 : 2); save();
     toast(k + ': ' + (uk(exKey(ex, k)) === 2 ? 'half' : 'quarter') + ' notes'); sheetEx(ex.id); },
   gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
