@@ -180,6 +180,7 @@ nav#tabs button.on{color:var(--accent)}
   color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hide{display:none!important}
+.nt{height:1.05em;width:.6em;vertical-align:-.18em;margin-right:1px}
 body.metro-on #sheet .panel{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
 button.krow{width:100%;border:0;text-align:left}
 main.wide{max-width:1280px}
@@ -467,6 +468,24 @@ const Sync = (() => {
 })();
 window.addEventListener('online', () => Sync.now());
 
+/* ---------- tempo units ----------
+   Tempos are always stored as quarter-note BPM. An item set to half notes shows and accepts half-note BPM. */
+function itemOfKey(k) {
+  if (k.startsWith('e:')) return findEx(k.slice(2).split('|')[0])?.ex;
+  if (k.startsWith('l:')) return S.lib.licks.find(x => x.id === k.slice(2));
+  if (k.startsWith('t:')) return S.lib.tunes.find(x => x.id === k.slice(2));
+}
+const unitOf = it => it && it.unit === 2 ? 2 : 1;
+const uk = k => unitOf(itemOfKey(k));
+const dv = (k, v) => v == null ? '' : Math.round(v / uk(k));          // value to show in an input
+const NOTE = u => u === 2
+  ? '<svg class="nt" viewBox="0 0 10 20" aria-label="half note"><ellipse cx="4.2" cy="15.5" rx="3.4" ry="2.4" transform="rotate(-25 4.2 15.5)" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="7.1" y="1" width="1.4" height="14" fill="currentColor"/></svg>'
+  : '<svg class="nt" viewBox="0 0 10 20" aria-label="quarter note"><ellipse cx="4.2" cy="15.5" rx="3.8" ry="2.7" transform="rotate(-25 4.2 15.5)" fill="currentColor"/><rect x="7.1" y="1" width="1.4" height="14" fill="currentColor"/></svg>';
+const T = (it, v) => v == null ? '—' : NOTE(unitOf(it)) + Math.round(v / unitOf(it));   // HTML
+const Tk = (k, v) => T(itemOfKey(k), v);
+const Ttxt = (it, v) => Math.round(v / unitOf(it)) + (unitOf(it) === 2 ? ' (half notes)' : ' bpm');   // plain text
+const unitBtn = (type, it, full) => `<button type="button" class="${full ? 'btn sm' : 'iconbtn'}" data-act="unitToggle" data-ut="${type}" data-id="${esc(it.id)}" title="Switch between quarter-note and half-note tempo">${NOTE(unitOf(it))}${full ? ' ' + (unitOf(it) === 2 ? 'Half' : 'Quarter') + ' notes ⇄' : ''}</button>`;
+
 /* ---------- progress logic ---------- */
 function touch(k, exId) {
   const p = P(), now = Date.now();
@@ -476,6 +495,7 @@ function touch(k, exId) {
 function setBpm(k, v, exId) {
   const p = P(); v = v === '' || v == null ? null : Math.round(+v);
   if (v != null && (!isFinite(v) || v <= 0)) v = null;
+  if (v != null) v *= uk(k);
   const prev = p.bpm[k] ?? null; if (v === prev) return false;
   if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
   touch(k, exId); save(); checkBadges(); return v != null && prev != null && v > prev;
@@ -545,7 +565,7 @@ function badgeList() {
     ...[2, 4, 8, 12, 26, 52].map(n => ['wk' + n, '🔥', n + '-week streak', 'Hit your weekly goal ' + n + ' weeks running', st.best >= n]),
     ['keys12', '🔑', 'All keys', 'One exercise logged in every key', full12.length >= 1],
     ['keys10', '🗝️', 'Key ring', '10 exercises logged in every key', full12.length >= 10],
-    ...[120, 160, 200].map(f => ['f' + f, f >= 200 ? '⚡' : '🚀', 'Floor ' + f, 'A full exercise with its slowest key at ' + f + '+', maxFloor >= f]),
+    ...[120, 160, 200].map(f => ['f' + f, f >= 200 ? '⚡' : '🚀', 'Floor ' + f, 'A full exercise with its slowest key at ' + f + '+ (quarter-note bpm)', maxFloor >= f]),
     ['pb25', '📈', 'Climber', '25 tempo records broken', pbs >= 25],
     ['pb100', '🏔️', 'Summit', '100 tempo records broken', pbs >= 100],
     ['l5', '🎼', 'Lick collector', '5 licks at tempo', licks >= 5],
@@ -629,9 +649,9 @@ function vHome() {
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
-      const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>♩${b}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
-    if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>♩${b}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
-    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' + (p.bpm['t:' + t.id] ? ' · ♩' + p.bpm['t:' + t.id] : '') : 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
+      const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${T(o.ex, b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
+    if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
+    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; if (t.tempo && p.bpm['t:' + t.id]) key = ` <small>${T(t, p.bpm['t:' + t.id])}</small>` + key; }
     return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
       <button class="iconbtn" data-act="planSwap" data-i="${idx}" title="Suggest something else" aria-label="Swap">⇄</button><button class="iconbtn" data-act="planDel" data-i="${idx}" title="Remove" aria-label="Remove">✕</button></li>`;
   }).join('') || '<li class="muted">Empty – add something below.</li>';
@@ -640,7 +660,7 @@ function vHome() {
   for (let i = 0; i < 140; i++) { const d = addDays(start, i), k = dayKey(d), m = dm[k] || 0;
     const l = d > new Date() ? 'fut' : m === 0 ? '' : m < 30 ? 'l1' : m < 60 ? 'l2' : m < 90 ? 'l3' : 'l4';
     cells += `<i class="${l}" title="${k}: ${m}m"></i>`; }
-  const recent = p.hist.filter(h => h.prev != null && h.bpm > h.prev).slice(-5).reverse().map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><small>${h.prev} → </small><b style="color:var(--accent)">${h.bpm}</b></li>`).join('');
+  const recent = p.hist.filter(h => h.prev != null && h.bpm > h.prev).slice(-5).reverse().map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><small>${dv(h.k, h.prev)} → </small><b style="color:var(--accent)">${Tk(h.k, h.bpm)}</b></li>`).join('');
   const backupDue = !Sync.on && p.sessions.length > 3 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * DAY);
   return `
   <section class="card"><div class="lvl"><div class="lvbadge">Lv ${lv.n}</div><div class="grow">
@@ -668,9 +688,9 @@ function itemLabel(k) {
 function exRow(ex) {
   const i = exInfo(ex);
   let meta;
-  if (i.n === 1) meta = i.vals[0] ? `<b>♩${i.vals[0]}</b>` : '—';
-  else if (i.floor) meta = i.full ? `floor <b>♩${i.min}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ♩${i.min}` : ''}`;
-  else meta = i.vals.map(v => v ? `<b>♩${v}</b>` : '—').join(' / ');
+  if (i.n === 1) meta = i.vals[0] ? `<b>${T(ex, i.vals[0])}</b>` : '—';
+  else if (i.floor) meta = i.full ? `floor <b>${T(ex, i.min)}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ${T(ex, i.min)}` : ''}`;
+  else meta = i.vals.map(v => v ? `<b>${T(ex, v)}</b>` : '—').join(' / ');
   const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
   return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${meta}</span></div>${strip}</button>`;
 }
@@ -692,15 +712,15 @@ function vGrid() {
     const groups = [];
     for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
     return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= 5 ? '<th>Floor</th>' : ''}</tr></thead><tbody>
-      ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
-        return `<td><input type="number" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" value="${v ?? ''}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
-        ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? '♩' + i.min + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
+      ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)} ${unitBtn('ex', ex)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
+        return `<td><input type="number" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
+        ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? T(ex, i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
-  const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${p.bpm['l:' + l.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`).join('');
-  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${p.bpm['t:' + t.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
+  const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)} ${unitBtn('lick', l)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${dv('l:' + l.id, p.bpm['l:' + l.id])}" tabindex="${++tabIdx}"></td></tr>`).join('');
+  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)} ${unitBtn('tune', t)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${dv('t:' + t.id, p.bpm['t:' + t.id])}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
   return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
-    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Easiest on a computer – when you're done, use
+    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Tap the note next to a name to switch it between quarter- and half-note tempo. Easiest on a computer – when you're done, use
     <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" data-act="gotoTab" data-tab2="ex">← Back to exercises</button></div></section>
     ${sections}
@@ -712,7 +732,7 @@ function bindGrid() {
     setBpm(inp.dataset.gkey, inp.value, inp.dataset.ex);
     const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v) : '';
     if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
-      if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? '♩' + i.min + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
+      if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? T(o.ex, i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
   }));
   $$('#view input[data-ttempo]').forEach(cb => cb.addEventListener('change', () => { S.lib.tunes.find(x => x.id === cb.dataset.ttempo).tempo = cb.checked; save(); }));
   $$('#view select[data-tstage]').forEach(sel => sel.addEventListener('change', () => setTuneLevel(sel.dataset.tstage, +sel.dataset.i, +sel.value)));
@@ -722,7 +742,7 @@ function vLicks() {
   const p = P();
   return `<div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
     return `<button class="lcard" data-act="openLick" data-id="${esc(l.id)}"><div class="im">${l.img ? `<img data-img="${esc(l.img)}" alt="">` : 'no image'}</div>
-      <div class="t"><span>${esc(l.name)}</span><b style="color:${b ? 'var(--accent)' : 'var(--muted)'}">${b ? '♩' + b : '—'}</b></div></button>`; }).join('')}</div>
+      <div class="t"><span>${esc(l.name)}</span><b style="color:${b ? 'var(--accent)' : 'var(--muted)'}">${T(l, b)}</b></div></button>`; }).join('')}</div>
     <button class="btn ghost" data-act="addLick">+ Add lick</button>`;
 }
 function vTunes() {
@@ -733,7 +753,7 @@ function vTunes() {
   return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}</button>`).join('')}</div>
     <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} learned · ${S.lib.tunes.length} total · dots: melody, changes, soloing</p>
     ${list.map(t => { const b = p.bpm['t:' + t.id]; const last = p.touched['t:' + t.id];
-      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}<br><small>${[t.style, last ? 'played ' + ago(last) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${t.tempo ? `<b style="color:${b ? 'var(--accent)' : 'var(--muted)'};margin-right:4px">${b ? '♩' + b : '♩—'}</b>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
+      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}<br><small>${[t.style, last ? 'played ' + ago(last) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${t.tempo ? `<b style="color:${b ? 'var(--accent)' : 'var(--muted)'};margin-right:4px">${b ? T(t, b) : NOTE(unitOf(t)) + '—'}</b>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
     <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
 }
 function vMore() {
@@ -818,21 +838,21 @@ function closeSheet(fromPop) {
 window.addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
 const head = (title, sub) => `<div class="phead"><div class="grow"><h2>${esc(title)}</h2>${sub ? `<small>${esc(sub)}</small>` : ''}</div><button class="iconbtn" data-act="closeSheet" aria-label="Close">✕</button></div>`;
 
-function tempoChart(series) {
+function tempoChart(series, u = 1) {
   if (series.length < 2) return '';
   const W = 300, H = 90, t0 = series[0].t, t1 = series[series.length - 1].t || t0 + 1, lo = Math.min(...series.map(x => x.bpm)) - 5, hi = Math.max(...series.map(x => x.bpm)) + 5;
   const X = t => 8 + (W - 16) * (t - t0) / Math.max(1, t1 - t0), Y = b => H - 14 - (H - 24) * (b - lo) / Math.max(1, hi - lo);
   const pts = series.map(x => `${X(x.t).toFixed(1)},${Y(x.bpm).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="margin-top:6px"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>
     ${series.map(x => `<circle cx="${X(x.t).toFixed(1)}" cy="${Y(x.bpm).toFixed(1)}" r="3" fill="var(--accent)"/>`).join('')}
-    <text x="4" y="${H - 2}" fill="var(--muted)" font-size="10">${new Date(t0).toLocaleDateString()}</text><text x="${W - 4}" y="${H - 2}" fill="var(--muted)" font-size="10" text-anchor="end">♩${series[series.length - 1].bpm}</text></svg>`;
+    <text x="4" y="${H - 2}" fill="var(--muted)" font-size="10">${new Date(t0).toLocaleDateString()}</text><text x="${W - 4}" y="${H - 2}" fill="var(--muted)" font-size="10" text-anchor="end">${Math.round(series[series.length - 1].bpm / u)}${u === 2 ? ' (half notes)' : ' bpm'}</text></svg>`;
 }
 function histList(prefix, labelFn) {
   const all = P().hist.filter(x => x.k.startsWith(prefix));
   const h = all.slice(-12).reverse();
   if (!h.length) return '';
   const single = new Set(all.map(x => x.k)).size === 1;
-  return `<h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${x.prev}→</small>` : ''}${x.bpm}</b></li>`).join('')}</ul>`;
+  return `<h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all, uk(all[0].k)) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${dv(x.k, x.prev)}→</small>` : ''}${Tk(x.k, x.bpm)}</b></li>`).join('')}</ul>`;
 }
 
 function sheetEx(id) {
@@ -841,16 +861,16 @@ function sheetEx(id) {
   const info = exInfo(ex);
   const floorHtml = () => { const i = exInfo(ex);
     if (!i.floor) return '';
-    return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? '♩' + i.min : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
-      <div><small>Fastest key</small><strong>${i.logged ? '♩' + Math.max(...i.vals.filter(v => v != null)) : '—'}</strong><small>${i.logged ? esc(ex.keys[i.vals.indexOf(Math.max(...i.vals.filter(v => v != null)))]) : ''}</small></div>`; };
+    return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? T(ex, i.min) : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
+      <div><small>Fastest key</small><strong>${i.logged ? T(ex, Math.max(...i.vals.filter(v => v != null))) : '—'}</strong><small>${i.logged ? esc(ex.keys[i.vals.indexOf(Math.max(...i.vals.filter(v => v != null)))]) : ''}</small></div>`; };
   const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
     return `<label class="krow ${info.floor && info.full && k === info.mk ? 'fl' : ''}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span>
       <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
-      <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${v ?? ''}" placeholder="—">
-      <button class="iconbtn" data-act="mOpen" data-bpm="${v || ''}" title="Metronome" type="button">♩</button></label>`; }).join('');
+      <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
+      <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" title="Metronome" type="button">♩</button></label>`; }).join('');
   openSheet(`${head(ex.name, sec.name)}
     <div class="floorbox" id="floorbox">${floorHtml()}</div>
-    <p class="muted" style="margin:6px 0 10px;font-size:.9rem">Type your best clean tempo for each key. Changes save automatically.</p>
+    <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">Type your best clean tempo for each key. Changes save automatically.</p>${unitBtn('ex', ex, true)}</div>
     <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
@@ -867,7 +887,7 @@ function sheetEx(id) {
       inp.closest('.krow').querySelector('.kn small').textContent = 'today';
       $('#floorbox').innerHTML = floorHtml();
       const i = exInfo(ex); $$('#panel .krow').forEach(r => r.classList.toggle('fl', i.floor && i.full && r.dataset.k === i.mk));
-      if (pb) toast('New record: ♩' + v + ' +10 XP');
+      if (pb) toast('New record: ' + Ttxt(ex, v) + '  +10 XP');
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
   });
@@ -877,8 +897,8 @@ function sheetLick(id) {
   const l = S.lib.licks.find(x => x.id === id); if (!l) return; const key = 'l:' + l.id; const p = P();
   openSheet(`${head(l.name, 'all 12 keys')}
     ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
-    <label class="f">Best tempo through all 12 keys</label>
-    <div class="row"><input type="number" inputmode="numeric" id="lickBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
+    <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">Best tempo through all 12 keys</label>${unitBtn('lick', l, true)}</div>
+    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="lickBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}">♩</button></div>
     <label class="f">Notes</label><textarea id="lickNotes" rows="2">${esc(l.notes || '')}</textarea>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="lick" data-id="${esc(l.id)}">+ Today's plan</button></div>
@@ -886,7 +906,7 @@ function sheetLick(id) {
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameLick" data-id="${esc(l.id)}">Rename</button>
       ${l.img ? `<button class="btn sm" data-act="lickImg" data-id="${esc(l.id)}">Replace image</button>` : ''}
       <button class="btn sm danger" data-act="delLick" data-id="${esc(l.id)}">Delete</button></div>`);
-  $('#lickBpm').onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ♩' + P().bpm[key] + ' +10 XP'); };
+  $('#lickBpm').onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + Ttxt(l, P().bpm[key]) + '  +10 XP'); };
   $('#lickNotes').onchange = e => { l.notes = e.target.value; save(); };
 }
 
@@ -897,9 +917,9 @@ function sheetTune(id) {
     `<button data-act="tuneLv" data-id="${esc(id)}" data-i="${i}" data-v="${v}" class="${tuneState(id).lv[i] === v ? 'on' : ''}">${L}</button>`).join('')}</div></div>`).join('');
   const tagHtml = () => splitTags(t.tags).map(x => `<span class="tagchip">#${esc(x)}<button data-act="tagDel" data-id="${esc(id)}" data-tag="${esc(x)}" aria-label="Remove tag">✕</button></span>`).join('') || '<small class="muted">No tags yet.</small>';
   openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
-    ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${p.bpm[key] ? '♩' + p.bpm[key] : '—'}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
-    <label class="f">New tempo</label>
-    <div class="row"><input type="number" inputmode="numeric" id="tuneBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>` : ''}
+    ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${T(t, p.bpm[key])}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
+    <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">New tempo</label>${unitBtn('tune', t, true)}</div>
+    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}">♩</button></div>` : ''}
     <div id="stages">${stageHtml()}</div>
     <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
     <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
@@ -910,7 +930,7 @@ function sheetTune(id) {
     <form class="row" id="tagForm"><input type="text" id="tagIn" list="tagList" placeholder="Add tag, e.g. ballad, gig"><datalist id="tagList">${allTags().map(x => `<option value="${esc(x)}">`).join('')}</datalist><button class="btn" type="submit">Add</button></form>
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(t.id)}">Rename</button><button class="btn sm danger" data-act="delTune" data-id="${esc(t.id)}">Delete</button></div>`);
   sheetTune.refresh = () => { $('#stages').innerHTML = stageHtml(); $('#tagbox').innerHTML = tagHtml(); };
-  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ♩' + P().bpm[key] + ' +10 XP'); sheetTune(id); };
+  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + Ttxt(t, P().bpm[key]) + '  +10 XP'); sheetTune(id); };
   $('#tuneTempo').onchange = e => { t.tempo = e.target.checked; save(); sheetTune(id); };
   $('#tuneNotes').onchange = e => { tuneRec(id).notes = e.target.value; save(); };
   $('#tagForm').onsubmit = e => { e.preventDefault(); const v = $('#tagIn').value.trim().toLowerCase().replace(/^#/, ''); if (!v) return;
@@ -920,8 +940,8 @@ function sheetTune(id) {
 function pickerSheet(t) {
   const p = P(); let rows;
   if (t === 'ex') rows = S.lib.sections.map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
-    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? '♩' + i.vals[0] : ''}</small></button>`; }).join('')).join('');
-  else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? '♩' + p.bpm['l:' + l.id] : ''}</small></button>`).join('');
+    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? T(ex, i.vals[0]) : ''}</small></button>`; }).join('')).join('');
+  else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? T(l, p.bpm['l:' + l.id]) : ''}</small></button>`).join('');
   else rows = S.lib.tunes.map(x => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="grow">${esc(x.name)}</span>${tunePips(x.id)}</button>`).join('');
   openSheet(`${head('Add ' + (t === 'ex' ? 'an exercise' : t === 'lick' ? 'a lick' : 'a tune') + ' to today')}
     <input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">${rows}`);
@@ -934,7 +954,7 @@ function pickKeySheet(ex) {
   openSheet(`${head('Which key?', ex.name)}
     <button class="btn primary" style="width:100%;margin:6px 0 10px" data-act="pickKey" data-id="${esc(ex.id)}">Auto – weakest or unlogged key</button>
     <div class="keys">${ex.keys.map(k => { const v = p.bpm[exKey(ex, k)];
-      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${v ? '♩' + v : '—'}</small></button>`; }).join('')}</div>`);
+      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${T(ex, v)}</small></button>`; }).join('')}</div>`);
 }
 
 function formSheet(title, fields, onOk, extraBtns = '') {
@@ -1004,6 +1024,13 @@ const A = {
   closeSheet: () => closeSheet(),
   syncNow: () => { if (Sync.on) Sync.now(); else { tab = 'more'; render(); setTimeout(() => $('#syncForm')?.scrollIntoView({ block: 'center' }), 50); } },
   syncOff: () => { if (confirm('Stop syncing on this device? Your data stays here and in GitHub.')) { Sync.disconnect(); render(); } },
+  unitToggle: el => {
+    const ty = el.dataset.ut, id = el.dataset.id;
+    const it = ty === 'ex' ? findEx(id).ex : ty === 'lick' ? S.lib.licks.find(x => x.id === id) : S.lib.tunes.find(x => x.id === id);
+    it.unit = unitOf(it) === 2 ? 1 : 2; save();
+    toast('Showing ' + (it.unit === 2 ? 'half-note' : 'quarter-note') + ' tempos for ' + it.name);
+    if (sheetOpen) { ty === 'ex' ? sheetEx(id) : ty === 'lick' ? sheetLick(id) : sheetTune(id); } else render();
+  },
   gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
