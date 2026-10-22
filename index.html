@@ -150,7 +150,7 @@ nav#tabs button span{font-size:1.25rem;line-height:1}
 nav#tabs button.on{color:var(--accent)}
 
 /* metronome */
-#metro{position:fixed;left:8px;right:8px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:31;background:var(--surface2);border:1px solid var(--line);
+#metro{position:fixed;left:8px;right:8px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:50;background:var(--surface2);border:1px solid var(--line);
   border-radius:16px;padding:8px 10px;display:none;align-items:center;gap:6px;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:520px;margin:0 auto}
 #metro.on{display:flex}
 #metro input{width:70px;text-align:center;font-weight:700;font-size:1.1rem;padding:6px}
@@ -170,6 +170,8 @@ nav#tabs button.on{color:var(--accent)}
   color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hide{display:none!important}
+body.metro-on #sheet .panel{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+button.krow{width:100%;border:0;text-align:left}
 main.wide{max-width:1280px}
 .gwrap{overflow-x:auto;margin-bottom:10px}
 table.grid{border-collapse:collapse;font-size:.9rem}
@@ -275,6 +277,30 @@ function defaultLib() {
       'Tempus Fugit', 'Tico Tico', 'Yardbird Suite'].map(n => ({ id: slug(n), name: n, tags: 'bebop' })),
   };
 }
+const FAV_TUNES = [["A Night In Tunisia", "Latin", "Dizzy Gillespie"], ["After You've Gone", "Up Tempo Swing", "Henry Creamer"], ["All Of Me", "Medium Swing", "Gerald Marks"], ["All The Things You Are", "Medium Up Swing", "Jerome Kern"], ["Anthropology", "Up Tempo Swing", "Charlie Parker"], ["Autumn Leaves", "Medium Swing", "Joseph Kosma"], ["Bernie's Tune", "Medium Up Swing", "Bernie Miller"], ["Billie's Bounce", "Medium Up Swing", "Charlie Parker"], ["Bloomdido", "Up Tempo Swing", "Charlie Parker"], ["Blue Monk", "Medium Swing", "Thelonious Monk"], ["Blues For Alice", "Medium Up Swing", "Charlie Parker"], ["Bye Bye Blackbird", "Medium Swing", "Ray Henderson"], ["Cherokee", "Up Tempo Swing", "Ray Noble"], ["Dewey Square", "Medium Up Swing", "Charlie Parker"], ["Doxy", "Medium Swing", "Sonny Rollins"], ["Everything Happens To Me", "Ballad", "Matt Dennis"], ["Good Bait", "Medium Swing", "Tadd Dameron"], ["Have You Met Miss Jones?", "Medium Swing", "Richard Rodgers"], ["Here's That Rainy Day", "Ballad", "Jimmy Van-Heusen"], ["Hot House", "Up Tempo Swing", "Tadd Dameron"], ["How High The Moon", "Medium Swing", "Morgan Lewis"], ["I Remember You", "Medium Swing", "Victor Schertzinger"], ["I'll Be Seeing You", "Medium Swing", "Sammy Fain"], ["If I Were A Bell", "Medium Up Swing", "Frank Loesser"], ["Imagination", "Ballad", "Jimmy Van-Heusen"], ["In Walked Bud", "Medium Up Swing", "Thelonious Monk"], ["Invitation", "Even 8ths", "Bronislau Kaper"], ["Joy Spring", "Up Tempo Swing", "Clifford Brown"], ["Just Friends", "Medium Swing", "John Klenner"], ["Like Someone In Love", "Medium Swing", "Jimmy Van-Heusen"], ["Love For Sale", "Medium Up Swing", "Cole Porter"], ["Lover Man", "Ballad", "Davis-Ramirez-Sherman"], ["Lullaby Of Birdland", "Medium Swing", "George Shearing"], ["Manha De Carnaval (Black Orpheus)", "Bossa Nova", "Luiz Bonfa"], ["Misty", "Ballad", "Erroll Garner"], ["Nica's Dream", "Latin", "Horace Silver"], ["Night And Day", "Medium Swing", "Cole Porter"], ["Now's The Time", "Medium Swing", "Charlie Parker"], ["On Green Dolphin Street", "Up Tempo Swing", "Bronislau Kaper"], ["Out Of Nowhere", "Medium Swing", "Johnny Green"], ["Pennies From Heaven", "Medium Swing", "Arthur Johnston"], ["Round Midnight", "Ballad", "Thelonious Monk"], ["Scrapple From The Apple", "Up Tempo Swing", "Charlie Parker"], ["Secret Love", "Ballad", "Sammy Fain"], ["Serpent's Tooth", "Medium Up Swing", "Miles Davis"], ["Smoke Gets In Your Eyes", "Ballad", "Jerome Kern"], ["Softly, As In A Morning Sunrise", "Medium Swing", "Sigmund Romberg"], ["Someday My Prince Will Come", "Waltz", "Frank Churchill"], ["St. Thomas", "Latin", "Sonny Rollins"], ["Star Dust", "Ballad", "Hoagy Carmichael"], ["Star Eyes", "Medium Swing", "Gene DePaul"], ["Stella By Starlight", "Medium Swing", "Victor Young"], ["Sweet Georgia Brown", "Up Tempo Swing", "Pinkard-Casey-Bernie"], ["Take The A Train", "Medium Up Swing", "Billy Strayhorn"], ["There Is No Greater Love", "Medium Swing", "Isham Jones"], ["There Will Never Be Another You", "Medium Up Swing", "Harry Warren"], ["Till There Was You", "Ballad", "Meredith Wilson"], ["The Way You Look Tonight", "Up Tempo Swing", "Jerome Kern"], ["What Is This Thing Called Love", "Up Tempo Swing", "Cole Porter"], ["Willow Weep For Me", "Slow Swing", "Ann Ronell"], ["Yardbird Suite", "Medium Up Swing", "Charlie Parker"], ["You'd Be So Nice To Come Home To", "Medium Up Swing", "Cole Porter"], ["Limehouse Blues", "Up Tempo Swing", "Braham-Furber"]];
+const LICK_SRC = ["Jazz licks, bar 1", "Jazz licks, bar 5", "Jazz licks, bar 9", "Jazz licks, bar 13", "Jazz licks, bar 17", "Jazz licks, bar 21", "Jazz licks, bar 25", "Jazz licks 2, bar 1", "Jazz licks 2, bar 5", "Jazz licks 2, bar 9", "Jazz licks 2, bar 13", "Jazz licks 2, bar 17", "Jazz licks 2, bar 21", "Jazz licks 2, bar 25", "Jazz licks 2, bar 29", "Jazz licks 2, bar 31", "Jazz licks 3, bar 1", "Jazz licks 3, bar 5", "Jazz licks 3, bar 9", "Jazz licks 3, bar 13", "Jazz licks 3, bar 17", "Jazz licks 3, bar 21", "Jazz licks 3, bar 25", "Jazz licks 3, bar 29", "Jazz licks 3, bar 33"];
+// Library updates for people who already have data: add new content without touching their own.
+function migrate() {
+  S.libRev = S.libRev || 1;
+  if (S.libRev < 2) {
+    LICK_SRC.forEach((src, i) => {
+      const id = 'lick-' + (i + 1); let l = S.lib.licks.find(x => x.id === id);
+      if (!l) { l = { id, name: 'Lick ' + (i + 1), img: null, notes: '' }; S.lib.licks.push(l); }
+      if (!l.img) l.img = 'licks/' + id + '.png';
+      l.src = src;
+    });
+    for (const [name, style, composer] of FAV_TUNES) {
+      let t = S.lib.tunes.find(x => x.id === slug(name) || x.name.toLowerCase() === name.toLowerCase());
+      if (!t) { t = { id: slug(name), name, tags: '' }; S.lib.tunes.push(t); }
+      t.style = t.style || style; t.composer = t.composer || composer;
+      const tags = (t.tags || '').split(',').map(x => x.trim()).filter(Boolean);
+      if (!tags.includes('favorites')) tags.push('favorites');
+      t.tags = tags.join(', ');
+    }
+    S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name));
+    S.libRev = 2;
+  }
+}
 const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
 
 /* ---------- state ---------- */
@@ -284,6 +310,7 @@ function load() {
   try { S = JSON.parse(localStorage.getItem(LS)); } catch (e) { S = null; }
   if (!S || !S.lib) S = { v: 1, lib: defaultLib(), inst: [{ id: 'alto', name: 'Alto sax' }], cur: 'alto', prog: { alto: newProg() }, settings: { goal: 3 }, session: null, plan: null };
   for (const i of S.inst) S.prog[i.id] = Object.assign(newProg(), S.prog[i.id] || {});
+  migrate(); save();
 }
 function save() {
   try { localStorage.setItem(LS, JSON.stringify(S)); }
@@ -312,6 +339,7 @@ const imgCache = {};
 async function hydrateImgs(root = document) {
   for (const el of $$('img[data-img]', root)) {
     const id = el.dataset.img; if (!id) continue;
+    if (id.includes('/')) { el.src = id; continue; }
     if (!(id in imgCache)) { try { imgCache[id] = await idb.get(id); } catch (e) { imgCache[id] = null; } }
     if (imgCache[id]) el.src = imgCache[id];
   }
@@ -420,25 +448,39 @@ function checkBadges(silent) {
 }
 
 /* ---------- session plan ---------- */
+// Weakest key of an exercise: a random unlogged key if any, otherwise the slowest one.
+function weakestKey(ex) {
+  const p = P(); const unlogged = ex.keys.filter(k => p.bpm[exKey(ex, k)] == null);
+  if (unlogged.length) return unlogged[Math.floor(Math.random() * unlogged.length)];
+  return ex.keys.reduce((a, k) => (p.bpm[exKey(ex, k)] < p.bpm[exKey(ex, a)] ? k : a), ex.keys[0]);
+}
+// Neglected items score higher; the random part keeps suggestions varied.
+const staleScore = t => Math.min(60, (Date.now() - (t || 0)) / DAY) + Math.random() * 20;
+function pickFor(t, items) {
+  const p = P(), inPlan = new Set(items.filter(i => i.t === t).map(i => i.id));
+  const best = arr => arr.sort((a, b) => b.s - a.s)[0];
+  if (t === 'ex') {
+    const usedSecs = new Set(items.filter(i => i.t === 'ex').map(i => findEx(i.id)?.sec.id));
+    const c = best(allEx().filter(o => !inPlan.has(o.ex.id)).map(o => ({ o, s: staleScore(p.touched['x:' + o.ex.id]) - (usedSecs.has(o.sec.id) ? 40 : 0) })));
+    return c && { t, id: c.o.ex.id, key: weakestKey(c.o.ex) };
+  }
+  if (t === 'lick') { const c = best(S.lib.licks.filter(l => !inPlan.has(l.id)).map(l => ({ l, s: staleScore(p.touched['l:' + l.id]) })));
+    return c && { t, id: c.l.id }; }
+  const pool = S.lib.tunes.filter(x => !inPlan.has(x.id));
+  const c = best(pool.map(x => ({ x, s: staleScore(p.touched['t:' + x.id]) + (tuneStatus(x.id) === 'learning' ? 25 : tuneStatus(x.id) === 'done' ? -30 : 0) })));
+  return c && { t, id: c.x.id };
+}
 function makePlan() {
-  const p = P(), now = Date.now(), items = [];
-  const cands = allEx().map(({ sec, ex }) => {
-    const last = p.touched['x:' + ex.id] || 0;
-    const unlogged = ex.keys.filter(k => p.bpm[exKey(ex, k)] == null);
-    let key;
-    if (unlogged.length) key = unlogged[Math.floor(Math.random() * unlogged.length)];
-    else key = ex.keys.reduce((a, k) => (p.bpm[exKey(ex, k)] < p.bpm[exKey(ex, a)] ? k : a), ex.keys[0]);
-    return { sec, ex, key, score: Math.min(60, (now - last) / DAY) + Math.random() * 15 };
-  }).sort((a, b) => b.score - a.score);
-  const used = new Set();
-  for (const c of cands) { if (used.has(c.sec.id)) continue; used.add(c.sec.id); items.push({ t: 'ex', id: c.ex.id, key: c.key }); if (items.length >= 3) break; }
-  const lick = [...S.lib.licks].sort((a, b) => (p.touched['l:' + a.id] || 0) - (p.touched['l:' + b.id] || 0) || Math.random() - .5)[0];
-  if (lick) items.push({ t: 'lick', id: lick.id });
-  const tunes = S.lib.tunes.filter(t => tuneStatus(t.id) === 'learning');
-  const pool = tunes.length ? tunes : S.lib.tunes.filter(t => tuneStatus(t.id) === 'new');
-  const tune = pool.sort((a, b) => (p.touched['t:' + a.id] || 0) - (p.touched['t:' + b.id] || 0))[0];
-  if (tune) items.push({ t: 'tune', id: tune.id });
-  S.plan = { date: dayKey(now), inst: S.cur, items }; save();
+  const items = [], sz = planSize();
+  for (const [t, n] of [['ex', sz.ex], ['lick', sz.lick], ['tune', sz.tune]])
+    for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
+  S.plan = { date: dayKey(Date.now()), inst: S.cur, items }; save();
+}
+const planSize = () => Object.assign({ ex: 3, lick: 1, tune: 1 }, S.settings.plan || {});
+function addToPlan(it) {
+  if (!S.plan) makePlan();
+  if (S.plan.items.some(x => x.t === it.t && x.id === it.id && x.key === it.key)) { toast('Already in today\'s plan'); return; }
+  S.plan.items.push(it); save(); toast('Added to today\'s plan');
 }
 
 /* ---------- views ---------- */
@@ -460,14 +502,15 @@ function vHome() {
   const wk = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => { const k = dayKey(addDays(mon, i));
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
   if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
-  const planHtml = S.plan.items.map(it => {
+  const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>♩${b}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>♩${b}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
     if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = 'Tune'; label = esc(t.name); const s = tuneState(t.id).st; const nx = s.indexOf(false); key = nx >= 0 ? ` <small>next: ${STAGES[nx]}</small>` : ''; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
-    return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button></li>`;
-  }).join('');
+    return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
+      <button class="iconbtn" data-act="planSwap" data-i="${idx}" title="Suggest something else" aria-label="Swap">⇄</button><button class="iconbtn" data-act="planDel" data-i="${idx}" title="Remove" aria-label="Remove">✕</button></li>`;
+  }).join('') || '<li class="muted">Empty – add something below.</li>';
   // heatmap: 20 weeks
   const start = addDays(mon, -19 * 7); let cells = '';
   for (let i = 0; i < 140; i++) { const d = addDays(start, i), k = dayKey(d), m = dm[k] || 0;
@@ -484,7 +527,8 @@ function vHome() {
     ${S.session ? '' : `<button class="btn primary big" data-act="startSession">Start practice session</button>`}
   </section>
   ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
-  <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="New plan">↻</button></h3><ul class="plan">${planHtml}</ul></section>
+  <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="Replace the whole plan">↻ all</button></h3><ul class="plan">${planHtml}</ul>
+    <div class="row wrap" style="margin-top:8px"><small class="grow">Add:</small><button class="btn sm" data-act="planAdd" data-t="ex">+ Exercise</button><button class="btn sm" data-act="planAdd" data-t="lick">+ Lick</button><button class="btn sm" data-act="planAdd" data-t="tune">+ Tune</button></div></section>
   <section class="card"><h3>Last 20 weeks</h3><div class="heat">${cells}</div>
     <div class="row" style="margin-top:8px"><small class="grow">${totalHours(p).toFixed(1)} hours total</small><small>${p.sessions.length} sessions</small></div></section>
   ${recent ? `<section class="card"><h3>Recent tempo records</h3><ul class="list">${recent}</ul></section>` : ''}`;
@@ -566,7 +610,7 @@ function vTunes() {
   return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}</button>`).join('')}</div>
     <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} done · ${S.lib.tunes.length} total</p>
     ${list.map(t => { const s = tuneState(t.id).st; const b = p.bpm['t:' + t.id];
-      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}</span>${b ? `<small>♩${b}</small>` : ''}<span class="pips">${s.map(x => `<i class="${x ? 'on' : ''}"></i>`).join('')}</span></button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
+      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}${t.style ? `<br><small>${esc(t.style)}</small>` : ''}</span>${b ? `<small>♩${b}</small>` : ''}<span class="pips">${s.map(x => `<i class="${x ? 'on' : ''}"></i>`).join('')}</span></button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
     <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
 }
 function vMore() {
@@ -585,6 +629,8 @@ function vMore() {
   <section class="card"><h3><span class="grow">Sessions</span><button class="btn sm" data-act="logPast">+ Log past session</button></h3><ul class="list">${sess || '<li class="muted">No sessions yet.</li>'}</ul></section>
   <section class="card"><h3>Settings – ${esc(curInst().name)}</h3>
     <label class="f">Practice hours before using this app</label><input type="number" inputmode="decimal" id="priorHours" value="${p.priorHours || ''}" placeholder="0">
+    <label class="f">Suggested plan size: exercises · licks · tunes</label>
+    <div class="row">${['ex', 'lick', 'tune'].map(k => `<select data-plansz="${k}">${[0, 1, 2, 3, 4, 5, 6].map(n => `<option ${planSize()[k] === n ? 'selected' : ''}>${n}</option>`).join('')}</select>`).join('')}</div>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}</span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
@@ -609,6 +655,7 @@ function render() {
   }
   if (tab === 'more') {
     $('#priorHours').onchange = e => { P().priorHours = Math.max(0, +e.target.value || 0); save(); checkBadges(); render(); };
+    $$('[data-plansz]').forEach(sel => sel.onchange = () => { S.settings.plan = Object.assign(planSize(), { [sel.dataset.plansz]: +sel.value }); S.plan = null; save(); });
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
   }
 }
@@ -663,7 +710,7 @@ function sheetEx(id) {
     <p class="muted" style="margin:6px 0 10px;font-size:.9rem">Type your best clean tempo for each key. Changes save automatically.</p>
     <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
     <div class="sp"></div>
-    <button class="btn" style="width:100%" data-act="practiced" data-ex="${esc(ex.id)}">✓ Mark practiced${S.session ? ' (adds to session)' : ''}</button>
+    <div class="row"><button class="btn grow" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
     ${histList('e:' + ex.id + '|', k => k.split('|')[1] === '—' ? ex.name : k.split('|')[1])}
     <div class="row" style="margin-top:14px">
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
@@ -685,13 +732,13 @@ function sheetEx(id) {
 
 function sheetLick(id) {
   const l = S.lib.licks.find(x => x.id === id); if (!l) return; const key = 'l:' + l.id; const p = P();
-  openSheet(`${head(l.name, 'All 12 keys')}
+  openSheet(`${head(l.name, (l.src ? l.src + ' · ' : '') + 'all 12 keys')}
     ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
     <label class="f">Best tempo through all 12 keys</label>
     <div class="row"><input type="number" inputmode="numeric" id="lickBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
     <label class="f">Notes</label><textarea id="lickNotes" rows="2">${esc(l.notes || '')}</textarea>
     <div class="sp"></div>
-    <button class="btn" style="width:100%" data-act="practicedItem" data-k="${esc(key)}">✓ Mark practiced</button>
+    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="lick" data-id="${esc(l.id)}">+ Today's plan</button></div>
     ${histList(key, () => l.name)}
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameLick" data-id="${esc(l.id)}">Rename</button>
       ${l.img ? `<button class="btn sm" data-act="lickImg" data-id="${esc(l.id)}">Replace image</button>` : ''}
@@ -703,13 +750,13 @@ function sheetLick(id) {
 function sheetTune(id) {
   const t = S.lib.tunes.find(x => x.id === id); if (!t) return; const key = 't:' + t.id; const p = P();
   const ts = tuneState(id);
-  openSheet(`${head(t.name, t.tags ? '#' + t.tags.split(',').map(s => s.trim()).join(' #') : '')}
+  openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
     <div class="stages">${STAGES.map((s, i) => `<label><input type="checkbox" data-stage="${i}" ${ts.st[i] ? 'checked' : ''}><span class="grow">${s}</span><small>+25 XP</small></label>`).join('')}</div>
     <label class="f">Tempo (optional – for tunes where speed matters)</label>
     <div class="row"><input type="number" inputmode="numeric" id="tuneBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
     <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
     <div class="sp"></div>
-    <button class="btn" style="width:100%" data-act="practicedItem" data-k="${esc(key)}">✓ Mark practiced</button>
+    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(t.id)}">+ Today's plan</button></div>
     ${histList(key, () => t.name)}
     <label class="f">Tags (comma separated)</label><input type="text" id="tuneTags" value="${esc(t.tags || '')}">
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(t.id)}">Rename</button><button class="btn sm danger" data-act="delTune" data-id="${esc(t.id)}">Delete</button></div>`);
@@ -718,6 +765,26 @@ function sheetTune(id) {
   $('#tuneBpm').onchange = e => setBpm(key, e.target.value);
   $('#tuneNotes').onchange = e => { st().notes = e.target.value; save(); };
   $('#tuneTags').onchange = e => { t.tags = e.target.value; save(); };
+}
+
+function pickerSheet(t) {
+  const p = P(); let rows;
+  if (t === 'ex') rows = S.lib.sections.map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
+    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? '♩' + i.vals[0] : ''}</small></button>`; }).join('')).join('');
+  else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}${l.src ? `<br><small>${esc(l.src)}</small>` : ''}</span><small>${p.bpm['l:' + l.id] ? '♩' + p.bpm['l:' + l.id] : ''}</small></button>`).join('');
+  else rows = S.lib.tunes.map(x => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="grow">${esc(x.name)}</span><span class="pips">${tuneState(x.id).st.map(v => `<i class="${v ? 'on' : ''}"></i>`).join('')}</span></button>`).join('');
+  openSheet(`${head('Add ' + (t === 'ex' ? 'an exercise' : t === 'lick' ? 'a lick' : 'a tune') + ' to today')}
+    <input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">${rows}`);
+  $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase();
+    $$('#panel .trow').forEach(r => r.classList.toggle('hide', !!q && !r.dataset.name.includes(q)));
+    $$('#panel [data-grp]').forEach(h => h.classList.toggle('hide', !!q)); };
+}
+function pickKeySheet(ex) {
+  const p = P();
+  openSheet(`${head('Which key?', ex.name)}
+    <button class="btn primary" style="width:100%;margin:6px 0 10px" data-act="pickKey" data-id="${esc(ex.id)}">Auto – weakest or unlogged key</button>
+    <div class="keys">${ex.keys.map(k => { const v = p.bpm[exKey(ex, k)];
+      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${v ? '♩' + v : '—'}</small></button>`; }).join('')}</div>`);
 }
 
 function formSheet(title, fields, onOk, extraBtns = '') {
@@ -754,17 +821,32 @@ function saveSessionRecord(start, min, note, items) {
 /* ---------- metronome ---------- */
 const M = { ctx: null, on: false, bpm: 120, next: 0, beat: 0, timer: null, taps: [] };
 function mSet(b) { M.bpm = Math.max(20, Math.min(400, Math.round(+b) || 120)); $('#mBpm').value = M.bpm; }
+// Clicks are short pre-built sound buffers, scheduled ahead on the audio clock.
+function mBuf(freq) {
+  const sr = M.ctx.sampleRate, n = Math.floor(sr * 0.05), b = M.ctx.createBuffer(1, n, sr), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.sin(2 * Math.PI * freq * i / sr) * Math.exp(-i / (sr * 0.008));
+  return b;
+}
 function mClick(t, acc) {
-  const o = M.ctx.createOscillator(), g = M.ctx.createGain();
-  o.frequency.value = acc ? 1600 : 1000;
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(acc ? 0.9 : 0.55, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
-  o.connect(g).connect(M.ctx.destination); o.start(t); o.stop(t + 0.06);
+  const src = M.ctx.createBufferSource(); src.buffer = acc ? M.hi : M.lo; src.connect(M.ctx.destination); src.start(t);
   const delay = Math.max(0, (t - M.ctx.currentTime) * 1000);
   setTimeout(() => { const b = $('#beat'); b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90); }, delay);
 }
-function mSched() { while (M.next < M.ctx.currentTime + 0.12) { mClick(M.next, M.beat % 4 === 0); M.next += 60 / M.bpm; M.beat++; } }
-function mStart() { M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)(); M.ctx.resume(); M.on = true; M.beat = 0; M.next = M.ctx.currentTime + 0.06; clearInterval(M.timer); M.timer = setInterval(mSched, 25); $('#mPlay').textContent = '■'; }
+function mSched() { if (M.ctx.state !== 'running') return; if (M.next < M.ctx.currentTime) M.next = M.ctx.currentTime + 0.03;
+  while (M.next < M.ctx.currentTime + 0.12) { mClick(M.next, M.beat % 4 === 0); M.next += 60 / M.bpm; M.beat++; } }
+async function mStart() {
+  try {
+    M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (!M.hi) { M.hi = mBuf(1760); M.lo = mBuf(1175); }
+    M.on = true; $('#mPlay').textContent = '■';
+    if (M.ctx.state !== 'running') await M.ctx.resume();
+    M.beat = 0; M.next = M.ctx.currentTime + 0.05; clearInterval(M.timer); M.timer = setInterval(mSched, 25); mSched();
+    const t0 = M.ctx.currentTime;
+    setTimeout(() => { if (M.on && M.ctx.currentTime === t0) toast('No sound output – check volume, silent mode or audio device'); }, 800);
+  } catch (e) { M.on = false; $('#mPlay').textContent = '▶'; toast('Could not start audio: ' + e.message); }
+}
 function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent = '▶'; }
+function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) mStop(); }
 $('#mBpm').addEventListener('change', e => mSet(e.target.value));
 
 /* ---------- actions ---------- */
@@ -776,6 +858,17 @@ const A = {
   openTune: el => sheetTune(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : sheetTune(el.dataset.id),
   replan: () => { makePlan(); render(); },
+  planDel: el => { S.plan.items.splice(+el.dataset.i, 1); save(); render(); },
+  planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
+    const it = pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
+    S.plan.items[i] = it; save(); render(); },
+  planAddDirect: el => { const it = { t: el.dataset.t, id: el.dataset.id };
+    if (it.t === 'ex') { const o = findEx(it.id); return pickKeySheet(o.ex); } addToPlan(it); },
+  planAdd: el => pickerSheet(el.dataset.t),
+  pickItem: el => { const t = el.dataset.t, id = el.dataset.id;
+    if (t === 'ex') { const o = findEx(id); if (o.ex.keys.length > 1) return pickKeySheet(o.ex); addToPlan({ t, id, key: o.ex.keys[0] }); }
+    else addToPlan({ t, id }); closeSheet(); },
+  pickKey: el => { const o = findEx(el.dataset.id); const k = el.dataset.k || weakestKey(o.ex); addToPlan({ t: 'ex', id: o.ex.id, key: k }); closeSheet(); },
   tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
   practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id); }); P().touched['x:' + o.ex.id] = Date.now(); save(); toast('Marked practiced'); },
   practicedItem: el => { touch(el.dataset.k); save(); toast('Marked practiced'); },
@@ -817,9 +910,9 @@ const A = {
     fd => { const l = { id: 'lick-' + uid(), name: fd.name.trim() || 'Lick', img: null, notes: '' }; S.lib.licks.push(l); save(); setTimeout(() => sheetLick(l.id), 0); }),
   lickImg: async el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const data = await pickImage(); if (!data) return;
     const id = 'img-' + uid(); try { await idb.put(id, data); } catch (e) { toast('Could not store image'); return; }
-    if (l.img) idb.del(l.img).catch(() => {}); l.img = id; imgCache[id] = data; save(); sheetLick(l.id); },
+    if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {}); l.img = id; imgCache[id] = data; save(); sheetLick(l.id); },
   renameLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const n = prompt('Lick name', l.name); if (n && n.trim()) { l.name = n.trim(); save(); sheetLick(l.id); } },
-  delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img) idb.del(l.img).catch(() => {});
+  delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {});
     S.lib.licks = S.lib.licks.filter(x => x !== l); save(); closeSheet(); },
   addTune: () => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required><label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">`,
     fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: fd.tags.trim() }); save(); }),
@@ -832,7 +925,7 @@ const A = {
   delInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); if (prompt(`This deletes all progress for ${i.name}. Type DELETE to confirm.`) !== 'DELETE') return;
     S.inst = S.inst.filter(x => x !== i); delete S.prog[i.id]; if (S.cur === i.id) S.cur = S.inst[0].id; S.plan = null; save(); render(); },
   exportData: async () => {
-    const imgs = {}; for (const l of S.lib.licks) if (l.img) { try { imgs[l.img] = await idb.get(l.img); } catch (e) {} }
+    const imgs = {}; for (const l of S.lib.licks) if (l.img && !l.img.includes('/')) { try { imgs[l.img] = await idb.get(l.img); } catch (e) {} }
     S.settings.lastBackup = Date.now(); save();
     const blob = new Blob([JSON.stringify({ app: 'woodshed', v: 1, exported: new Date().toISOString(), state: S, imgs })], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'woodshed-backup-' + dayKey(Date.now()) + '.json'; a.click();
@@ -844,8 +937,8 @@ const A = {
       for (const [k, v] of Object.entries(d.imgs || {})) if (v) await idb.put(k, v);
       S = d.state; S.session = null; localStorage.setItem(LS, JSON.stringify(S)); load(); render(); toast('Backup restored');
     } catch (e) { toast('That file is not a Woodshed backup'); } }; f.click(); },
-  metroToggle: () => { const m = $('#metro'); const on = !m.classList.contains('on'); m.classList.toggle('on', on); if (!on) mStop(); },
-  mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm; if (b) mSet(b); $('#metro').classList.add('on'); },
+  metroToggle: () => mShow(!$('#metro').classList.contains('on')),
+  mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm; if (b) mSet(b); mShow(true); if (!M.on) mStart(); },
   mStep: el => { mSet(M.bpm + +el.dataset.d); },
   mPlay: () => M.on ? mStop() : mStart(),
   mTap: () => { const now = performance.now(); M.taps = M.taps.filter(t => now - t < 2500); M.taps.push(now);
