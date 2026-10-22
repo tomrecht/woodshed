@@ -329,6 +329,14 @@ function migrate() {
     for (const t of S.lib.tunes) t.tempo = splitTags(t.tags).includes('bebop') || Object.values(S.prog).some(p => p.bpm && p.bpm['t:' + t.id]);
     S.libRev = 4;
   }
+  if (S.libRev < 5) {
+    // Triplet and triad exercises default to half-note tempo (16th-note arpeggios excepted). Only where no unit was chosen yet.
+    for (const sec of S.lib.sections) for (const ex of sec.ex) {
+      const match = /triplet|triad/i.test(ex.name) || /triplet/i.test(sec.name);
+      if (ex.unit == null && match && !/16ths/i.test(ex.name)) ex.unit = 2;
+    }
+    S.libRev = 5;
+  }
 }
 const splitTags = s => [...new Set((s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean))];
 const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
