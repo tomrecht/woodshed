@@ -199,6 +199,7 @@ nav#tabs button.on{color:var(--accent)}
 .qroots,.qfams{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:6px}
 .qfams{grid-template-columns:repeat(3,1fr)}
 .qroots button,.qfams button,.earopts button{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:10px 2px;font-weight:650}
+.qroots button{line-height:1.15;padding:7px 2px;font-size:.92rem}
 .qroots button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .earopts{display:grid;gap:8px;margin-top:12px}
 .earopts button{padding:13px 10px;text-align:left}
@@ -371,12 +372,18 @@ function migrate() {
     // old Melody/Changes/Soloing levels -> checkpoints
     for (const id in S.prog) { const tunes = S.prog[id].tunes || {}; for (const tid in tunes) { const o = tunes[tid]; if (!o.lv) continue;
       o.cp = o.cp || {}; const now = Date.now();
-      [['m1', 'm2', 'm3'], ['c1', 'c2', 'c3', 'c4'], ['s1', 's2', 's3']].forEach((ids, gi) => { if (o.lv[gi] === 2) ids.forEach(c => o.cp[c] = now); });
+      [['m1', 'm2', 'm3'], ['c1', 'c2', 'c3', 'c4'], ['s6', 's7']].forEach((ids, gi) => { if (o.lv[gi] === 2) ids.forEach(c => o.cp[c] = now); });
       if (o.lv.some(Boolean)) o.started = true;
       if (o.cp.m3 && o.cp.c4) o.rv = { ivl: 3, due: now + 3 * DAY, n: 0 };
       delete o.lv; } }
     S.libRevT = 7;
   }
+  if (!S.solo9) {   // old soloing checkpoints -> new ones
+    for (const id in S.prog) for (const r of Object.values(S.prog[id].tunes || {})) { const cp = r.cp; if (!cp) continue;
+      if (cp.s1 || cp.s2) cp.s6 = cp.s6 || cp.s1 || cp.s2; if (cp.s3) cp.s7 = cp.s7 || cp.s3; delete cp.s1; delete cp.s2; delete cp.s3; }
+    S.solo9 = 1;
+  }
+  if (!S.relink8) { for (const t of S.lib.tunes) if (t.chart === null) delete t.chart; S.relink8 = 1; }
   if (S.libRev < 6) {
     for (const l of S.lib.licks) if (l.unit == null) l.unit = 2;   // licks default to half-note tempo
     S.libRev = 6;
@@ -583,7 +590,7 @@ const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
 const CP_GROUPS = [
   ['Melody', [['m1', 'Sing it'], ['m2', 'Play from the chart'], ['m3', 'Play from memory']]],
   ['Changes', [['c1', 'Roots through the form'], ['c2', 'Guide tones (3rds & 7ths)'], ['c3', 'Arpeggios'], ['c4', 'All from memory']]],
-  ['Soloing', [['s1', 'Solo 1 chorus'], ['s2', 'Solo 3 choruses'], ['s3', 'Play-along at target tempo']]],
+  ['Soloing', [['s4', 'Paraphrase the melody'], ['s5', 'Make the changes (land on chord tones)'], ['s6', 'Keep the form without the chart'], ['s7', 'Solo at performance tempo'], ['s8', 'Learn a recorded solo on it'], ['s9', 'Play it with others (session or gig)']]],
 ];
 const CP_ALL = CP_GROUPS.flatMap(([g, l]) => l.map(([id, n]) => ({ g, id, n })));
 const CP_XP = 10, REVIEW_XP = 5;
@@ -644,8 +651,12 @@ function family(q) {
 }
 const FAMS = [['maj', 'maj7 / 6'], ['7', '7'], ['m', 'm7'], ['m6', 'm6'], ['mΔ', 'm(maj7)'], ['ø', 'ø7'], ['°', '°7'], ['sus', 'sus'], ['+', '+']];
 const famSym = f => ({ maj: 'maj7', '7': '7', m: 'm7', m6: 'm6', 'mΔ': 'm(maj7)', 'ø': 'ø7', '°': '°7', sus: '7sus', '+': '+' })[f];
-function transposeSym(sym, semis, sharp) { const c = parseChord(sym); if (!c) return sym;
-  return pcName(c.root + semis, sharp) + c.q + (c.bass != null ? '/' + pcName(c.bass + semis, sharp) : ''); }
+// Spell transposed notes like the original: flats stay flats, sharps stay sharps; naturals follow the key.
+function transposeSym(sym, semis, sharp) {
+  const m = /^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/.exec(sym || ''); if (!m) return sym;
+  const sp = n => pcName(PCS[n] + semis, n.includes('#') || (!n.includes('b') && sharp));
+  return sp(m[1]) + m[2] + (m[3] ? '/' + sp(m[3]) : '');
+}
 
 /* ---------- chart library (1,349 iReal charts, alto/Eb) ---------- */
 let LIB = null, libPromise = null;
@@ -675,7 +686,7 @@ function chartFor(vid) {
   const key = vKey(vid) || mainKey;
   const semis = shift0 + mod12(PCS[keyRoot(key)] - PCS[keyRoot(mainKey)]);
   const sharp = sharpKey(key);
-  return { key, mainKey, ts: e.ts || '4/4', toConcert: TO_CONCERT[instTr()], bars: e.b.map(b => ({ ...b, c: b.c.map(x => transposeSym(x, semis, sharp)) })) };
+  return { key, mainKey, ts: e.ts || '4/4', toConcert: TO_CONCERT[instTr()], bars: e.b.map(b => ({ ...b, c: semis % 12 ? b.c.map(x => transposeSym(x, semis, sharp)) : [...b.c] })) };
 }
 function chartHtml(ch, view) {
   const rows = []; let row = [];
@@ -957,7 +968,7 @@ function vGrid() {
     ${sections}
     <section class="card"><h3>Licks</h3><div class="gwrap"><table class="grid"><thead><tr><th></th><th>BPM (all 12 keys)</th></tr></thead><tbody>${lickRows}</tbody></table></div></section>
     <section class="card"><h3>Tunes <small>(main key)</small></h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${CP_GROUPS.map(([g, l]) => `<th colspan="${l.length}" style="text-align:center">${g}</th>`).join('')}<th></th><th></th></tr>
-      <tr><th></th>${CP_ALL.map(c => `<th class="cph" title="${esc(c.n)}">${esc({ m1: 'Sing', m2: 'Chart', m3: 'Mem', c1: 'Roots', c2: 'Guide', c3: 'Arps', c4: 'Mem', s1: '1×', s2: '3×', s3: 'Tempo' }[c.id])}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
+      <tr><th></th>${CP_ALL.map(c => `<th class="cph" title="${esc(c.n)}">${esc({ m1: 'Sing', m2: 'Chart', m3: 'Mem', c1: 'Roots', c2: 'Guide', c3: 'Arps', c4: 'Mem', s4: 'Melody', s5: 'Changes', s6: 'Form', s7: 'Tempo', s8: 'Transcr.', s9: 'Out' }[c.id])}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
 }
 function bindGrid() {
   $$('#view input[data-gkey]').forEach(inp => inp.addEventListener('change', () => {
@@ -1235,7 +1246,7 @@ function quizRender() {
       return `<div class="card" style="background:var(--surface2)"><h2>${pct}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${QUIZ_LEVEL_NAMES[Q.level]}</p>${Q.summary || ''}</div>
       <div class="row"><button class="btn grow" data-act="quizStart" data-id="${esc(Q.vid)}">Again</button><button class="btn grow" data-act="openTune" data-id="${esc(Q.vid)}">Back to tune</button></div>`; })()
     : `<div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
-      <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${pcName(pc, sharp)}</button>`).join('')}</div>
+      <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${[1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc]}</button>`).join('')}</div>
       <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><small class="muted grow">${answered}/${Q.ask.length} · ${right} right</small>${Q.hear ? '<button class="btn sm" data-act="quizReplay" title="Play again">🔊</button>' : ''}<button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
   openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + QUIZ_LEVEL_NAMES[Q.level])}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
@@ -1245,7 +1256,7 @@ function quizAnswer(pc, fam) {
   const s = Q.slots[Q.ask[Q.pos]], sharp = sharpKey(Q.ch.key);
   const ok = pc === s.root && fam === s.fam;
   Q.res[Q.ask[Q.pos]] = ok;
-  Q.fb = ok ? `<span class="qok">✓ ${esc(s.x)}</span>` : (pc == null ? `It's <b>${esc(s.x)}</b>` : `<span class="qno">✗ ${esc(pcName(pc, sharp) + famSym(fam))}</span> – it's <b>${esc(s.x)}</b>`);
+  Q.fb = ok ? `<span class="qok">✓ ${esc(s.x)}</span>` : (pc == null ? `It's <b>${esc(s.x)}</b>` : `<span class="qno">✗ ${esc((pc === s.root ? s.x.match(/^[A-G][#b]?/)[0] : pcName(pc, sharp)) + famSym(fam))}</span> – it's <b>${esc(s.x)}</b>`);
   const from = Q.ask[Q.pos]; Q.pick = null; Q.pos++;
   quizPlay(from, Q.pos < Q.ask.length ? Q.ask[Q.pos] : Q.slots.length);
   if (Q.pos >= Q.ask.length) quizFinish();
