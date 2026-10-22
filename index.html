@@ -26,6 +26,8 @@ small,.muted{color:var(--muted)}
 .grow{flex:1;min-width:0}
 header#top{position:sticky;top:0;z-index:20;background:rgba(21,23,28,.94);backdrop-filter:blur(8px);
   padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+#syncDot{font-size:.85rem;padding:2px 4px}
+#syncDot.bad{color:var(--danger)}
 header#top .logo{font-weight:750;letter-spacing:.02em;color:var(--accent)}
 header#top select{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 8px;width:auto;max-width:min(45vw,220px)}
 #sessbar{display:none;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);padding:8px 16px;font-weight:650;position:sticky;top:57px;z-index:19}
@@ -195,6 +197,7 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
 <body>
 <header id="top">
   <div class="logo">♪ Woodshed</div>
+  <button class="iconbtn" id="syncDot" data-act="syncNow" title="Cloud sync"></button>
   <div class="grow"></div>
   <button class="iconbtn" data-act="metroToggle" title="Metronome">♩</button>
   <select id="instSel" aria-label="Instrument"></select>
@@ -317,6 +320,10 @@ function migrate() {
     }
     S.libRev = 3;
   }
+  if (S.libRev < 4) {
+    for (const t of S.lib.tunes) t.tempo = splitTags(t.tags).includes('bebop') || Object.values(S.prog).some(p => p.bpm && p.bpm['t:' + t.id]);
+    S.libRev = 4;
+  }
 }
 const splitTags = s => [...new Set((s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean))];
 const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
@@ -328,11 +335,14 @@ function load() {
   try { S = JSON.parse(localStorage.getItem(LS)); } catch (e) { S = null; }
   if (!S || !S.lib) S = { v: 1, lib: defaultLib(), inst: [{ id: 'alto', name: 'Alto sax' }], cur: 'alto', prog: { alto: newProg() }, settings: { goal: 3 }, session: null, plan: null };
   for (const i of S.inst) S.prog[i.id] = Object.assign(newProg(), S.prog[i.id] || {});
-  migrate(); save();
+  migrate(); save(true);
 }
-function save() {
+// quiet = store without counting it as a user change (no sync push)
+function save(quiet) {
+  if (!quiet) S.savedAt = Date.now();
   try { localStorage.setItem(LS, JSON.stringify(S)); }
   catch (e) { toast('Could not save – storage full?'); }
+  if (!quiet) Sync.schedule();
 }
 const P = () => S.prog[S.cur];
 const allTags = () => [...new Set(S.lib.tunes.flatMap(t => splitTags(t.tags)))].sort();
@@ -378,6 +388,84 @@ function fileToDataURL(file, max = 1800) {
 function pickImage() {
   return new Promise(res => { const f = $('#fileIn'); f.value = ''; f.onchange = async () => { res(f.files[0] ? await fileToDataURL(f.files[0]) : null); }; f.click(); });
 }
+
+/* ---------- cloud sync (private GitHub Gist) ---------- */
+// The token and gist id live only on this device; they are never part of the synced data.
+const Sync = (() => {
+  const KEY = 'woodshed.sync', FILE = 'woodshed-data.json', IMGFILE = 'woodshed-images.json';
+  let cfg = null; try { cfg = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  let timer = null, busy = false, status = cfg ? 'idle' : 'off', lastErr = '';
+  const store = () => localStorage.setItem(KEY, JSON.stringify(cfg));
+  const setStatus = (st, err) => { status = st; lastErr = err || ''; const el = $('#syncDot'); if (el) { el.textContent = { off: '', idle: '☁', busy: '☁…', ok: '☁✓', err: '☁!' }[st]; el.title = st === 'err' ? 'Sync problem: ' + lastErr : 'Cloud sync'; el.classList.toggle('bad', st === 'err'); }
+    const ss = $('#syncStatus'); if (ss) ss.textContent = describe(); };
+  const describe = () => !cfg ? 'Not connected.' : status === 'err' ? 'Problem: ' + lastErr : status === 'busy' ? 'Syncing…' :
+    'Connected.' + (cfg.pushedAt ? ' Last synced ' + new Date(Math.max(cfg.pushedAt, cfg.seen || 0)).toLocaleString() + '.' : '');
+  async function api(method, path, body) {
+    const r = await fetch('https://api.github.com' + path, { method, cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) throw new Error('GitHub rejected the token');
+    if (!r.ok) throw new Error('GitHub error ' + r.status);
+    return r.json();
+  }
+  const fileText = async f => f.truncated ? (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content;
+  async function localImgs() { const o = {}; for (const l of S.lib.licks) if (l.img && !l.img.includes('/')) { try { o[l.img] = await idb.get(l.img); } catch (e) {} } return o; }
+  async function applyRemote(remote, g) {
+    const keepSession = S.session;
+    if (g.files[IMGFILE]) { try { const im = JSON.parse(await fileText(g.files[IMGFILE])); for (const [k, v] of Object.entries(im)) if (v) { await idb.put(k, v); imgCache[k] = v; } } catch (e) {} }
+    localStorage.setItem(LS, JSON.stringify(remote.state)); load();
+    if (keepSession && !S.session) { S.session = keepSession; save(true); }
+    cfg.seen = remote.savedAt; cfg.pushedAt = S.savedAt || remote.savedAt; store();
+    render(); tickSession();
+  }
+  // Pull newer data from the cloud. Returns false if the user chose to keep local data over a conflict.
+  async function pull() {
+    const g = await api('GET', '/gists/' + cfg.gist); const f = g.files[FILE]; if (!f) return true;
+    const remote = JSON.parse(await fileText(f));
+    if (!remote.savedAt || remote.savedAt <= (cfg.seen || 0)) return true;
+    const localDirty = (S.savedAt || 0) > (cfg.pushedAt || 0);
+    if (localDirty && !confirm('Another device saved changes since this one last synced.\n\nOK = load the other device\'s version (unsynced changes here are lost)\nCancel = keep this device\'s version and overwrite the cloud')) return false;
+    await applyRemote(remote, g); toast('Loaded latest data from the cloud'); return true;
+  }
+  async function push(force) {
+    if (!force && (S.savedAt || 0) <= (cfg.pushedAt || 0)) return;
+    const files = { [FILE]: { content: JSON.stringify({ app: 'woodshed', savedAt: S.savedAt, state: S }) } };
+    const imgs = await localImgs(), sig = Object.keys(imgs).sort().join();
+    if (sig !== (cfg.imgSig || '')) files[IMGFILE] = { content: JSON.stringify(imgs) };
+    await api('PATCH', '/gists/' + cfg.gist, { files });
+    cfg.pushedAt = S.savedAt; cfg.seen = S.savedAt; cfg.imgSig = sig; store();
+  }
+  async function run(mode) {
+    if (!cfg || busy || !navigator.onLine) return; busy = true; setStatus('busy');
+    try { const pulled = await pull(); await push(!pulled); setStatus('ok'); }
+    catch (e) { setStatus('err', e.message); } finally { busy = false; }
+  }
+  return {
+    get on() { return !!cfg; }, describe,
+    schedule() { if (!cfg) return; clearTimeout(timer); timer = setTimeout(() => run(), 4000); },
+    now: () => run(),
+    paint: () => setStatus(status, lastErr),
+    async connect(token) {
+      cfg = { token: token.trim() }; setStatus('busy');
+      try {
+        const user = await api('GET', '/user');
+        const list = await api('GET', '/gists?per_page=100');
+        const found = list.find(g => g.files && g.files[FILE]);
+        if (found) {
+          cfg.gist = found.id; store();
+          const g = await api('GET', '/gists/' + found.id); const remote = JSON.parse(await fileText(g.files[FILE]));
+          if (confirm(`Found Woodshed data in ${user.login}'s GitHub, saved ${new Date(remote.savedAt).toLocaleString()}.\n\nOK = load it onto this device (replaces what's here)\nCancel = upload this device's data instead`)) await applyRemote(remote, g);
+          else { S.savedAt = Date.now(); save(true); await push(true); }
+        } else {
+          S.savedAt = S.savedAt || Date.now(); save(true);
+          const g = await api('POST', '/gists', { description: 'Woodshed practice data (synced by the app)', public: false, files: { [FILE]: { content: JSON.stringify({ app: 'woodshed', savedAt: S.savedAt, state: S }) } } });
+          cfg.gist = g.id; cfg.pushedAt = cfg.seen = S.savedAt; store(); await push(true);
+        }
+        setStatus('ok'); toast('Sync connected as ' + user.login); return true;
+      } catch (e) { cfg = null; localStorage.removeItem(KEY); setStatus('off'); toast('Could not connect: ' + e.message); return false; }
+    },
+    disconnect() { cfg = null; localStorage.removeItem(KEY); setStatus('off'); },
+  };
+})();
+window.addEventListener('online', () => Sync.now());
 
 /* ---------- progress logic ---------- */
 function touch(k, exId) {
@@ -497,8 +585,13 @@ function pickFor(t, items) {
   }
   if (t === 'lick') { const c = best(S.lib.licks.filter(l => !inPlan.has(l.id)).map(l => ({ l, s: staleScore(p.touched['l:' + l.id]) })));
     return c && { t, id: c.l.id }; }
+  // Pick a kind of tune first (learning 40%, not started 40%, review of learned 20%), then the most neglected of that kind.
   const pool = S.lib.tunes.filter(x => !inPlan.has(x.id));
-  const c = best(pool.map(x => ({ x, s: staleScore(p.touched['t:' + x.id]) + (tuneStatus(x.id) === 'learning' ? 30 : tuneStatus(x.id) === 'done' ? 0 : -25) })));
+  const kinds = [['learning', 40], ['new', 40], ['done', 20]].filter(([k]) => pool.some(x => tuneStatus(x.id) === k));
+  if (!kinds.length) return null;
+  let r = Math.random() * kinds.reduce((a, k) => a + k[1], 0), kind = kinds[0][0];
+  for (const [k, w] of kinds) { if ((r -= w) < 0) { kind = k; break; } }
+  const c = best(pool.filter(x => tuneStatus(x.id) === kind).map(x => ({ x, s: staleScore(p.touched['t:' + x.id]) })));
   return c && { t, id: c.x.id };
 }
 function makePlan() {
@@ -507,7 +600,7 @@ function makePlan() {
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
   S.plan = { date: dayKey(Date.now()), inst: S.cur, items }; save();
 }
-const planSize = () => Object.assign({ ex: 3, lick: 1, tune: 1 }, S.settings.plan || {});
+const planSize = () => Object.assign({ ex: 3, lick: 1, tune: 2 }, S.settings.plan || {});
 function addToPlan(it) {
   if (!S.plan) makePlan();
   if (S.plan.items.some(x => x.t === it.t && x.id === it.id && x.key === it.key)) { toast('Already in today\'s plan'); return; }
@@ -538,7 +631,7 @@ function vHome() {
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>♩${b}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>♩${b}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
-    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
+    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' + (p.bpm['t:' + t.id] ? ' · ♩' + p.bpm['t:' + t.id] : '') : 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
     return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
       <button class="iconbtn" data-act="planSwap" data-i="${idx}" title="Suggest something else" aria-label="Swap">⇄</button><button class="iconbtn" data-act="planDel" data-i="${idx}" title="Remove" aria-label="Remove">✕</button></li>`;
   }).join('') || '<li class="muted">Empty – add something below.</li>';
@@ -548,7 +641,7 @@ function vHome() {
     const l = d > new Date() ? 'fut' : m === 0 ? '' : m < 30 ? 'l1' : m < 60 ? 'l2' : m < 90 ? 'l3' : 'l4';
     cells += `<i class="${l}" title="${k}: ${m}m"></i>`; }
   const recent = p.hist.filter(h => h.prev != null && h.bpm > h.prev).slice(-5).reverse().map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><small>${h.prev} → </small><b style="color:var(--accent)">${h.bpm}</b></li>`).join('');
-  const backupDue = p.sessions.length > 3 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * DAY);
+  const backupDue = !Sync.on && p.sessions.length > 3 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * DAY);
   return `
   <section class="card"><div class="lvl"><div class="lvbadge">Lv ${lv.n}</div><div class="grow">
     <div class="row"><b class="grow">${xp.toLocaleString()} XP</b><small>${(lv.next - xp).toLocaleString()} to Lv ${lv.n + 1}</small></div>
@@ -605,14 +698,14 @@ function vGrid() {
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${p.bpm['l:' + l.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`).join('');
-  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="number" data-gkey="t:${esc(t.id)}" value="${p.bpm['t:' + t.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
+  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${p.bpm['t:' + t.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
   return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
     <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Easiest on a computer – when you're done, use
     <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" data-act="gotoTab" data-tab2="ex">← Back to exercises</button></div></section>
     ${sections}
     <section class="card"><h3>Licks</h3><div class="gwrap"><table class="grid"><thead><tr><th></th><th>BPM (all 12 keys)</th></tr></thead><tbody>${lickRows}</tbody></table></div></section>
-    <section class="card"><h3>Tunes</h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${STAGES.map(s => `<th>${s}</th>`).join('')}<th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
+    <section class="card"><h3>Tunes</h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${STAGES.map(s => `<th>${s}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
 }
 function bindGrid() {
   $$('#view input[data-gkey]').forEach(inp => inp.addEventListener('change', () => {
@@ -621,6 +714,7 @@ function bindGrid() {
     if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
       if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? '♩' + i.min + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
   }));
+  $$('#view input[data-ttempo]').forEach(cb => cb.addEventListener('change', () => { S.lib.tunes.find(x => x.id === cb.dataset.ttempo).tempo = cb.checked; save(); }));
   $$('#view select[data-tstage]').forEach(sel => sel.addEventListener('change', () => setTuneLevel(sel.dataset.tstage, +sel.dataset.i, +sel.value)));
 }
 
@@ -633,13 +727,13 @@ function vLicks() {
 }
 function vTunes() {
   const p = P(); const tags = allTags();
-  const filters = [['all', 'All'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Learned'], ...tags.map(t => ['#' + t, '#' + t])];
-  const list = S.lib.tunes.filter(t => tuneFilter === 'all' ? true : tuneFilter.startsWith('#') ? splitTags(t.tags).includes(tuneFilter.slice(1)) : tuneStatus(t.id) === tuneFilter);
+  const filters = [['all', 'All'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Learned'], ['tempo', 'Tempo tunes'], ...tags.map(t => ['#' + t, '#' + t])];
+  const list = S.lib.tunes.filter(t => tuneFilter === 'all' ? true : tuneFilter.startsWith('#') ? splitTags(t.tags).includes(tuneFilter.slice(1)) : (tuneFilter === 'tempo' ? !!t.tempo : tuneStatus(t.id) === tuneFilter));
   const counts = { learning: 0, done: 0 }; S.lib.tunes.forEach(t => { const s = tuneStatus(t.id); if (s in counts) counts[s]++; });
   return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}</button>`).join('')}</div>
     <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} learned · ${S.lib.tunes.length} total · dots: melody, changes, soloing</p>
     ${list.map(t => { const b = p.bpm['t:' + t.id]; const last = p.touched['t:' + t.id];
-      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}<br><small>${[t.style, last ? 'played ' + ago(last) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${b ? `<small>♩${b}</small>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
+      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}<br><small>${[t.style, last ? 'played ' + ago(last) : ''].filter(Boolean).map(esc).join(' · ')}</small></span>${t.tempo ? `<b style="color:${b ? 'var(--accent)' : 'var(--muted)'};margin-right:4px">${b ? '♩' + b : '♩—'}</b>` : ''}${tunePips(t.id)}</button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
     <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
 }
 function vMore() {
@@ -664,7 +758,15 @@ function vMore() {
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}</span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
     <button class="btn ghost" data-act="addInst">+ Add instrument</button></section>
-  <section class="card"><h3>Data</h3><p class="muted" style="margin-top:0">Everything is stored on this device only. Back up now and then.${S.settings.lastBackup ? ' Last backup ' + ago(S.settings.lastBackup) + '.' : ''}</p>
+  <section class="card"><h3>Sync &amp; backup</h3>
+    ${Sync.on ? `<p class="muted" style="margin-top:0" id="syncStatus">${esc(Sync.describe())}</p>
+      <p class="muted" style="font-size:.9rem">Changes upload automatically a few seconds after you make them, and other devices pick them up when opened. Data is kept in a private gist in your GitHub account.</p>
+      <div class="row wrap"><button class="btn" data-act="syncNow">Sync now</button><button class="btn danger" data-act="syncOff">Disconnect this device</button></div>`
+    : `<p class="muted" style="margin-top:0">Connect to keep an automatic backup in your GitHub account and the same data on your phone and computer.</p>
+      <ol class="muted" style="font-size:.9rem;padding-left:20px;margin:0 0 8px"><li><a href="https://github.com/settings/tokens/new?scopes=gist&description=Woodshed%20sync" target="_blank" rel="noopener" style="color:var(--accent)">Create a GitHub token</a> – only the “gist” box ticked, expiration “No expiration”.</li><li>Copy it and paste it here. Do the same on each device (you can reuse the token).</li></ol>
+      <form class="row" id="syncForm"><input type="password" id="syncToken" placeholder="ghp_…" autocomplete="off"><button class="btn primary" type="submit">Connect</button></form>`}
+    <h3 style="margin:16px 0 6px">Backup file</h3>
+    <p class="muted" style="margin-top:0">${S.settings.lastBackup ? 'Last exported ' + ago(S.settings.lastBackup) + '.' : 'A file copy of everything, for safekeeping.'}</p>
     <div class="row wrap"><button class="btn" data-act="gotoTab" data-tab2="grid">Table entry</button><button class="btn" data-act="exportData">Export backup</button><button class="btn" data-act="importData">Restore backup</button></div></section>`;
 }
 const curInst = () => S.inst.find(i => i.id === S.cur);
@@ -685,6 +787,7 @@ function render() {
   if (tab === 'more') {
     $('#priorHours').onchange = e => { P().priorHours = Math.max(0, +e.target.value || 0); save(); checkBadges(); render(); };
     $$('[data-plansz]').forEach(sel => sel.onchange = () => { S.settings.plan = Object.assign(planSize(), { [sel.dataset.plansz]: +sel.value }); S.plan = null; save(); });
+    const sf = $('#syncForm'); if (sf) sf.onsubmit = async e => { e.preventDefault(); const t = $('#syncToken').value.trim(); if (!t) return; sf.querySelector('button').disabled = true; await Sync.connect(t); render(); };
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
   }
 }
@@ -715,10 +818,21 @@ function closeSheet(fromPop) {
 window.addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
 const head = (title, sub) => `<div class="phead"><div class="grow"><h2>${esc(title)}</h2>${sub ? `<small>${esc(sub)}</small>` : ''}</div><button class="iconbtn" data-act="closeSheet" aria-label="Close">✕</button></div>`;
 
+function tempoChart(series) {
+  if (series.length < 2) return '';
+  const W = 300, H = 90, t0 = series[0].t, t1 = series[series.length - 1].t || t0 + 1, lo = Math.min(...series.map(x => x.bpm)) - 5, hi = Math.max(...series.map(x => x.bpm)) + 5;
+  const X = t => 8 + (W - 16) * (t - t0) / Math.max(1, t1 - t0), Y = b => H - 14 - (H - 24) * (b - lo) / Math.max(1, hi - lo);
+  const pts = series.map(x => `${X(x.t).toFixed(1)},${Y(x.bpm).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="margin-top:6px"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    ${series.map(x => `<circle cx="${X(x.t).toFixed(1)}" cy="${Y(x.bpm).toFixed(1)}" r="3" fill="var(--accent)"/>`).join('')}
+    <text x="4" y="${H - 2}" fill="var(--muted)" font-size="10">${new Date(t0).toLocaleDateString()}</text><text x="${W - 4}" y="${H - 2}" fill="var(--muted)" font-size="10" text-anchor="end">♩${series[series.length - 1].bpm}</text></svg>`;
+}
 function histList(prefix, labelFn) {
-  const h = P().hist.filter(x => x.k.startsWith(prefix)).slice(-12).reverse();
+  const all = P().hist.filter(x => x.k.startsWith(prefix));
+  const h = all.slice(-12).reverse();
   if (!h.length) return '';
-  return `<h3 style="margin:14px 0 6px">Tempo history</h3><ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${x.prev}→</small>` : ''}${x.bpm}</b></li>`).join('')}</ul>`;
+  const single = new Set(all.map(x => x.k)).size === 1;
+  return `<h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${x.prev}→</small>` : ''}${x.bpm}</b></li>`).join('')}</ul>`;
 }
 
 function sheetEx(id) {
@@ -783,9 +897,11 @@ function sheetTune(id) {
     `<button data-act="tuneLv" data-id="${esc(id)}" data-i="${i}" data-v="${v}" class="${tuneState(id).lv[i] === v ? 'on' : ''}">${L}</button>`).join('')}</div></div>`).join('');
   const tagHtml = () => splitTags(t.tags).map(x => `<span class="tagchip">#${esc(x)}<button data-act="tagDel" data-id="${esc(id)}" data-tag="${esc(x)}" aria-label="Remove tag">✕</button></span>`).join('') || '<small class="muted">No tags yet.</small>';
   openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
+    ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${p.bpm[key] ? '♩' + p.bpm[key] : '—'}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
+    <label class="f">New tempo</label>
+    <div class="row"><input type="number" inputmode="numeric" id="tuneBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>` : ''}
     <div id="stages">${stageHtml()}</div>
-    <label class="f">Tempo (optional – for tunes where speed matters)</label>
-    <div class="row"><input type="number" inputmode="numeric" id="tuneBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
+    <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
     <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Played it today</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(t.id)}">+ Today's plan</button></div>
@@ -794,7 +910,8 @@ function sheetTune(id) {
     <form class="row" id="tagForm"><input type="text" id="tagIn" list="tagList" placeholder="Add tag, e.g. ballad, gig"><datalist id="tagList">${allTags().map(x => `<option value="${esc(x)}">`).join('')}</datalist><button class="btn" type="submit">Add</button></form>
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(t.id)}">Rename</button><button class="btn sm danger" data-act="delTune" data-id="${esc(t.id)}">Delete</button></div>`);
   sheetTune.refresh = () => { $('#stages').innerHTML = stageHtml(); $('#tagbox').innerHTML = tagHtml(); };
-  $('#tuneBpm').onchange = e => setBpm(key, e.target.value);
+  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ♩' + P().bpm[key] + ' +10 XP'); sheetTune(id); };
+  $('#tuneTempo').onchange = e => { t.tempo = e.target.checked; save(); sheetTune(id); };
   $('#tuneNotes').onchange = e => { tuneRec(id).notes = e.target.value; save(); };
   $('#tagForm').onsubmit = e => { e.preventDefault(); const v = $('#tagIn').value.trim().toLowerCase().replace(/^#/, ''); if (!v) return;
     t.tags = splitTags(t.tags + ',' + v).join(', '); $('#tagIn').value = ''; save(); sheetTune.refresh(); };
@@ -836,7 +953,7 @@ const keysFrom = fd => fd.ks === 'custom' ? fd.custom.split(',').map(s => s.trim
 /* ---------- session ---------- */
 let wakeLock = null;
 async function keepAwake() { try { if ('wakeLock' in navigator && S.session && S.session.runSince) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); render(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); render(); Sync.now(); } });
 const sessMs = () => S.session ? S.session.acc + (S.session.runSince ? Date.now() - S.session.runSince : 0) : 0;
 function tickSession() {
   const bar = $('#sessbar'); bar.classList.toggle('on', !!S.session);
@@ -885,6 +1002,8 @@ $('#mBpm').addEventListener('change', e => mSet(e.target.value));
 /* ---------- actions ---------- */
 const A = {
   closeSheet: () => closeSheet(),
+  syncNow: () => { if (Sync.on) Sync.now(); else { tab = 'more'; render(); setTimeout(() => $('#syncForm')?.scrollIntoView({ block: 'center' }), 50); } },
+  syncOff: () => { if (confirm('Stop syncing on this device? Your data stays here and in GitHub.')) { Sync.disconnect(); render(); } },
   gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
@@ -949,8 +1068,9 @@ const A = {
   renameLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const n = prompt('Lick name', l.name); if (n && n.trim()) { l.name = n.trim(); save(); sheetLick(l.id); } },
   delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {});
     S.lib.licks = S.lib.licks.filter(x => x !== l); save(); closeSheet(); },
-  addTune: () => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required><label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">`,
-    fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: splitTags(fd.tags).join(', ') }); S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); save(); }),
+  addTune: () => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required><label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">
+      <div class="stages" style="margin-top:10px"><label><input type="checkbox" name="tempo"><span class="grow">Tempo tune – track BPM</span></label></div>`,
+    fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: splitTags(fd.tags).join(', '), tempo: !!fd.tempo }); S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); save(); }),
   renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); sheetTune(t.id); } },
   delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
   addInst: () => formSheet('New instrument', `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Tenor sax">
@@ -989,7 +1109,7 @@ $('#instSel').addEventListener('change', e => { S.cur = e.target.value; S.plan =
 /* ---------- boot ---------- */
 load();
 checkBadges(true);
-render(); tickSession();
+render(); tickSession(); Sync.paint(); Sync.now();
 if (S.session && S.session.runSince) keepAwake();
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
