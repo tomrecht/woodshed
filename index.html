@@ -525,6 +525,7 @@ function vHome() {
   <section class="card"><h3>This week</h3><div class="week">${wk}</div>
     <div class="stats3"><div><small>Days</small><strong>${days}/${goal}</strong></div><div><small>Time</small><strong>${fmtMin(weekMin)}</strong></div><div><small>Streak</small><strong>🔥 ${st.cur}w</strong></div></div>
     ${S.session ? '' : `<button class="btn primary big" data-act="startSession">Start practice session</button>`}
+    <button class="btn" style="width:100%;margin-top:8px" data-act="logPast">+ Log practice time (practiced without the app)</button>
   </section>
   ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
   <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="Replace the whole plan">↻ all</button></h3><ul class="plan">${planHtml}</ul>
