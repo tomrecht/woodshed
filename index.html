@@ -1032,6 +1032,7 @@ function vMore() {
     <small class="muted">Total so far: ${fmtHM(totalHours(p))}</small>
     <label class="f">Suggested plan size: exercises · licks · tunes</label>
     <div class="row">${['ex', 'lick', 'tune'].map(k => `<select data-plansz="${k}">${[0, 1, 2, 3, 4, 5, 6].map(n => `<option ${planSize()[k] === n ? 'selected' : ''}>${n}</option>`).join('')}</select>`).join('')}</div>
+    <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="drumsChk" ${S.settings.drums !== false ? 'checked' : ''}><span class="grow">Drums when playing chords (ride cymbal and hi-hat)</span></label></div>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}<br><small>${fmtHM(totalHours(S.prog[i.id]))}</small></span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
@@ -1068,6 +1069,7 @@ function render() {
     $('#priorH').onchange = setPrior; $('#priorM').onchange = setPrior;
     $$('[data-plansz]').forEach(sel => sel.onchange = () => { S.settings.plan = Object.assign(planSize(), { [sel.dataset.plansz]: +sel.value }); S.plan = null; save(); });
     const sf = $('#syncForm'); if (sf) sf.onsubmit = async e => { e.preventDefault(); const t = $('#syncToken').value.trim(); if (!t) return; sf.querySelector('button').disabled = true; await Sync.connect(t); render(); };
+    $('#drumsChk').onchange = e => { S.settings.drums = e.target.checked; save(); };
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
   }
 }
@@ -1413,8 +1415,27 @@ function playSynth(ctx, out, midi, t, dur, vel) {   // fallback while samples lo
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vel * 0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(vel * 0.15, t + 0.5); g.gain.setTargetAtTime(0, t + dur, 0.1);
   o.connect(lp).connect(g).connect(out); o.start(t); o.stop(t + dur + 0.6);
 }
+/* Brushed-jazz drums, synthesized: ride cymbal "ding, ding-a-ding" and hi-hat on 2 and 4. */
+function noiseBuf(ctx) { if (EAR.noise) return EAR.noise; const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return EAR.noise = b; }
+function cymbal(ctx, out, t, decay, vol, hp) {
+  const bp = ctx.createBiquadFilter(), hpf = ctx.createBiquadFilter(), g = ctx.createGain();
+  bp.type = 'bandpass'; bp.frequency.value = 9500; bp.Q.value = 0.5; hpf.type = 'highpass'; hpf.frequency.value = hp;
+  for (const fr of [552, 840, 884, 995, 1233, 1775]) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = fr; o.connect(bp); o.start(t); o.stop(t + decay + 0.05); }
+  const n = ctx.createBufferSource(), ng = ctx.createGain(); n.buffer = noiseBuf(ctx); ng.gain.value = 0.35; n.connect(ng).connect(bp); n.start(t); n.stop(t + decay + 0.05);
+  bp.connect(hpf).connect(g).connect(out);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+}
+function playDrums(ctx, out, t0, beats, bpm) {
+  const beat = 60 / bpm, swing = beat * 2 / 3, g = ctx.createGain(); g.gain.value = 0.55; g.connect(out);
+  for (let b = 0; b < beats; b++) {
+    const t = t0 + b * beat, hum = (Math.random() - 0.5) * 0.008, onTwoFour = b % 2 === 1;
+    cymbal(ctx, g, t + hum, 1.1, onTwoFour ? 0.16 : 0.12, 5000);                 // ride
+    if (onTwoFour) { cymbal(ctx, g, t + swing + hum, 0.7, 0.07, 5000);             // skip note ("-a")
+      cymbal(ctx, g, t + 0.004, 0.06, 0.1, 7500); }                                // hi-hat chick on 2 and 4
+  }
+}
 // Play chords: list of {sym, beats}. Symbols are in concert pitch. Swung comping with a bass note under each chord.
-async function playChords(list, bpm = 132) {
+async function playChords(list, bpm = 132, opts = {}) {
   earStop(); const ctx = audioCtx();
   const loaded = Object.keys(PIANO.buf).length > 0;
   if (!loaded) { const p = loadPiano(); await Promise.race([p, new Promise(r => setTimeout(r, 2500))]); }
@@ -1422,7 +1443,8 @@ async function playChords(list, bpm = 132) {
   const dry = ctx.createGain(), wet = ctx.createGain(); dry.gain.value = 0.85; wet.gain.value = 0.25;
   out.connect(dry).connect(ctx.destination); out.connect(reverb(ctx)).connect(wet).connect(ctx.destination);
   const note = Object.keys(PIANO.buf).length ? playSample : playSynth;
-  const beat = 60 / bpm, swing = beat * 2 / 3; let t = ctx.currentTime + 0.12, center = 64;
+  const beat = 60 / bpm, swing = beat * 2 / 3; let t = ctx.currentTime + 0.12, center = 64; const t0 = t;
+  if (opts.drums !== false && S.settings.drums !== false) playDrums(ctx, out, t0, Math.round(list.reduce((a, c) => a + c.beats, 0)), bpm);
   for (const { sym, beats } of list) {
     const c = parseChord(sym); if (!c) { t += beats * beat; continue; }
     const v = placeVoicing(c.root, voicing(c.q), center); center = v.c;
@@ -1484,12 +1506,12 @@ function earNew(kind) {
     const opts = S.settings.earProgs?.length ? PROGS.filter(p => S.settings.earProgs.includes(p[0])) : PROGS;
     const pr = opts[Math.floor(Math.random() * opts.length)], key = Math.floor(Math.random() * 12);
     EG.answer = pr[0]; EG.choices = shuffle([pr[0], ...sample(opts.map(p => p[0]), 3, pr[0])]);
-    EG.chords = pr[1].flatMap(bar => bar.map(([iv, q]) => ({ sym: pcName(key + iv, false) + q, beats: 4 / bar.length })));
+    EG.chords = progChords(pr[0], key); EG.key = key;
     EG.reveal = pr[1].map(bar => bar.map(([iv, q]) => pcName(key + iv + TRANSP_FROM_CONCERT(), sharpKey(MAJOR_KEYS[mod12(key + TRANSP_FROM_CONCERT())])) + q).join(' ')).join(' | ');
     EG.bpm = 132;
   } else if (kind === 'qual') {
     const [q] = QUALS[Math.floor(Math.random() * QUALS.length)], root = Math.floor(Math.random() * 12);
-    EG.answer = q; EG.choices = QUALS.map(x => x[0]); EG.chords = [{ sym: pcName(root, false) + q, beats: 4 }]; EG.reveal = ''; EG.bpm = 100;
+    EG.answer = q; EG.choices = QUALS.map(x => x[0]); EG.chords = [{ sym: pcName(root, false) + q, beats: 4 }]; EG.root = root; EG.reveal = ''; EG.bpm = 100;
   } else if (kind === 'tune') {
     const pool = earTunePool(); if (pool.length < 4) { EG.error = 'Name that tune needs at least 4 of your tunes with charts. Mark some tunes as learning, or switch the pool to all your tunes.'; return; }
     EG.error = null;
@@ -1501,6 +1523,7 @@ function earNew(kind) {
   }
   EG.n = (EG.n || 0);
 }
+function progChords(name, key) { const pr = PROGS.find(p => p[0] === name); return pr[1].flatMap(bar => bar.map(([iv, q]) => ({ sym: pcName(key + iv, false) + q, beats: 4 / bar.length }))); }
 const TRANSP_FROM_CONCERT = () => mod12(-TO_CONCERT[instTr()]);
 function earTunePool() {
   const withChart = S.lib.tunes.filter(t => LIB && libEntry(t));
@@ -1526,7 +1549,7 @@ function earSheet() {
     <button class="btn primary big" data-act="earPlay">▶ ${EG.played ? 'Play again' : 'Play'}</button>
     ${EG.kind === 'tune' ? `<p class="muted" style="font-size:.9rem;margin:8px 0 0">Played in concert pitch.</p>` : ''}
     <div class="earopts">${EG.choices.map(c => `<button data-act="earAnswer" data-v="${esc(c)}" class="${EG.answered == null ? '' : c === EG.answer ? 'right' : c === EG.answered ? 'wrong' : ''}" ${EG.answered != null ? 'disabled' : ''}>${esc(c)}</button>`).join('')}</div>
-    ${fb}${extra}
+    ${fb}${EG.answered != null && EG.answered !== EG.answer && (EG.kind === 'prog' || EG.kind === 'qual') ? `<div class="row" style="margin:6px 0"><button class="btn grow" data-act="earPlay">▶ Correct: ${esc(EG.answer)}</button><button class="btn grow" data-act="earPlayMine">▶ Yours: ${esc(EG.answered)}</button></div>` : ''}${extra}
     ${EG.answered != null ? `<button class="btn primary big" data-act="earNext">Next</button>` : ''}`, endTrain);
 }
 
@@ -1760,7 +1783,8 @@ const A = {
   quizEnd: () => { Q.ask = Q.ask.slice(0, Q.pos); quizFinish(); quizRender(); },
   earStart: el => { EG.n = 0; startTrain('ear'); const go = () => { earNew(el.dataset.k); EG.played = false; earSheet(); };
     if (el.dataset.k === 'tune') loadLibrary().then(go).catch(() => toast('Could not load charts – are you offline?')); else go(); },
-  earPlay: () => { EG.played = true; playChords(EG.chords, EG.bpm); const b = $('#panel [data-act=earPlay]'); if (b) b.textContent = '▶ Play again'; },
+  earPlay: () => { EG.played = true; playChords(EG.chords, EG.bpm, { drums: EG.kind !== 'qual' }); const b = $('#panel [data-act=earPlay]'); if (b) b.textContent = '▶ Play again'; },
+  earPlayMine: () => { if (EG.kind === 'prog') playChords(progChords(EG.answered, EG.key), EG.bpm); else playChords([{ sym: pcName(EG.root, false) + EG.answered, beats: 4 }], EG.bpm, { drums: false }); },
   earAnswer: el => { if (EG.answered != null) return; EG.answered = el.dataset.v; trainScore(EG.answered === EG.answer, EG.kind); earSheet(); },
   earNext: () => { earNew(EG.kind); EG.played = false; earSheet(); setTimeout(() => A.earPlay(), 150); },
   trainSet: el => { const v = el.dataset.v; S.settings[el.dataset.k] = /^\d+$/.test(v) ? +v : v; save(true); render(); },
