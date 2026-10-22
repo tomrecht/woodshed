@@ -612,7 +612,7 @@ function checkBadges(silent) {
     if (/^h\d+$/.test(b.id) && +b.id.slice(1) <= (p.priorHours || 0)) p.badgesNoXp[b.id] = 1; else fresh.push(b);
   }
   save(true);
-  if (fresh.length) { save(); if (!silent) toast(fresh.map(b => b.ic + ' ' + (b.id.startsWith('sec:') ? b.name + ' complete!' : b.name)).join('  ·  ') + '  +' + BADGE_XP * fresh.length + ' XP'); }
+  if (fresh.length) { save(true); if (!silent) toast(fresh.map(b => b.ic + ' ' + (b.id.startsWith('sec:') ? b.name + ' complete!' : b.name)).join('  ·  ') + '  +' + BADGE_XP * fresh.length + ' XP'); }
 }
 
 /* ---------- session plan ---------- */
@@ -647,7 +647,7 @@ function makePlan() {
   const items = [], sz = planSize();
   for (const [t, n] of [['ex', sz.ex], ['lick', sz.lick], ['tune', sz.tune]])
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
-  S.plan = { date: dayKey(Date.now()), inst: S.cur, items }; save();
+  S.plan = { date: dayKey(Date.now()), inst: S.cur, items }; save(true);   // automatic, not a user edit
 }
 const planSize = () => Object.assign({ ex: 3, lick: 1, tune: 2 }, S.settings.plan || {});
 function addToPlan(it) {
@@ -1083,7 +1083,7 @@ const A = {
   openLick: el => sheetLick(el.dataset.id),
   openTune: el => sheetTune(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : sheetTune(el.dataset.id),
-  replan: () => { makePlan(); render(); },
+  replan: () => { makePlan(); save(); render(); },
   planDel: el => { S.plan.items.splice(+el.dataset.i, 1); save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
     const it = pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
