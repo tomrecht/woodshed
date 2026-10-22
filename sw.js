@@ -1,5 +1,5 @@
 // Offline cache. Serves cached files instantly, refreshes them in the background.
-const CACHE = 'woodshed-v9';
+const CACHE = 'woodshed-v10';
 const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', ...Array.from({ length: 25 }, (_, i) => `licks/lick-${i + 1}.png`)];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });

@@ -519,11 +519,12 @@ function setBpm(k, v, exId) {
   if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
   touch(k, exId); save(); checkBadges(); return v != null && prev != null && v > prev;
 }
+const FLOOR_MIN = 3;   // exercises with at least this many keys get a floor (slowest key)
 function exInfo(ex) {
   const p = P(); const vals = ex.keys.map(k => p.bpm[exKey(ex, k)] ?? null);
   let min = null, mk = null; vals.forEach((v, i) => { if (v != null && (min == null || v < min)) { min = v; mk = ex.keys[i]; } });
   const logged = vals.filter(v => v != null).length;
-  return { vals, logged, min, mk, n: ex.keys.length, floor: ex.keys.length >= 5, full: logged === ex.keys.length };
+  return { vals, logged, min, mk, n: ex.keys.length, floor: ex.keys.length >= FLOOR_MIN, full: logged === ex.keys.length };
 }
 const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
 const tuneState = id => P().tunes[id] || { lv: [0, 0, 0], notes: '' };
@@ -574,7 +575,7 @@ function hourMilestones(h) { const out = [10, 50]; for (let m = 100; m <= Math.m
 function badgeList() {
   const p = P(), st = streaks(p), h = totalHours(p);
   const exs = allEx(); const full12 = exs.filter(o => o.ex.keys.length >= 5 && exInfo(o.ex).full);
-  const floors = full12.map(o => exInfo(o.ex).min);
+  const floors = exs.filter(o => o.ex.keys.length >= FLOOR_MIN && exInfo(o.ex).full).map(o => exInfo(o.ex).min);
   const maxFloor = floors.length ? Math.max(...floors) : 0;
   const pbs = p.hist.filter(x => x.prev != null && x.bpm > x.prev).length;
   const licks = S.lib.licks.filter(l => p.bpm['l:' + l.id]).length;
@@ -740,10 +741,10 @@ function vGrid() {
     // group exercises sharing the same key set so each table has one header row
     const groups = [];
     for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
-    return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= 5 ? '<th>Floor</th>' : ''}</tr></thead><tbody>
+    return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= FLOOR_MIN ? '<th>Floor</th>' : ''}</tr></thead><tbody>
       ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)} ${unitBtn('ex', ex)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
         return `<td class="gc"><span class="cuw">${cellUnit(ex, k)}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
-        ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? Tk(exKey(ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
+        ${ex.keys.length >= FLOOR_MIN ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? Tk(exKey(ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)} ${unitBtn('lick', l)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${dv('l:' + l.id, p.bpm['l:' + l.id])}" tabindex="${++tabIdx}"></td></tr>`).join('');
