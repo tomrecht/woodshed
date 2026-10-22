@@ -521,6 +521,11 @@ function setTuneLevel(id, stage, lv) {
 }
 
 function totalMinutes(p = P()) { return p.sessions.reduce((a, s) => a + s.min, 0); }
+const fmtHM = h => { const m = Math.round(h * 60); return Math.floor(m / 60).toLocaleString() + ' h ' + (m % 60) + ' m'; };
+const priorFields = h => { const m = Math.round((h || 0) * 60);
+  return `<div class="row"><input type="number" inputmode="numeric" name="ph" id="priorH" min="0" value="${m ? Math.floor(m / 60) : ''}" placeholder="0"><span>h</span>
+    <input type="number" inputmode="numeric" name="pm" id="priorM" min="0" max="59" value="${m ? m % 60 : ''}" placeholder="0"><span>m</span></div>`; };
+const priorFrom = (h, m) => Math.max(0, (+h || 0) + (+m || 0) / 60);
 const totalHours = (p = P()) => (p.priorHours || 0) + totalMinutes(p) / 60;
 function dayMins(p = P()) { const m = {}; for (const s of p.sessions) { const k = dayKey(s.start); m[k] = (m[k] || 0) + s.min; } return m; }
 function weekDaysCount(mon, dm) { let c = 0; for (let i = 0; i < 7; i++) if (dm[dayKey(addDays(mon, i))]) c++; return c; }
@@ -540,7 +545,7 @@ function xpCalc(p = P()) {
   let xp = totalMinutes(p);
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
   for (const id in p.tunes) xp += TUNE_STEP_XP * (p.tunes[id].lv || []).reduce((a, b) => a + b, 0);
-  xp += BADGE_XP * Object.keys(p.badges || {}).length;
+  xp += BADGE_XP * Object.keys(p.badges || {}).filter(id => !(p.badgesNoXp || {})[id]).length;
   return xp;
 }
 function level(xp) { let n = 1; while (100 * n * (n + 1) / 2 <= xp) n++; const base = 100 * (n - 1) * n / 2, next = 100 * n * (n + 1) / 2; return { n, base, next }; }
@@ -582,7 +587,12 @@ function badgeList() {
 }
 function checkBadges(silent) {
   const p = P(); p.badges = p.badges || {}; const fresh = [];
-  for (const b of badgeList()) if (b.ok && !p.badges[b.id]) { p.badges[b.id] = Date.now(); fresh.push(b); }
+  p.badgesNoXp = p.badgesNoXp || {};
+  for (const b of badgeList()) if (b.ok && !p.badges[b.id]) {
+    p.badges[b.id] = Date.now();
+    if (/^h\d+$/.test(b.id) && +b.id.slice(1) <= (p.priorHours || 0)) p.badgesNoXp[b.id] = 1; else fresh.push(b);
+  }
+  save(true);
   if (fresh.length) { save(); if (!silent) toast(fresh.map(b => b.ic + ' ' + (b.id.startsWith('sec:') ? b.name + ' complete!' : b.name)).join('  ·  ') + '  +' + BADGE_XP * fresh.length + ' XP'); }
 }
 
@@ -675,7 +685,7 @@ function vHome() {
   <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="Replace the whole plan">↻ all</button></h3><ul class="plan">${planHtml}</ul>
     <div class="row wrap" style="margin-top:8px"><small class="grow">Add:</small><button class="btn sm" data-act="planAdd" data-t="ex">+ Exercise</button><button class="btn sm" data-act="planAdd" data-t="lick">+ Lick</button><button class="btn sm" data-act="planAdd" data-t="tune">+ Tune</button></div></section>
   <section class="card"><h3>Last 20 weeks</h3><div class="heat">${cells}</div>
-    <div class="row" style="margin-top:8px"><small class="grow">${totalHours(p).toFixed(1)} hours total</small><small>${p.sessions.length} sessions</small></div></section>
+    <div class="row" style="margin-top:8px"><small class="grow">${fmtHM(totalHours(p))} total</small><small>${p.sessions.length} sessions</small></div></section>
   ${recent ? `<section class="card"><h3>Recent tempo records</h3><ul class="list">${recent}</ul></section>` : ''}`;
 }
 function itemLabel(k) {
@@ -757,7 +767,9 @@ function vTunes() {
     <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
 }
 function vMore() {
-  const p = P(), bl = badgeList(), got = bl.filter(b => p.badges[b.id]);
+  const p = P(), all = badgeList();
+  const hrs = all.filter(b => /^h\d+$/.test(b.id)), hEarned = hrs.filter(b => p.badges[b.id]), hNext = hrs.find(b => !p.badges[b.id]);
+  const bl = all.filter(b => !/^h\d+$/.test(b.id) || b === hEarned[hEarned.length - 1] || b === hNext), got = bl.filter(b => p.badges[b.id]);
   // weekly minutes chart, 12 weeks
   const dm = dayMins(p), mon = monday(Date.now()); const weeks = [];
   for (let w = 11; w >= 0; w--) { const m0 = addDays(mon, -7 * w); let s = 0; for (let i = 0; i < 7; i++) s += dm[dayKey(addDays(m0, i))] || 0; weeks.push({ m0, s }); }
@@ -771,12 +783,13 @@ function vMore() {
     <small>Last 12 weeks · this week highlighted</small></section>
   <section class="card"><h3><span class="grow">Sessions</span><button class="btn sm" data-act="logPast">+ Log past session</button></h3><ul class="list">${sess || '<li class="muted">No sessions yet.</li>'}</ul></section>
   <section class="card"><h3>Settings – ${esc(curInst().name)}</h3>
-    <label class="f">Practice hours before using this app</label><input type="number" inputmode="decimal" id="priorHours" value="${p.priorHours || ''}" placeholder="0">
+    <label class="f">Practice time before using this app</label>${priorFields(p.priorHours)}
+    <small class="muted">Total so far: ${fmtHM(totalHours(p))}</small>
     <label class="f">Suggested plan size: exercises · licks · tunes</label>
     <div class="row">${['ex', 'lick', 'tune'].map(k => `<select data-plansz="${k}">${[0, 1, 2, 3, 4, 5, 6].map(n => `<option ${planSize()[k] === n ? 'selected' : ''}>${n}</option>`).join('')}</select>`).join('')}</div>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
   </section>
-  <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}</span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
+  <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}<br><small>${fmtHM(totalHours(S.prog[i.id]))}</small></span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
     <button class="btn ghost" data-act="addInst">+ Add instrument</button></section>
   <section class="card"><h3>Sync &amp; backup</h3>
     ${Sync.on ? `<p class="muted" style="margin-top:0" id="syncStatus">${esc(Sync.describe())}</p>
@@ -805,7 +818,8 @@ function render() {
     $$('details.sec').forEach(d => d.addEventListener('toggle', () => d.open ? openSecs.add(d.dataset.sec) : openSecs.delete(d.dataset.sec)));
   }
   if (tab === 'more') {
-    $('#priorHours').onchange = e => { P().priorHours = Math.max(0, +e.target.value || 0); save(); checkBadges(); render(); };
+    const setPrior = () => { P().priorHours = priorFrom($('#priorH').value, $('#priorM').value); save(); checkBadges(); render(); };
+    $('#priorH').onchange = setPrior; $('#priorM').onchange = setPrior;
     $$('[data-plansz]').forEach(sel => sel.onchange = () => { S.settings.plan = Object.assign(planSize(), { [sel.dataset.plansz]: +sel.value }); S.plan = null; save(); });
     const sf = $('#syncForm'); if (sf) sf.onsubmit = async e => { e.preventDefault(); const t = $('#syncToken').value.trim(); if (!t) return; sf.querySelector('button').disabled = true; await Sync.connect(t); render(); };
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
@@ -1101,8 +1115,9 @@ const A = {
   renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); sheetTune(t.id); } },
   delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
   addInst: () => formSheet('New instrument', `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Tenor sax">
+      <label class="f">Practice time on it so far</label>${priorFields(0)}
       <p class="muted" style="font-size:.9rem">Uses the same exercises, licks and tunes, with its own tempos, sessions and badges.</p>`,
-    fd => { const n = fd.name.trim(); if (!n) return false; const id = slug(n) + '-' + uid(); S.inst.push({ id, name: n }); S.prog[id] = newProg(); S.cur = id; S.plan = null; save(); checkBadges(); toast('Switched to ' + n); }),
+    fd => { const n = fd.name.trim(); if (!n) return false; const id = slug(n) + '-' + uid(); S.inst.push({ id, name: n }); S.prog[id] = Object.assign(newProg(), { priorHours: priorFrom(fd.ph, fd.pm) }); S.cur = id; S.plan = null; save(); checkBadges(); toast('Switched to ' + n); }),
   renameInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); const n = prompt('Instrument name', i.name); if (n && n.trim()) { i.name = n.trim(); save(); render(); } },
   delInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); if (prompt(`This deletes all progress for ${i.name}. Type DELETE to confirm.`) !== 'DELETE') return;
     S.inst = S.inst.filter(x => x !== i); delete S.prog[i.id]; if (S.cur === i.id) S.cur = S.inst[0].id; S.plan = null; save(); render(); },
