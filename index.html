@@ -337,6 +337,10 @@ function migrate() {
     }
     S.libRev = 5;
   }
+  if (S.libRev < 6) {
+    for (const l of S.lib.licks) if (l.unit == null) l.unit = 2;   // licks default to half-note tempo
+    S.libRev = 6;
+  }
 }
 const splitTags = s => [...new Set((s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean))];
 const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
@@ -1144,7 +1148,7 @@ const A = {
   delEx: el => { const { sec, ex } = findEx(el.dataset.id); if (!confirm(`Delete "${ex.name}"?`)) return; sec.ex = sec.ex.filter(x => x !== ex); save(); closeSheet(); },
   addLick: () => formSheet('New lick', `<label class="f">Name</label><input type="text" name="name" required value="Lick ${S.lib.licks.length + 1}">
       <p class="muted" style="font-size:.9rem">You can add a photo or screenshot of the notation next.</p>`,
-    fd => { const l = { id: 'lick-' + uid(), name: fd.name.trim() || 'Lick', img: null, notes: '' }; S.lib.licks.push(l); save(); setTimeout(() => sheetLick(l.id), 0); }),
+    fd => { const l = { id: 'lick-' + uid(), name: fd.name.trim() || 'Lick', img: null, notes: '', unit: 2 }; S.lib.licks.push(l); save(); setTimeout(() => sheetLick(l.id), 0); }),
   lickImg: async el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const data = await pickImage(); if (!data) return;
     const id = 'img-' + uid(); try { await idb.put(id, data); } catch (e) { toast('Could not store image'); return; }
     if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {}); l.img = id; imgCache[id] = data; save(); sheetLick(l.id); },
