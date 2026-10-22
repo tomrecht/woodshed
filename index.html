@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#15171c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Woodshed</title>
+<style>
+:root{
+  --bg:#15171c;--surface:#1f2229;--surface2:#282c35;--line:#343945;
+  --text:#ecebe7;--muted:#9a9ca3;--accent:#f0a83c;--accent-ink:#1b1408;
+  --good:#6cc28a;--danger:#e0675f;--empty:#2c3039;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{margin:0;font-weight:650}
+h2{font-size:1.25rem}h3{font-size:1rem;display:flex;align-items:center;gap:8px}
+small,.muted{color:var(--muted)}
+.grow{flex:1;min-width:0}
+header#top{position:sticky;top:0;z-index:20;background:rgba(21,23,28,.94);backdrop-filter:blur(8px);
+  padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+header#top .logo{font-weight:750;letter-spacing:.02em;color:var(--accent)}
+header#top select{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 8px;width:auto;max-width:min(45vw,220px)}
+#sessbar{display:none;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);padding:8px 16px;font-weight:650;position:sticky;top:57px;z-index:19}
+#sessbar.on{display:flex}
+#sessbar button{background:rgba(0,0,0,.15);border:0;border-radius:8px;padding:5px 10px;font-weight:650;color:inherit}
+main{padding:14px 16px;max-width:720px;margin:0 auto}
+.card{background:var(--surface);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.card h3{margin-bottom:10px}
+.btn{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px 14px;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.big{width:100%;padding:14px;font-size:1.05rem;margin-top:10px}
+.btn.ghost{background:none;border-style:dashed;color:var(--muted);width:100%;margin-top:8px}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:6px 10px;font-size:.9rem}
+.iconbtn{background:none;border:0;color:var(--muted);font-size:1.1rem;padding:4px 8px}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+input[type=number],input[type=text],input[type=search],input[type=date],select,textarea{
+  background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+label.f{display:block;margin:10px 0 4px;color:var(--muted);font-size:.9rem}
+
+/* level */
+.lvl{display:flex;gap:12px;align-items:center}
+.lvbadge{background:var(--accent);color:var(--accent-ink);font-weight:800;border-radius:12px;padding:10px 12px;min-width:64px;text-align:center}
+.bar{height:10px;background:var(--empty);border-radius:6px;overflow:hidden;margin:4px 0}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
+
+/* week */
+.week{display:flex;justify-content:space-between;gap:6px;margin:4px 0 10px}
+.week div{flex:1;text-align:center;font-size:.75rem;color:var(--muted)}
+.week b{display:block;margin:4px auto 0;width:30px;height:30px;border-radius:50%;background:var(--empty);line-height:30px;color:var(--accent-ink)}
+.week b.on{background:var(--accent)}
+.week b.today{outline:2px solid var(--muted);outline-offset:2px}
+.stats3{display:flex;gap:10px}
+.stats3 div{flex:1;background:var(--surface2);border-radius:10px;padding:8px 10px}
+.stats3 strong{display:block;font-size:1.25rem}
+
+/* heatmap */
+.heat{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px;grid-auto-columns:1fr}
+.heat i{aspect-ratio:1;border-radius:3px;background:var(--empty)}
+.heat i.l1{background:#5a4320}.heat i.l2{background:#93682a}.heat i.l3{background:#c98d34}.heat i.l4{background:#f3b34a}
+.heat i.fut{background:transparent}
+
+/* plan */
+.plan{list-style:none;margin:0;padding:0}
+.plan li{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.plan li:first-child{border-top:0}
+.plan .chk{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-size:.8rem}
+.plan .chk.on{background:var(--good);border-color:var(--good);color:#0d2416}
+.plan button.item{all:unset;flex:1;cursor:pointer}
+.plan .tag{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+
+/* exercises */
+details.sec{background:var(--surface);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+details.sec summary{list-style:none;padding:14px;display:flex;gap:10px;align-items:center;cursor:pointer}
+details.sec summary::-webkit-details-marker{display:none}
+details.sec summary:before{content:"▸";color:var(--muted);transition:transform .15s}
+details.sec[open] summary:before{transform:rotate(90deg)}
+details.sec .body{padding:0 10px 10px}
+.exrow{all:unset;display:block;width:100%;box-sizing:border-box;padding:10px 6px;border-top:1px solid var(--line);cursor:pointer}
+.exrow .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.exrow .meta{font-size:.85rem;color:var(--muted);white-space:nowrap}
+.exrow .meta b{color:var(--accent)}
+.strip{display:flex;gap:3px;margin-top:6px}
+.strip i{flex:1;height:8px;border-radius:3px;background:var(--empty)}
+.strip i.fl{outline:1.5px solid var(--text)}
+.donebadge{font-size:.75rem;background:var(--good);color:#0d2416;border-radius:6px;padding:1px 6px;margin-left:6px}
+
+/* key entry */
+.keys{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(min-width:600px){.keys{grid-template-columns:1fr 1fr 1fr}}
+.krow{display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:10px;padding:6px 8px;border:1.5px solid transparent}
+.krow.fl{border-color:var(--accent)}
+.krow .kn{width:40px;font-weight:650;font-size:.95rem;flex:none}
+.krow .kn small{display:block;font-weight:400;font-size:.7rem}
+.krow input{padding:7px 2px;text-align:center;background:var(--bg);min-width:0;flex:1;font-size:1.05rem;font-weight:600}
+.krow .iconbtn{padding:4px 2px}
+input[type=number]{-moz-appearance:textfield}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.krow .sw{width:8px;align-self:stretch;border-radius:4px;flex:none}
+.keys.one{grid-template-columns:1fr}
+.floorbox{display:flex;gap:10px;margin:10px 0}
+.floorbox div{flex:1;background:var(--surface2);border-radius:10px;padding:8px 10px}
+.floorbox strong{font-size:1.4rem;display:block}
+
+/* licks & tunes */
+.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.lcard{all:unset;cursor:pointer;background:var(--surface);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.lcard .im{background:#fff;height:80px;display:grid;place-items:center;color:#888;font-size:.8rem;overflow:hidden}
+.lcard .im img{width:100%;height:100%;object-fit:cover;object-position:left center}
+.lcard .t{padding:8px 10px;display:flex;justify-content:space-between;gap:6px}
+.lickimg{background:#fff;border-radius:10px;width:100%;display:block;margin:8px 0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:6px 12px;white-space:nowrap;font-size:.9rem}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
+.trow{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;background:var(--surface);border-radius:12px;padding:12px;margin-bottom:8px}
+.pips{display:flex;gap:4px}
+.pips i{width:10px;height:10px;border-radius:50%;background:var(--empty)}
+.pips i.on{background:var(--accent)}
+.stages label{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:6px}
+.stages input{width:20px;height:20px;accent-color:var(--accent)}
+
+/* badges */
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.bdg{background:var(--surface2);border-radius:12px;padding:10px 6px;text-align:center;font-size:.78rem;color:var(--muted)}
+.bdg .ic{font-size:1.6rem;display:block;filter:grayscale(1);opacity:.35}
+.bdg.on{color:var(--text)}
+.bdg.on .ic{filter:none;opacity:1}
+.bdg b{display:block;font-size:.82rem;color:inherit}
+
+/* lists */
+.list{list-style:none;padding:0;margin:0}
+.list li{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+
+/* nav */
+nav#tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);
+  display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav#tabs button{flex:1;background:none;border:0;padding:9px 0 10px;color:var(--muted);font-size:.72rem;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav#tabs button span{font-size:1.25rem;line-height:1}
+nav#tabs button.on{color:var(--accent)}
+
+/* metronome */
+#metro{position:fixed;left:8px;right:8px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:31;background:var(--surface2);border:1px solid var(--line);
+  border-radius:16px;padding:8px 10px;display:none;align-items:center;gap:6px;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:520px;margin:0 auto}
+#metro.on{display:flex}
+#metro input{width:70px;text-align:center;font-weight:700;font-size:1.1rem;padding:6px}
+#metro .beat{width:12px;height:12px;border-radius:50%;background:var(--empty);flex:none}
+#metro .beat.hit{background:var(--accent)}
+#metro button{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-weight:650}
+#metro button.play{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-width:44px}
+
+/* sheet */
+#sheet{position:fixed;inset:0;z-index:40;display:none}
+#sheet.on{display:block}
+#sheet .bk{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+#sheet .panel{position:absolute;left:0;right:0;bottom:0;max-height:92vh;overflow:auto;background:var(--surface);border-radius:18px 18px 0 0;
+  padding:16px 16px calc(24px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+#sheet .phead{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+#toast{position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-20px);opacity:0;transition:.25s;z-index:60;background:var(--accent);
+  color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%)}
+.hide{display:none!important}
+main.wide{max-width:1280px}
+.gwrap{overflow-x:auto;margin-bottom:10px}
+table.grid{border-collapse:collapse;font-size:.9rem}
+table.grid th{text-align:left;font-weight:500;padding:4px 8px 4px 0;white-space:nowrap;color:var(--muted)}
+table.grid thead th{text-align:center;color:var(--text);font-weight:650}
+table.grid td{padding:2px}
+table.grid td input[type=number]{width:62px;padding:6px 4px;text-align:center}
+table.grid td.fl{padding-left:10px;white-space:nowrap;color:var(--accent);font-weight:650}
+table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);display:block;margin:0 auto}
+.sp{height:10px}
+</style>
+</head>
+<body>
+<header id="top">
+  <div class="logo">♪ Woodshed</div>
+  <div class="grow"></div>
+  <button class="iconbtn" data-act="metroToggle" title="Metronome">♩</button>
+  <select id="instSel" aria-label="Instrument"></select>
+</header>
+<div id="sessbar"><span>● Session</span><span id="sessTime">0:00</span><div class="grow"></div>
+  <button data-act="pauseSession" id="pauseBtn">Pause</button><button data-act="finishSession">Finish</button></div>
+<main id="view"></main>
+<div id="metro">
+  <span class="beat" id="beat"></span>
+  <button data-act="mStep" data-d="-4">−</button>
+  <input id="mBpm" type="number" inputmode="numeric" min="20" max="400" value="120" aria-label="Metronome BPM">
+  <button data-act="mStep" data-d="4">+</button>
+  <button data-act="mTap">Tap</button>
+  <button class="play" data-act="mPlay" id="mPlay">▶</button>
+  <div class="grow"></div>
+  <button data-act="metroToggle" aria-label="Close metronome">✕</button>
+</div>
+<nav id="tabs">
+  <button data-tab="home" class="on"><span>⌂</span>Home</button>
+  <button data-tab="ex"><span>♯</span>Exercises</button>
+  <button data-tab="licks"><span>♫</span>Licks</button>
+  <button data-tab="tunes"><span>♬</span>Tunes</button>
+  <button data-tab="more"><span>★</span>Progress</button>
+</nav>
+<div id="sheet"><div class="bk" data-act="closeSheet"></div><div class="panel" id="panel"></div></div>
+<div id="toast"></div>
+<input type="file" id="fileIn" accept="image/*" class="hide">
+<input type="file" id="importIn" accept="application/json,.json" class="hide">
+
+<script>
+'use strict';
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+const slug = s => s.toLowerCase().replace(/#/g, 's').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const DAY = 864e5;
+const dayKey = d => { d = new Date(d); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const monday = d => { d = new Date(d); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d; };
+const addDays = (d, n) => { d = new Date(d); d.setDate(d.getDate() + n); return d; };
+const ago = t => { if (!t) return ''; const d = Math.floor((Date.now() - t) / DAY); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 7 ? d + 'd ago' : d < 60 ? Math.floor(d / 7) + 'w ago' : Math.floor(d / 30) + 'mo ago'; };
+const fmtMin = m => m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '');
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* ---------- key sets & default library ---------- */
+const MAJ = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const MIN = ['C','C#','D','Eb','E','F','F#','G','G#','A','Bb','B'];
+const AUG = ['Eb-G-B','E-G#-C','F-A-C#','Gb-Bb-D'];
+const DIM7 = ['Eb-F#-A-C','E-G-Bb-C#','F-Ab-B-D'];
+const DIMSC = ['E-F#','F-G','F#-G#'];
+const WT = ['Eb-F','E-F#'];
+const NONE = ['—'];
+const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
+  ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
+const STAGES = ['Listened','Melody','Changes','Memorized','Soloing'];
+
+function defaultLib() {
+  const sec = (name, list) => ({ id: slug(name), name, ex: list.map(([n, k]) => ({ id: slug(name + ' ' + n), name: n, keys: [...k] })) });
+  const UDT = k => [['Up & down – 16ths', k], ['Up & down – triplets', k], ['Thirds', k]];
+  const ADA = (p, k) => ['Ascending', 'Descending', 'Alternating'].map(d => [p + ' – ' + d, k]);
+  return {
+    sections: [
+      sec('Chromatic scale', [['16ths', NONE], ['Triplets', NONE], ['Quintuplets', NONE], ['Seconds', NONE], ...ADA('Minor 3rds', NONE), ...ADA('Major 3rds', NONE)]),
+      sec('Major', UDT(MAJ)),
+      sec('Melodic minor', UDT(MIN)),
+      sec('Harmonic minor', UDT(MIN)),
+      sec('Arpeggios', [['Major triads – 16ths', MAJ], ['Minor triads – 16ths', MIN], ['Augmented triads – 16ths', AUG], ['Diminished 7ths – 16ths', DIM7]]),
+      sec('Bebop scales', [['Bebop dominant – 16ths', MAJ], ['Bebop major – 16ths', MAJ]]),
+      sec('Diminished scale', UDT(DIMSC)),
+      sec('Whole-tone', [...UDT(WT), ...ADA('Triads', WT), ...ADA('Tetrads', WT)]),
+      sec('Major triads & tetrads', [...ADA('Triads', MAJ), ...ADA('Tetrads', MAJ)]),
+      sec('Melodic minor triads & tetrads', [...ADA('Triads', MIN), ...ADA('Tetrads', MIN)]),
+      sec('Harmonic minor triads & tetrads', [...ADA('Triads', MIN), ...ADA('Tetrads', MIN)]),
+      sec('Chromatic chords', [
+        ...['Major', 'Minor', 'Diminished', 'Augmented'].flatMap(q => ADA('Triads: ' + q, NONE)),
+        ...['Major 7th', 'Major 6th', 'Dominant', 'Minor maj 7th', 'Minor 7th', 'Minor 6th', 'Half-diminished', 'Diminished'].flatMap(q => ADA('Tetrads: ' + q, NONE))]),
+      sec('Digital patterns', ['1 2 3 5', '1 2 b3 5', '1 2 b3 b5', '1 2 3 #5', '1 3 4 5', '1 b3 4 5', '1 b3 4 b5'].flatMap(p => ADA(p, NONE))),
+      sec('Major pentatonic', UDT(MAJ)),
+      sec('Minor pentatonic', UDT(MIN)),
+      sec('Broken arpeggios (triplets)', [['Minor 7th (= major 6th)', MIN], ['Minor 6th (= half-dim)', MIN], ['Augmented', AUG], ['Diminished', DIM7]]),
+      sec('Scale & arpeggio patterns', [['Major: 7176 5654 3432…', MAJ], ['Minor arp: 71 45 23…', MIN], ['Minor arp: 1721 5465 3243…', MIN]]),
+    ],
+    licks: Array.from({ length: 24 }, (_, i) => ({ id: 'lick-' + (i + 1), name: 'Lick ' + (i + 1), img: null, notes: '' })),
+    tunes: ['A Night In Tunisia', 'An Oscar For Treadwell', 'Anthropology', "Billie's Bounce", 'Bloomdido', 'Blues For Alice', 'Butch And Butch',
+      'Cascades', 'Confirmation', 'Crazeology', 'Dewey Square', 'Donna Lee', 'Good Bait', 'Groovin High', 'Hot House', 'Joy Spring', 'Marmaduke',
+      'Mohawk', 'Ornithology', "Relaxin' At Camarillo", 'Scrapple From The Apple', 'Segment', "Serpent's Tooth", 'Steeple Chase', 'Tears Inside',
+      'Tempus Fugit', 'Tico Tico', 'Yardbird Suite'].map(n => ({ id: slug(n), name: n, tags: 'bebop' })),
+  };
+}
+const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
+
+/* ---------- state ---------- */
+const LS = 'woodshed.v1';
+let S;
+function load() {
+  try { S = JSON.parse(localStorage.getItem(LS)); } catch (e) { S = null; }
+  if (!S || !S.lib) S = { v: 1, lib: defaultLib(), inst: [{ id: 'alto', name: 'Alto sax' }], cur: 'alto', prog: { alto: newProg() }, settings: { goal: 3 }, session: null, plan: null };
+  for (const i of S.inst) S.prog[i.id] = Object.assign(newProg(), S.prog[i.id] || {});
+}
+function save() {
+  try { localStorage.setItem(LS, JSON.stringify(S)); }
+  catch (e) { toast('Could not save – storage full?'); }
+}
+const P = () => S.prog[S.cur];
+const allEx = () => S.lib.sections.flatMap(sec => sec.ex.map(ex => ({ sec, ex })));
+const findEx = id => allEx().find(o => o.ex.id === id);
+const exKey = (ex, k) => 'e:' + ex.id + '|' + k;
+
+/* ---------- images (IndexedDB) ---------- */
+const idb = (() => {
+  let dbp;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('woodshed', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('img');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => {
+    const t = db.transaction('img', mode); const req = fn(t.objectStore('img'));
+    t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); }); };
+  return { get: k => tx('readonly', s => s.get(k)), put: (k, v) => tx('readwrite', s => s.put(v, k)), del: k => tx('readwrite', s => s.delete(k)),
+    all: () => tx('readonly', s => s.getAllKeys()) };
+})();
+const imgCache = {};
+async function hydrateImgs(root = document) {
+  for (const el of $$('img[data-img]', root)) {
+    const id = el.dataset.img; if (!id) continue;
+    if (!(id in imgCache)) { try { imgCache[id] = await idb.get(id); } catch (e) { imgCache[id] = null; } }
+    if (imgCache[id]) el.src = imgCache[id];
+  }
+}
+function fileToDataURL(file, max = 1800) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src); res(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = rej; img.src = URL.createObjectURL(file);
+  });
+}
+function pickImage() {
+  return new Promise(res => { const f = $('#fileIn'); f.value = ''; f.onchange = async () => { res(f.files[0] ? await fileToDataURL(f.files[0]) : null); }; f.click(); });
+}
+
+/* ---------- progress logic ---------- */
+function touch(k, exId) {
+  const p = P(), now = Date.now();
+  p.touched[k] = now; if (exId) p.touched['x:' + exId] = now;
+  if (S.session && !S.session.items.includes(k)) S.session.items.push(k);
+}
+function setBpm(k, v, exId) {
+  const p = P(); v = v === '' || v == null ? null : Math.round(+v);
+  if (v != null && (!isFinite(v) || v <= 0)) v = null;
+  const prev = p.bpm[k] ?? null; if (v === prev) return false;
+  if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
+  touch(k, exId); save(); checkBadges(); return v != null && prev != null && v > prev;
+}
+function exInfo(ex) {
+  const p = P(); const vals = ex.keys.map(k => p.bpm[exKey(ex, k)] ?? null);
+  let min = null, mk = null; vals.forEach((v, i) => { if (v != null && (min == null || v < min)) { min = v; mk = ex.keys[i]; } });
+  const logged = vals.filter(v => v != null).length;
+  return { vals, logged, min, mk, n: ex.keys.length, floor: ex.keys.length >= 5, full: logged === ex.keys.length };
+}
+const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
+const tuneState = id => P().tunes[id] || { st: [false, false, false, false, false], notes: '' };
+const tuneStatus = id => { const n = tuneState(id).st.filter(Boolean).length; return n === 0 ? 'new' : n === 5 ? 'done' : 'learning'; };
+
+function totalMinutes(p = P()) { return p.sessions.reduce((a, s) => a + s.min, 0); }
+const totalHours = (p = P()) => (p.priorHours || 0) + totalMinutes(p) / 60;
+function dayMins(p = P()) { const m = {}; for (const s of p.sessions) { const k = dayKey(s.start); m[k] = (m[k] || 0) + s.min; } return m; }
+function weekDaysCount(mon, dm) { let c = 0; for (let i = 0; i < 7; i++) if (dm[dayKey(addDays(mon, i))]) c++; return c; }
+function streaks(p = P()) {
+  const dm = dayMins(p), goal = S.settings.goal;
+  let mon = monday(Date.now()), cur = 0;
+  if (weekDaysCount(mon, dm) >= goal) cur++;
+  for (let i = 0; i < 520; i++) { mon = addDays(mon, -7); if (weekDaysCount(mon, dm) >= goal) cur++; else break; }
+  // best streak
+  const starts = p.sessions.map(s => s.start); let best = cur;
+  if (starts.length) { let m = monday(Math.min(...starts)), run = 0; const end = monday(Date.now());
+    while (m <= end) { if (weekDaysCount(m, dm) >= goal) { run++; best = Math.max(best, run); } else if (m < end) run = 0; m = addDays(m, 7); } }
+  return { cur, best };
+}
+const BADGE_XP = 50;
+function xpCalc(p = P()) {
+  let xp = totalMinutes(p);
+  for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
+  for (const id in p.tunes) xp += 25 * p.tunes[id].st.filter(Boolean).length;
+  xp += BADGE_XP * Object.keys(p.badges || {}).length;
+  return xp;
+}
+function level(xp) { let n = 1; while (100 * n * (n + 1) / 2 <= xp) n++; const base = 100 * (n - 1) * n / 2, next = 100 * n * (n + 1) / 2; return { n, base, next }; }
+
+/* ---------- badges ---------- */
+function hourMilestones(h) { const out = [10, 50]; for (let m = 100; m <= Math.max(100, h + 100); m += 100) out.push(m); return out; }
+function badgeList() {
+  const p = P(), st = streaks(p), h = totalHours(p);
+  const exs = allEx(); const full12 = exs.filter(o => o.ex.keys.length >= 5 && exInfo(o.ex).full);
+  const floors = full12.map(o => exInfo(o.ex).min);
+  const maxFloor = floors.length ? Math.max(...floors) : 0;
+  const pbs = p.hist.filter(x => x.prev != null && x.bpm > x.prev).length;
+  const licks = S.lib.licks.filter(l => p.bpm['l:' + l.id]).length;
+  const memo = S.lib.tunes.filter(t => tuneState(t.id).st[3]).length;
+  const tfull = S.lib.tunes.filter(t => tuneStatus(t.id) === 'done').length;
+  const B = [
+    ['first', '🎷', 'First session', 'Log a practice session', p.sessions.length >= 1],
+    ['s10', '📅', 'Regular', '10 sessions', p.sessions.length >= 10],
+    ['s50', '📆', 'Dedicated', '50 sessions', p.sessions.length >= 50],
+    ['s100', '🏛️', 'Woodshedder', '100 sessions', p.sessions.length >= 100],
+    ...hourMilestones(h).map(m => ['h' + m, m >= 100 ? '⏳' : '⏱️', m + ' hours', 'Total practice time', h >= m]),
+    ...[2, 4, 8, 12, 26, 52].map(n => ['wk' + n, '🔥', n + '-week streak', 'Hit your weekly goal ' + n + ' weeks running', st.best >= n]),
+    ['keys12', '🔑', 'All keys', 'One exercise logged in every key', full12.length >= 1],
+    ['keys10', '🗝️', 'Key ring', '10 exercises logged in every key', full12.length >= 10],
+    ...[120, 160, 200].map(f => ['f' + f, f >= 200 ? '⚡' : '🚀', 'Floor ' + f, 'A full exercise with its slowest key at ' + f + '+', maxFloor >= f]),
+    ['pb25', '📈', 'Climber', '25 tempo records broken', pbs >= 25],
+    ['pb100', '🏔️', 'Summit', '100 tempo records broken', pbs >= 100],
+    ['l5', '🎼', 'Lick collector', '5 licks at tempo', licks >= 5],
+    ['l24', '📚', 'Lick book', '24 licks at tempo', licks >= 24],
+    ['t1', '🎵', 'First tune', 'Memorize a tune', memo >= 1],
+    ['t10', '🎶', 'Repertoire', '10 tunes memorized', memo >= 10],
+    ['tfull', '🌟', 'Full treatment', 'All 5 stages on a tune', tfull >= 1],
+    ['inst2', '🎺', 'Doubler', 'Add a second instrument', S.inst.length >= 2],
+    ...S.lib.sections.map(sec => ['sec:' + sec.id, '🏆', sec.name, 'Category complete – every exercise in every key', secDone(sec)]),
+  ];
+  return B.map(([id, ic, name, desc, ok]) => ({ id, ic, name, desc, ok }));
+}
+function checkBadges(silent) {
+  const p = P(); p.badges = p.badges || {}; const fresh = [];
+  for (const b of badgeList()) if (b.ok && !p.badges[b.id]) { p.badges[b.id] = Date.now(); fresh.push(b); }
+  if (fresh.length) { save(); if (!silent) toast(fresh.map(b => b.ic + ' ' + (b.id.startsWith('sec:') ? b.name + ' complete!' : b.name)).join('  ·  ') + '  +' + BADGE_XP * fresh.length + ' XP'); }
+}
+
+/* ---------- session plan ---------- */
+function makePlan() {
+  const p = P(), now = Date.now(), items = [];
+  const cands = allEx().map(({ sec, ex }) => {
+    const last = p.touched['x:' + ex.id] || 0;
+    const unlogged = ex.keys.filter(k => p.bpm[exKey(ex, k)] == null);
+    let key;
+    if (unlogged.length) key = unlogged[Math.floor(Math.random() * unlogged.length)];
+    else key = ex.keys.reduce((a, k) => (p.bpm[exKey(ex, k)] < p.bpm[exKey(ex, a)] ? k : a), ex.keys[0]);
+    return { sec, ex, key, score: Math.min(60, (now - last) / DAY) + Math.random() * 15 };
+  }).sort((a, b) => b.score - a.score);
+  const used = new Set();
+  for (const c of cands) { if (used.has(c.sec.id)) continue; used.add(c.sec.id); items.push({ t: 'ex', id: c.ex.id, key: c.key }); if (items.length >= 3) break; }
+  const lick = [...S.lib.licks].sort((a, b) => (p.touched['l:' + a.id] || 0) - (p.touched['l:' + b.id] || 0) || Math.random() - .5)[0];
+  if (lick) items.push({ t: 'lick', id: lick.id });
+  const tunes = S.lib.tunes.filter(t => tuneStatus(t.id) === 'learning');
+  const pool = tunes.length ? tunes : S.lib.tunes.filter(t => tuneStatus(t.id) === 'new');
+  const tune = pool.sort((a, b) => (p.touched['t:' + a.id] || 0) - (p.touched['t:' + b.id] || 0))[0];
+  if (tune) items.push({ t: 'tune', id: tune.id });
+  S.plan = { date: dayKey(now), inst: S.cur, items }; save();
+}
+
+/* ---------- views ---------- */
+let tab = 'home';
+const openSecs = new Set();
+let tuneFilter = 'all';
+
+function heatColor(b) {
+  if (b == null) return 'var(--empty)';
+  const t = Math.max(0, Math.min(1, (b - 60) / 160));
+  return `hsl(${28 + t * 14},${70 + t * 15}%,${22 + t * 40}%)`;
+}
+
+function vHome() {
+  const p = P(), xp = xpCalc(p), lv = level(xp), pct = Math.round(100 * (xp - lv.base) / (lv.next - lv.base));
+  const dm = dayMins(p), mon = monday(Date.now()), today = dayKey(Date.now());
+  const days = weekDaysCount(mon, dm), goal = S.settings.goal, st = streaks(p);
+  const weekMin = [0, 1, 2, 3, 4, 5, 6].reduce((a, i) => a + (dm[dayKey(addDays(mon, i))] || 0), 0);
+  const wk = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => { const k = dayKey(addDays(mon, i));
+    return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
+  if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
+  const planHtml = S.plan.items.map(it => {
+    let label = '', tag = '', key = '', done = false;
+    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
+      const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>♩${b}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
+    if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>♩${b}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
+    if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = 'Tune'; label = esc(t.name); const s = tuneState(t.id).st; const nx = s.indexOf(false); key = nx >= 0 ? ` <small>next: ${STAGES[nx]}</small>` : ''; done = dayKey(p.touched['t:' + t.id] || 0) === today; }
+    return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button></li>`;
+  }).join('');
+  // heatmap: 20 weeks
+  const start = addDays(mon, -19 * 7); let cells = '';
+  for (let i = 0; i < 140; i++) { const d = addDays(start, i), k = dayKey(d), m = dm[k] || 0;
+    const l = d > new Date() ? 'fut' : m === 0 ? '' : m < 30 ? 'l1' : m < 60 ? 'l2' : m < 90 ? 'l3' : 'l4';
+    cells += `<i class="${l}" title="${k}: ${m}m"></i>`; }
+  const recent = p.hist.filter(h => h.prev != null && h.bpm > h.prev).slice(-5).reverse().map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><small>${h.prev} → </small><b style="color:var(--accent)">${h.bpm}</b></li>`).join('');
+  const backupDue = p.sessions.length > 3 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * DAY);
+  return `
+  <section class="card"><div class="lvl"><div class="lvbadge">Lv ${lv.n}</div><div class="grow">
+    <div class="row"><b class="grow">${xp.toLocaleString()} XP</b><small>${(lv.next - xp).toLocaleString()} to Lv ${lv.n + 1}</small></div>
+    <div class="bar"><i style="width:${pct}%"></i></div></div></div></section>
+  <section class="card"><h3>This week</h3><div class="week">${wk}</div>
+    <div class="stats3"><div><small>Days</small><strong>${days}/${goal}</strong></div><div><small>Time</small><strong>${fmtMin(weekMin)}</strong></div><div><small>Streak</small><strong>🔥 ${st.cur}w</strong></div></div>
+    ${S.session ? '' : `<button class="btn primary big" data-act="startSession">Start practice session</button>`}
+  </section>
+  ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
+  <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="New plan">↻</button></h3><ul class="plan">${planHtml}</ul></section>
+  <section class="card"><h3>Last 20 weeks</h3><div class="heat">${cells}</div>
+    <div class="row" style="margin-top:8px"><small class="grow">${totalHours(p).toFixed(1)} hours total</small><small>${p.sessions.length} sessions</small></div></section>
+  ${recent ? `<section class="card"><h3>Recent tempo records</h3><ul class="list">${recent}</ul></section>` : ''}`;
+}
+function itemLabel(k) {
+  if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'); const o = findEx(id); return o ? `${o.sec.name} · ${o.ex.name}${key !== '—' ? ' · ' + key : ''}` : k; }
+  if (k.startsWith('l:')) { const l = S.lib.licks.find(x => x.id === k.slice(2)); return l ? l.name : k; }
+  if (k.startsWith('t:')) { const t = S.lib.tunes.find(x => x.id === k.slice(2)); return t ? t.name : k; }
+  return k;
+}
+
+function exRow(ex) {
+  const i = exInfo(ex);
+  let meta;
+  if (i.n === 1) meta = i.vals[0] ? `<b>♩${i.vals[0]}</b>` : '—';
+  else if (i.floor) meta = i.full ? `floor <b>♩${i.min}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ♩${i.min}` : ''}`;
+  else meta = i.vals.map(v => v ? `<b>♩${v}</b>` : '—').join(' / ');
+  const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
+  return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${meta}</span></div>${strip}</button>`;
+}
+function vEx() {
+  return `<div class="row" style="margin-bottom:12px"><input type="search" id="exFilter" placeholder="Filter exercises…" class="grow"><button class="btn sm" data-act="gotoTab" data-tab2="grid">Table entry</button></div>` +
+    S.lib.sections.map(sec => {
+      const full = sec.ex.filter(ex => exInfo(ex).full).length;
+      return `<details class="sec" data-sec="${esc(sec.id)}" ${openSecs.has(sec.id) ? 'open' : ''}><summary><span class="grow"><b>${esc(sec.name)}</b>${secDone(sec) ? '<span class="donebadge">✓ complete</span>' : ''}</span><small>${full}/${sec.ex.length}</small></summary>
+      <div class="body">${sec.ex.map(exRow).join('')}
+      <div class="row"><button class="btn ghost" data-act="addEx" data-sec="${esc(sec.id)}">+ Exercise</button><button class="btn ghost" data-act="editSec" data-sec="${esc(sec.id)}">Edit category</button></div></div></details>`;
+    }).join('') + `<button class="btn ghost" data-act="addSec">+ Add category</button>`;
+}
+/* Table entry: built for typing in existing tempos on a computer */
+function vGrid() {
+  const p = P();
+  let tabIdx = 0;
+  const sections = S.lib.sections.map(sec => {
+    // group exercises sharing the same key set so each table has one header row
+    const groups = [];
+    for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
+    return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= 5 ? '<th>Floor</th>' : ''}</tr></thead><tbody>
+      ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
+        return `<td><input type="number" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" value="${v ?? ''}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
+        ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? '♩' + i.min + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
+      </tbody></table></div>`).join('')}</section>`;
+  }).join('');
+  const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${p.bpm['l:' + l.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`).join('');
+  const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).st; return `<tr><th>${esc(t.name)}</th>${STAGES.map((n, i) => `<td><input type="checkbox" data-tstage="${esc(t.id)}" data-i="${i}" ${s[i] ? 'checked' : ''} tabindex="${++tabIdx}"></td>`).join('')}<td><input type="number" data-gkey="t:${esc(t.id)}" value="${p.bpm['t:' + t.id] ?? ''}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
+  return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
+    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Easiest on a computer – when you're done, use
+    <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
+    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="gotoTab" data-tab2="ex">← Back to exercises</button></div></section>
+    ${sections}
+    <section class="card"><h3>Licks</h3><div class="gwrap"><table class="grid"><thead><tr><th></th><th>BPM (all 12 keys)</th></tr></thead><tbody>${lickRows}</tbody></table></div></section>
+    <section class="card"><h3>Tunes</h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${STAGES.map(s => `<th>${s}</th>`).join('')}<th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
+}
+function bindGrid() {
+  $$('#view input[data-gkey]').forEach(inp => inp.addEventListener('change', () => {
+    setBpm(inp.dataset.gkey, inp.value, inp.dataset.ex);
+    const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v) : '';
+    if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
+      if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? '♩' + i.min + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
+  }));
+  $$('#view input[data-tstage]').forEach(cb => cb.addEventListener('change', () => {
+    const p = P(), id = cb.dataset.tstage; p.tunes[id] = p.tunes[id] || { st: [false, false, false, false, false], notes: '' };
+    p.tunes[id].st[+cb.dataset.i] = cb.checked; save(); checkBadges();
+  }));
+}
+
+function vLicks() {
+  const p = P();
+  return `<div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
+    return `<button class="lcard" data-act="openLick" data-id="${esc(l.id)}"><div class="im">${l.img ? `<img data-img="${esc(l.img)}" alt="">` : 'no image'}</div>
+      <div class="t"><span>${esc(l.name)}</span><b style="color:${b ? 'var(--accent)' : 'var(--muted)'}">${b ? '♩' + b : '—'}</b></div></button>`; }).join('')}</div>
+    <button class="btn ghost" data-act="addLick">+ Add lick</button>`;
+}
+function vTunes() {
+  const p = P(); const tags = [...new Set(S.lib.tunes.flatMap(t => (t.tags || '').split(',').map(s => s.trim()).filter(Boolean)))];
+  const filters = [['all', 'All'], ['learning', 'Learning'], ['new', 'Not started'], ['done', 'Done'], ...tags.map(t => ['#' + t, '#' + t])];
+  const list = S.lib.tunes.filter(t => tuneFilter === 'all' ? true : tuneFilter.startsWith('#') ? (t.tags || '').split(',').map(s => s.trim()).includes(tuneFilter.slice(1)) : tuneStatus(t.id) === tuneFilter);
+  const counts = { learning: 0, done: 0 }; S.lib.tunes.forEach(t => { const s = tuneStatus(t.id); if (s in counts) counts[s]++; });
+  return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}</button>`).join('')}</div>
+    <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} done · ${S.lib.tunes.length} total</p>
+    ${list.map(t => { const s = tuneState(t.id).st; const b = p.bpm['t:' + t.id];
+      return `<button class="trow" data-act="openTune" data-id="${esc(t.id)}"><span class="grow">${esc(t.name)}</span>${b ? `<small>♩${b}</small>` : ''}<span class="pips">${s.map(x => `<i class="${x ? 'on' : ''}"></i>`).join('')}</span></button>`; }).join('') || '<p class="muted">Nothing here.</p>'}
+    <button class="btn ghost" data-act="addTune">+ Add tune</button>`;
+}
+function vMore() {
+  const p = P(), bl = badgeList(), got = bl.filter(b => p.badges[b.id]);
+  // weekly minutes chart, 12 weeks
+  const dm = dayMins(p), mon = monday(Date.now()); const weeks = [];
+  for (let w = 11; w >= 0; w--) { const m0 = addDays(mon, -7 * w); let s = 0; for (let i = 0; i < 7; i++) s += dm[dayKey(addDays(m0, i))] || 0; weeks.push({ m0, s }); }
+  const mx = Math.max(60, ...weeks.map(w => w.s));
+  const bars = weeks.map((w, i) => { const h = Math.round(100 * w.s / mx); return `<rect x="${i * 25 + 3}" y="${110 - h}" width="19" height="${Math.max(h, 1)}" rx="3" fill="${i === 11 ? 'var(--accent)' : '#8a6a35'}"><title>${dayKey(w.m0)}: ${fmtMin(w.s)}</title></rect>`; }).join('');
+  const sess = [...p.sessions].sort((a, b) => b.start - a.start).slice(0, 15).map(s => `<li><span class="grow">${new Date(s.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}${s.note ? ` <small>· ${esc(s.note)}</small>` : ''}</span><b>${fmtMin(s.min)}</b><button class="iconbtn" data-act="delSession" data-id="${esc(s.id)}" aria-label="Delete">✕</button></li>`).join('');
+  return `
+  <section class="card"><h3>Badges <small>${got.length}/${bl.length}</small></h3>
+    <div class="badges">${[...got, ...bl.filter(b => !p.badges[b.id])].map(b => `<div class="bdg ${p.badges[b.id] ? 'on' : ''}" title="${esc(b.desc)}"><span class="ic">${b.ic}</span><b>${esc(b.name)}</b>${esc(b.desc)}</div>`).join('')}</div></section>
+  <section class="card"><h3>Minutes per week</h3><svg viewBox="0 0 300 116" width="100%">${bars}</svg>
+    <small>Last 12 weeks · this week highlighted</small></section>
+  <section class="card"><h3><span class="grow">Sessions</span><button class="btn sm" data-act="logPast">+ Log past session</button></h3><ul class="list">${sess || '<li class="muted">No sessions yet.</li>'}</ul></section>
+  <section class="card"><h3>Settings – ${esc(curInst().name)}</h3>
+    <label class="f">Practice hours before using this app</label><input type="number" inputmode="decimal" id="priorHours" value="${p.priorHours || ''}" placeholder="0">
+    <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
+  </section>
+  <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}</span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
+    <button class="btn ghost" data-act="addInst">+ Add instrument</button></section>
+  <section class="card"><h3>Data</h3><p class="muted" style="margin-top:0">Everything is stored on this device only. Back up now and then.${S.settings.lastBackup ? ' Last backup ' + ago(S.settings.lastBackup) + '.' : ''}</p>
+    <div class="row wrap"><button class="btn" data-act="gotoTab" data-tab2="grid">Table entry</button><button class="btn" data-act="exportData">Export backup</button><button class="btn" data-act="importData">Restore backup</button></div></section>`;
+}
+const curInst = () => S.inst.find(i => i.id === S.cur);
+
+function render() {
+  const v = $('#view');
+  v.innerHTML = tab === 'home' ? vHome() : tab === 'ex' ? vEx() : tab === 'grid' ? vGrid() : tab === 'licks' ? vLicks() : tab === 'tunes' ? vTunes() : vMore();
+  v.classList.toggle('wide', tab === 'grid');
+  if (tab === 'grid') bindGrid();
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'grid' ? 'ex' : tab)));
+  $('#instSel').innerHTML = S.inst.map(i => `<option value="${i.id}" ${i.id === S.cur ? 'selected' : ''}>${esc(i.name)}</option>`).join('');
+  if (tab === 'licks') hydrateImgs(v);
+  if (tab === 'ex') {
+    const f = $('#exFilter'); f.value = exFilterVal; applyExFilter();
+    f.oninput = () => { exFilterVal = f.value; applyExFilter(); };
+    $$('details.sec').forEach(d => d.addEventListener('toggle', () => d.open ? openSecs.add(d.dataset.sec) : openSecs.delete(d.dataset.sec)));
+  }
+  if (tab === 'more') {
+    $('#priorHours').onchange = e => { P().priorHours = Math.max(0, +e.target.value || 0); save(); checkBadges(); render(); };
+    $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
+  }
+}
+let exFilterVal = '';
+function applyExFilter() {
+  const q = exFilterVal.trim().toLowerCase();
+  $$('details.sec').forEach(d => {
+    const secName = d.querySelector('summary b').textContent.toLowerCase();
+    let any = false;
+    $$('.exrow', d).forEach(r => { const hit = !q || r.dataset.name.includes(q) || secName.includes(q); r.classList.toggle('hide', !hit); any = any || hit; });
+    d.classList.toggle('hide', !any); if (q && any) d.open = true;
+  });
+}
+
+/* ---------- sheet ---------- */
+let sheetOpen = false, sheetOnClose = null;
+function openSheet(html, onClose) {
+  $('#panel').innerHTML = html; $('#sheet').classList.add('on'); $('#panel').scrollTop = 0;
+  if (!sheetOpen) history.pushState({ sheet: 1 }, ''); sheetOpen = true; sheetOnClose = onClose || null;
+  hydrateImgs($('#panel'));
+}
+function closeSheet(fromPop) {
+  if (!sheetOpen) return; sheetOpen = false; $('#sheet').classList.remove('on');
+  const cb = sheetOnClose; sheetOnClose = null; if (cb) cb();
+  if (!fromPop) history.back();
+  render();
+}
+window.addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
+const head = (title, sub) => `<div class="phead"><div class="grow"><h2>${esc(title)}</h2>${sub ? `<small>${esc(sub)}</small>` : ''}</div><button class="iconbtn" data-act="closeSheet" aria-label="Close">✕</button></div>`;
+
+function histList(prefix, labelFn) {
+  const h = P().hist.filter(x => x.k.startsWith(prefix)).slice(-12).reverse();
+  if (!h.length) return '';
+  return `<h3 style="margin:14px 0 6px">Tempo history</h3><ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${x.prev}→</small>` : ''}${x.bpm}</b></li>`).join('')}</ul>`;
+}
+
+function sheetEx(id) {
+  const o = findEx(id); if (!o) return; const { sec, ex } = o; const p = P();
+  const list = allEx(); const idx = list.findIndex(x => x.ex.id === id);
+  const info = exInfo(ex);
+  const floorHtml = () => { const i = exInfo(ex);
+    if (!i.floor) return '';
+    return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? '♩' + i.min : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
+      <div><small>Fastest key</small><strong>${i.logged ? '♩' + Math.max(...i.vals.filter(v => v != null)) : '—'}</strong><small>${i.logged ? esc(ex.keys[i.vals.indexOf(Math.max(...i.vals.filter(v => v != null)))]) : ''}</small></div>`; };
+  const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
+    return `<label class="krow ${info.floor && info.full && k === info.mk ? 'fl' : ''}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span>
+      <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
+      <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${v ?? ''}" placeholder="—">
+      <button class="iconbtn" data-act="mOpen" data-bpm="${v || ''}" title="Metronome" type="button">♩</button></label>`; }).join('');
+  openSheet(`${head(ex.name, sec.name)}
+    <div class="floorbox" id="floorbox">${floorHtml()}</div>
+    <p class="muted" style="margin:6px 0 10px;font-size:.9rem">Type your best clean tempo for each key. Changes save automatically.</p>
+    <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
+    <div class="sp"></div>
+    <button class="btn" style="width:100%" data-act="practiced" data-ex="${esc(ex.id)}">✓ Mark practiced${S.session ? ' (adds to session)' : ''}</button>
+    ${histList('e:' + ex.id + '|', k => k.split('|')[1] === '—' ? ex.name : k.split('|')[1])}
+    <div class="row" style="margin-top:14px">
+      <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
+      <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx + 1) % list.length].ex.id)}">Next →</button></div>
+    <div class="row" style="margin-top:8px"><button class="btn sm" data-act="editEx" data-id="${esc(ex.id)}">Edit exercise</button></div>`);
+  const inputs = $$('#panel input[data-key]');
+  inputs.forEach((inp, j) => {
+    inp.addEventListener('change', () => {
+      const pb = setBpm(inp.dataset.key, inp.value, ex.id);
+      const v = P().bpm[inp.dataset.key]; inp.closest('.krow').querySelector('.sw').style.background = heatColor(v);
+      inp.closest('.krow').querySelector('.kn small').textContent = 'today';
+      $('#floorbox').innerHTML = floorHtml();
+      const i = exInfo(ex); $$('#panel .krow').forEach(r => r.classList.toggle('fl', i.floor && i.full && r.dataset.k === i.mk));
+      if (pb) toast('New record: ♩' + v + ' +10 XP');
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
+  });
+}
+
+function sheetLick(id) {
+  const l = S.lib.licks.find(x => x.id === id); if (!l) return; const key = 'l:' + l.id; const p = P();
+  openSheet(`${head(l.name, 'All 12 keys')}
+    ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
+    <label class="f">Best tempo through all 12 keys</label>
+    <div class="row"><input type="number" inputmode="numeric" id="lickBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
+    <label class="f">Notes</label><textarea id="lickNotes" rows="2">${esc(l.notes || '')}</textarea>
+    <div class="sp"></div>
+    <button class="btn" style="width:100%" data-act="practicedItem" data-k="${esc(key)}">✓ Mark practiced</button>
+    ${histList(key, () => l.name)}
+    <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameLick" data-id="${esc(l.id)}">Rename</button>
+      ${l.img ? `<button class="btn sm" data-act="lickImg" data-id="${esc(l.id)}">Replace image</button>` : ''}
+      <button class="btn sm danger" data-act="delLick" data-id="${esc(l.id)}">Delete</button></div>`);
+  $('#lickBpm').onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ♩' + P().bpm[key] + ' +10 XP'); };
+  $('#lickNotes').onchange = e => { l.notes = e.target.value; save(); };
+}
+
+function sheetTune(id) {
+  const t = S.lib.tunes.find(x => x.id === id); if (!t) return; const key = 't:' + t.id; const p = P();
+  const ts = tuneState(id);
+  openSheet(`${head(t.name, t.tags ? '#' + t.tags.split(',').map(s => s.trim()).join(' #') : '')}
+    <div class="stages">${STAGES.map((s, i) => `<label><input type="checkbox" data-stage="${i}" ${ts.st[i] ? 'checked' : ''}><span class="grow">${s}</span><small>+25 XP</small></label>`).join('')}</div>
+    <label class="f">Tempo (optional – for tunes where speed matters)</label>
+    <div class="row"><input type="number" inputmode="numeric" id="tuneBpm" value="${p.bpm[key] ?? ''}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${p.bpm[key] || ''}">♩</button></div>
+    <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
+    <div class="sp"></div>
+    <button class="btn" style="width:100%" data-act="practicedItem" data-k="${esc(key)}">✓ Mark practiced</button>
+    ${histList(key, () => t.name)}
+    <label class="f">Tags (comma separated)</label><input type="text" id="tuneTags" value="${esc(t.tags || '')}">
+    <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameTune" data-id="${esc(t.id)}">Rename</button><button class="btn sm danger" data-act="delTune" data-id="${esc(t.id)}">Delete</button></div>`);
+  const st = () => { const p = P(); p.tunes[id] = p.tunes[id] || { st: [false, false, false, false, false], notes: '' }; return p.tunes[id]; };
+  $$('#panel input[data-stage]').forEach(cb => cb.onchange = () => { st().st[+cb.dataset.stage] = cb.checked; touch(key); save(); if (cb.checked) toast(STAGES[+cb.dataset.stage] + ' ✓  +25 XP'); checkBadges(); });
+  $('#tuneBpm').onchange = e => setBpm(key, e.target.value);
+  $('#tuneNotes').onchange = e => { st().notes = e.target.value; save(); };
+  $('#tuneTags').onchange = e => { t.tags = e.target.value; save(); };
+}
+
+function formSheet(title, fields, onOk, extraBtns = '') {
+  openSheet(`${head(title)}<form id="fm">${fields}<div class="row" style="margin-top:14px"><button class="btn primary grow" type="submit">Save</button></div>${extraBtns}</form>`);
+  $('#fm').onsubmit = e => { e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); if (onOk(fd) !== false) closeSheet(); };
+  const first = $('#fm input'); if (first) setTimeout(() => first.focus(), 50);
+}
+function keysetFields(cur) {
+  const match = cur ? KEYSETS.find(([, , k]) => k.join() === cur.join()) : KEYSETS[0];
+  return `<label class="f">Keys</label><select name="ks" onchange="document.getElementById('customKeys').classList.toggle('hide', this.value!=='custom')">
+    ${KEYSETS.map(([id, n]) => `<option value="${id}" ${match && match[0] === id ? 'selected' : ''}>${n}</option>`).join('')}<option value="custom" ${!match ? 'selected' : ''}>Custom…</option></select>
+    <input type="text" name="custom" id="customKeys" class="${match ? 'hide' : ''}" style="margin-top:6px" placeholder="Comma separated, e.g. C, F, Bb" value="${match ? '' : esc((cur || []).join(', '))}">`;
+}
+const keysFrom = fd => fd.ks === 'custom' ? fd.custom.split(',').map(s => s.trim()).filter(Boolean) : KEYSETS.find(k => k[0] === fd.ks)[2].slice();
+
+/* ---------- session ---------- */
+let wakeLock = null;
+async function keepAwake() { try { if ('wakeLock' in navigator && S.session && S.session.runSince) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); render(); } });
+const sessMs = () => S.session ? S.session.acc + (S.session.runSince ? Date.now() - S.session.runSince : 0) : 0;
+function tickSession() {
+  const bar = $('#sessbar'); bar.classList.toggle('on', !!S.session);
+  if (!S.session) return;
+  const s = Math.floor(sessMs() / 1000);
+  $('#sessTime').textContent = Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  $('#pauseBtn').textContent = S.session.runSince ? 'Pause' : 'Resume';
+}
+setInterval(tickSession, 1000);
+
+function saveSessionRecord(start, min, note, items) {
+  P().sessions.push({ id: uid(), start, min, note: note || '', items: items || [] }); save(); checkBadges();
+}
+
+/* ---------- metronome ---------- */
+const M = { ctx: null, on: false, bpm: 120, next: 0, beat: 0, timer: null, taps: [] };
+function mSet(b) { M.bpm = Math.max(20, Math.min(400, Math.round(+b) || 120)); $('#mBpm').value = M.bpm; }
+function mClick(t, acc) {
+  const o = M.ctx.createOscillator(), g = M.ctx.createGain();
+  o.frequency.value = acc ? 1600 : 1000;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(acc ? 0.9 : 0.55, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+  o.connect(g).connect(M.ctx.destination); o.start(t); o.stop(t + 0.06);
+  const delay = Math.max(0, (t - M.ctx.currentTime) * 1000);
+  setTimeout(() => { const b = $('#beat'); b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90); }, delay);
+}
+function mSched() { while (M.next < M.ctx.currentTime + 0.12) { mClick(M.next, M.beat % 4 === 0); M.next += 60 / M.bpm; M.beat++; } }
+function mStart() { M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)(); M.ctx.resume(); M.on = true; M.beat = 0; M.next = M.ctx.currentTime + 0.06; clearInterval(M.timer); M.timer = setInterval(mSched, 25); $('#mPlay').textContent = '■'; }
+function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent = '▶'; }
+$('#mBpm').addEventListener('change', e => mSet(e.target.value));
+
+/* ---------- actions ---------- */
+const A = {
+  closeSheet: () => closeSheet(),
+  gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
+  openEx: el => sheetEx(el.dataset.id),
+  openLick: el => sheetLick(el.dataset.id),
+  openTune: el => sheetTune(el.dataset.id),
+  openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : sheetTune(el.dataset.id),
+  replan: () => { makePlan(); render(); },
+  tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
+  practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id); }); P().touched['x:' + o.ex.id] = Date.now(); save(); toast('Marked practiced'); },
+  practicedItem: el => { touch(el.dataset.k); save(); toast('Marked practiced'); },
+  startSession: () => { S.session = { acc: 0, runSince: Date.now(), start: Date.now(), items: [] }; save(); keepAwake(); tickSession(); render(); toast('Session started – have fun!'); },
+  pauseSession: () => { const s = S.session; if (s.runSince) { s.acc += Date.now() - s.runSince; s.runSince = null; if (wakeLock) wakeLock.release().catch(() => {}); } else { s.runSince = Date.now(); keepAwake(); } save(); tickSession(); },
+  finishSession: () => {
+    const min = Math.max(1, Math.round(sessMs() / 60000)); const s = S.session;
+    formSheet('Finish session', `<p class="muted">${s.items.length} item${s.items.length === 1 ? '' : 's'} worked on.</p>
+      <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" value="${min}" min="1">
+      <label class="f">Note (optional)</label><input type="text" name="note" placeholder="How did it go?">`,
+      fd => { const m = Math.round(+fd.min); if (!(m > 0)) { toast('Enter minutes'); return false; }
+        saveSessionRecord(s.start, m, fd.note, s.items); S.session = null; save(); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); toast('Session saved: ' + fmtMin(m) + '  +' + m + ' XP'); },
+      `<button type="button" class="btn ghost danger" data-act="discardSession">Discard session</button>`);
+  },
+  discardSession: () => { if (confirm('Discard this session without saving?')) { S.session = null; save(); tickSession(); closeSheet(); } },
+  logPast: () => formSheet('Log past session', `<label class="f">Date</label><input type="date" name="d" value="${dayKey(Date.now())}" max="${dayKey(Date.now())}">
+      <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" min="1" placeholder="45"><label class="f">Note</label><input type="text" name="note">`,
+    fd => { const m = Math.round(+fd.min); if (!(m > 0) || !fd.d) { toast('Enter date and minutes'); return false; } const [y, mo, d] = fd.d.split('-').map(Number);
+      saveSessionRecord(new Date(y, mo - 1, d, 12).getTime(), m, fd.note); toast('Logged ' + fmtMin(m)); }),
+  delSession: el => { if (!confirm('Delete this session?')) return; const p = P(); p.sessions = p.sessions.filter(s => s.id !== el.dataset.id); save(); render(); },
+  addSec: () => formSheet('New category', `<label class="f">Name</label><input type="text" name="name" required>`, fd => { const n = fd.name.trim(); if (!n) return false;
+    S.lib.sections.push({ id: slug(n) + '-' + uid(), name: n, ex: [] }); save(); }),
+  editSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec);
+    formSheet('Edit category', `<label class="f">Name</label><input type="text" name="name" value="${esc(sec.name)}" required>`, fd => { sec.name = fd.name.trim() || sec.name; save(); },
+      `<button type="button" class="btn ghost danger" data-act="delSec" data-sec="${esc(sec.id)}">Delete category</button>`); },
+  delSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec); if (!confirm(`Delete "${sec.name}" and its ${sec.ex.length} exercises? Logged tempos are kept in backups but hidden.`)) return;
+    S.lib.sections = S.lib.sections.filter(s => s !== sec); save(); closeSheet(); },
+  addEx: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec);
+    formSheet('New exercise in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Up & down – 8ths">${keysetFields(null)}`,
+      fd => { const n = fd.name.trim(); const keys = keysFrom(fd); if (!n || !keys.length) return false; sec.ex.push({ id: slug(sec.name + ' ' + n) + '-' + uid(), name: n, keys }); openSecs.add(sec.id); save(); }); },
+  editEx: el => { const { sec, ex } = findEx(el.dataset.id);
+    formSheet('Edit exercise', `<label class="f">Name</label><input type="text" name="name" value="${esc(ex.name)}" required>${keysetFields(ex.keys)}
+      <p class="muted" style="font-size:.85rem">Tempos for keys you remove stay in backups but won't show.</p>`,
+      fd => { ex.name = fd.name.trim() || ex.name; const k = keysFrom(fd); if (k.length) ex.keys = k; save(); },
+      `<button type="button" class="btn ghost danger" data-act="delEx" data-id="${esc(ex.id)}">Delete exercise</button>`); },
+  delEx: el => { const { sec, ex } = findEx(el.dataset.id); if (!confirm(`Delete "${ex.name}"?`)) return; sec.ex = sec.ex.filter(x => x !== ex); save(); closeSheet(); },
+  addLick: () => formSheet('New lick', `<label class="f">Name</label><input type="text" name="name" required value="Lick ${S.lib.licks.length + 1}">
+      <p class="muted" style="font-size:.9rem">You can add a photo or screenshot of the notation next.</p>`,
+    fd => { const l = { id: 'lick-' + uid(), name: fd.name.trim() || 'Lick', img: null, notes: '' }; S.lib.licks.push(l); save(); setTimeout(() => sheetLick(l.id), 0); }),
+  lickImg: async el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const data = await pickImage(); if (!data) return;
+    const id = 'img-' + uid(); try { await idb.put(id, data); } catch (e) { toast('Could not store image'); return; }
+    if (l.img) idb.del(l.img).catch(() => {}); l.img = id; imgCache[id] = data; save(); sheetLick(l.id); },
+  renameLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const n = prompt('Lick name', l.name); if (n && n.trim()) { l.name = n.trim(); save(); sheetLick(l.id); } },
+  delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img) idb.del(l.img).catch(() => {});
+    S.lib.licks = S.lib.licks.filter(x => x !== l); save(); closeSheet(); },
+  addTune: () => formSheet('New tune', `<label class="f">Name</label><input type="text" name="name" required><label class="f">Tags (comma separated)</label><input type="text" name="tags" placeholder="e.g. standard, ballad">`,
+    fd => { const n = fd.name.trim(); if (!n) return false; S.lib.tunes.push({ id: slug(n) + '-' + uid(), name: n, tags: fd.tags.trim() }); save(); }),
+  renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); sheetTune(t.id); } },
+  delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
+  addInst: () => formSheet('New instrument', `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Tenor sax">
+      <p class="muted" style="font-size:.9rem">Uses the same exercises, licks and tunes, with its own tempos, sessions and badges.</p>`,
+    fd => { const n = fd.name.trim(); if (!n) return false; const id = slug(n) + '-' + uid(); S.inst.push({ id, name: n }); S.prog[id] = newProg(); S.cur = id; S.plan = null; save(); checkBadges(); toast('Switched to ' + n); }),
+  renameInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); const n = prompt('Instrument name', i.name); if (n && n.trim()) { i.name = n.trim(); save(); render(); } },
+  delInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); if (prompt(`This deletes all progress for ${i.name}. Type DELETE to confirm.`) !== 'DELETE') return;
+    S.inst = S.inst.filter(x => x !== i); delete S.prog[i.id]; if (S.cur === i.id) S.cur = S.inst[0].id; S.plan = null; save(); render(); },
+  exportData: async () => {
+    const imgs = {}; for (const l of S.lib.licks) if (l.img) { try { imgs[l.img] = await idb.get(l.img); } catch (e) {} }
+    S.settings.lastBackup = Date.now(); save();
+    const blob = new Blob([JSON.stringify({ app: 'woodshed', v: 1, exported: new Date().toISOString(), state: S, imgs })], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'woodshed-backup-' + dayKey(Date.now()) + '.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000); render();
+  },
+  importData: () => { const f = $('#importIn'); f.value = ''; f.onchange = async () => {
+    try { const d = JSON.parse(await f.files[0].text()); if (d.app !== 'woodshed' || !d.state || !d.state.lib) throw 0;
+      if (!confirm('Replace everything on this device with this backup?')) return;
+      for (const [k, v] of Object.entries(d.imgs || {})) if (v) await idb.put(k, v);
+      S = d.state; S.session = null; localStorage.setItem(LS, JSON.stringify(S)); load(); render(); toast('Backup restored');
+    } catch (e) { toast('That file is not a Woodshed backup'); } }; f.click(); },
+  metroToggle: () => { const m = $('#metro'); const on = !m.classList.contains('on'); m.classList.toggle('on', on); if (!on) mStop(); },
+  mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm; if (b) mSet(b); $('#metro').classList.add('on'); },
+  mStep: el => { mSet(M.bpm + +el.dataset.d); },
+  mPlay: () => M.on ? mStop() : mStart(),
+  mTap: () => { const now = performance.now(); M.taps = M.taps.filter(t => now - t < 2500); M.taps.push(now);
+    if (M.taps.length >= 2) { const iv = (M.taps[M.taps.length - 1] - M.taps[0]) / (M.taps.length - 1); mSet(60000 / iv); } },
+};
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; if (sheetOpen) closeSheet(); render(); window.scrollTo(0, 0); return; }
+  const a = e.target.closest('[data-act]'); if (!a || !A[a.dataset.act]) return;
+  A[a.dataset.act](a, e);
+});
+$('#instSel').addEventListener('change', e => { S.cur = e.target.value; S.plan = null; save(); render(); toast('Now tracking ' + curInst().name); });
+
+/* ---------- boot ---------- */
+load();
+checkBadges(true);
+render(); tickSession();
+if (S.session && S.session.runSince) keepAwake();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
