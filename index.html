@@ -1542,7 +1542,9 @@ function earNew(kind) {
 function progChords(name, key) { const pr = PROGS.find(p => p[0] === name); return pr[1].flatMap(bar => bar.map(([iv, q]) => ({ sym: pcName(key + iv, false) + q, beats: 4 / bar.length }))); }
 const TRANSP_FROM_CONCERT = () => mod12(-TO_CONCERT[instTr()]);
 function earTunePool() {
-  const withChart = S.lib.tunes.filter(t => LIB && libEntry(t));
+  // Standard 12-bar blues all share the same changes, so they're left out. Bird blues (half-diminished chord in bar 2) stay.
+  const plainBlues = e => e.b.length === 12 && !e.b[1].c.some(c => c.includes('ø'));
+  const withChart = S.lib.tunes.filter(t => LIB && libEntry(t) && !plainBlues(libEntry(t)));
   if ((S.settings.earPool || 'mine') === 'all') return withChart;
   return withChart.filter(t => versionsOf(t).some(v => tuneStatus(v) !== 'new'));
 }
@@ -1716,7 +1718,7 @@ function vTrain() {
     <small class="muted">Time here is logged separately from your playing hours.</small></section>
   <section class="card"><h3>🧠 Changes quiz</h3><p class="muted" style="margin-top:0">Fill in the changes of a tune from memory, bar by bar. ${quizzes} quiz${quizzes === 1 ? '' : 'zes'} done.</p>
     <button class="btn primary" style="width:100%" data-act="quizPick">Choose a tune</button></section>
-  <section class="card"><h3>🎧 Name that tune</h3><p class="muted" style="margin-top:0">Hear the changes of one of your tunes and pick which it is. ${pct('tune')}.</p>
+  <section class="card"><h3>🎧 Name that tune</h3><p class="muted" style="margin-top:0">Hear the changes of one of your tunes (plain blues excluded) and pick which it is. ${pct('tune')}.</p>
     <div class="chips">${chip('earPool', 0, 'mine', 'Tunes I\'m learning or know')}${chip('earPool', 0, 'all', 'All my tunes')}</div>
     <div class="chips">${chip('earPart', 0, 'any', 'Any part')}${chip('earPart', 0, 'start', 'Opening')}${chip('earPart', 0, 'bridge', 'Bridge')}</div>
     <button class="btn primary" style="width:100%" data-act="earStart" data-k="tune">Start</button></section>
