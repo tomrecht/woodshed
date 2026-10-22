@@ -106,6 +106,7 @@ details.sec .body{padding:0 10px 10px}
 .krow .kn small{display:block;font-weight:400;font-size:.7rem}
 .krow input{padding:7px 2px;text-align:center;background:var(--bg);min-width:0;flex:1;font-size:1.05rem;font-weight:600}
 .krow .iconbtn{padding:4px 2px}
+.krow .ubtn{color:var(--text);padding:4px 1px}
 input[type=number]{-moz-appearance:textfield}
 input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .krow .sw{width:8px;align-self:stretch;border-radius:4px;flex:none}
@@ -189,7 +190,8 @@ table.grid{border-collapse:collapse;font-size:.9rem}
 table.grid th{text-align:left;font-weight:500;padding:4px 8px 4px 0;white-space:nowrap;color:var(--muted)}
 table.grid thead th{text-align:center;color:var(--text);font-weight:650}
 table.grid td{padding:2px}
-table.grid td input[type=number]{width:62px;padding:6px 4px;text-align:center}
+table.grid td input.half{box-shadow:inset 0 -3px 0 var(--accent)}
+table.grid td input[type=text],table.grid td input[type=number]{width:62px;padding:6px 4px;text-align:center}
 table.grid td.fl{padding-left:10px;white-space:nowrap;color:var(--accent);font-weight:650}
 table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);display:block;margin:0 auto}
 .sp{height:10px}
@@ -476,15 +478,27 @@ function itemOfKey(k) {
   if (k.startsWith('t:')) return S.lib.tunes.find(x => x.id === k.slice(2));
 }
 const unitOf = it => it && it.unit === 2 ? 2 : 1;
-const uk = k => unitOf(itemOfKey(k));
+// Unit for one stored tempo. Exercise keys can override the exercise's unit.
+function uk(k) {
+  if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'); const ex = findEx(id)?.ex; if (!ex) return 1;
+    const o = ex.unitKeys && ex.unitKeys[key]; return o === 1 || o === 2 ? o : unitOf(ex); }
+  return unitOf(itemOfKey(k));
+}
+const mixedUnits = ex => !!(ex.unitKeys && Object.keys(ex.unitKeys).length);
+function setKeyUnit(ex, key, u) {
+  ex.unitKeys = ex.unitKeys || {};
+  if (u === unitOf(ex)) delete ex.unitKeys[key]; else ex.unitKeys[key] = u;
+  if (!Object.keys(ex.unitKeys).length) delete ex.unitKeys;
+}
 const dv = (k, v) => v == null ? '' : Math.round(v / uk(k));          // value to show in an input
 const NOTE = u => u === 2
   ? '<svg class="nt" viewBox="0 0 10 20" aria-label="half note"><ellipse cx="4.2" cy="15.5" rx="3.4" ry="2.4" transform="rotate(-25 4.2 15.5)" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="7.1" y="1" width="1.4" height="14" fill="currentColor"/></svg>'
   : '<svg class="nt" viewBox="0 0 10 20" aria-label="quarter note"><ellipse cx="4.2" cy="15.5" rx="3.8" ry="2.7" transform="rotate(-25 4.2 15.5)" fill="currentColor"/><rect x="7.1" y="1" width="1.4" height="14" fill="currentColor"/></svg>';
 const T = (it, v) => v == null ? '—' : NOTE(unitOf(it)) + Math.round(v / unitOf(it));   // HTML
-const Tk = (k, v) => T(itemOfKey(k), v);
+const Tk = (k, v) => v == null ? '—' : NOTE(uk(k)) + Math.round(v / uk(k));
+const TtxtK = (k, v) => Math.round(v / uk(k)) + (uk(k) === 2 ? ' (half notes)' : ' bpm');
 const Ttxt = (it, v) => Math.round(v / unitOf(it)) + (unitOf(it) === 2 ? ' (half notes)' : ' bpm');   // plain text
-const unitBtn = (type, it, full) => `<button type="button" class="${full ? 'btn sm' : 'iconbtn'}" data-act="unitToggle" data-ut="${type}" data-id="${esc(it.id)}" title="Switch between quarter-note and half-note tempo">${NOTE(unitOf(it))}${full ? ' ' + (unitOf(it) === 2 ? 'Half' : 'Quarter') + ' notes ⇄' : ''}</button>`;
+const unitBtn = (type, it, full) => `<button type="button" class="${full ? 'btn sm' : 'iconbtn'}" data-act="unitToggle" data-ut="${type}" data-id="${esc(it.id)}" title="Switch between quarter-note and half-note tempo">${NOTE(unitOf(it))}${full ? ' ' + (type === 'ex' && mixedUnits(it) ? 'Mixed' : (unitOf(it) === 2 ? 'Half' : 'Quarter') + ' notes') + ' ⇄' : ''}</button>`;
 
 /* ---------- progress logic ---------- */
 function touch(k, exId) {
@@ -659,7 +673,7 @@ function vHome() {
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name;
-      const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${T(o.ex, b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
+      const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${Tk(exKey(o.ex, it.key), b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
     if (it.t === 'tune') { const t = S.lib.tunes.find(x => x.id === it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(t.name); const st = tuneStatus(t.id), lv = tuneState(t.id).lv; key = st === 'done' ? ' <small>review</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>${STAGES.filter((_, i) => lv[i] === 1).join(', ') || 'next: ' + STAGES[lv.indexOf(0)]}</small>`; done = dayKey(p.touched['t:' + t.id] || 0) === today; if (t.tempo && p.bpm['t:' + t.id]) key = ` <small>${T(t, p.bpm['t:' + t.id])}</small>` + key; }
     return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
@@ -698,9 +712,9 @@ function itemLabel(k) {
 function exRow(ex) {
   const i = exInfo(ex);
   let meta;
-  if (i.n === 1) meta = i.vals[0] ? `<b>${T(ex, i.vals[0])}</b>` : '—';
-  else if (i.floor) meta = i.full ? `floor <b>${T(ex, i.min)}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ${T(ex, i.min)}` : ''}`;
-  else meta = i.vals.map(v => v ? `<b>${T(ex, v)}</b>` : '—').join(' / ');
+  if (i.n === 1) meta = i.vals[0] ? `<b>${Tk(exKey(ex, ex.keys[0]), i.vals[0])}</b>` : '—';
+  else if (i.floor) meta = i.full ? `floor <b>${Tk(exKey(ex, i.mk), i.min)}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ${Tk(exKey(ex, i.mk), i.min)}` : ''}`;
+  else meta = i.vals.map((v, j) => v ? `<b>${Tk(exKey(ex, ex.keys[j]), v)}</b>` : '—').join(' / ');
   const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
   return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${meta}</span></div>${strip}</button>`;
 }
@@ -723,14 +737,14 @@ function vGrid() {
     for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
     return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= 5 ? '<th>Floor</th>' : ''}</tr></thead><tbody>
       ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)} ${unitBtn('ex', ex)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
-        return `<td><input type="number" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
-        ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? T(ex, i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
+        return `<td><input type="text" inputmode="numeric" class="${uk(key) === 2 ? 'half' : ''}" title="${uk(key) === 2 ? 'Half-note tempo' : 'Quarter-note tempo'}" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
+        ${ex.keys.length >= 5 ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? Tk(exKey(ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
       </tbody></table></div>`).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)} ${unitBtn('lick', l)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${dv('l:' + l.id, p.bpm['l:' + l.id])}" tabindex="${++tabIdx}"></td></tr>`).join('');
   const tuneRows = S.lib.tunes.map(t => { const s = tuneState(t.id).lv; return `<tr><th>${esc(t.name)} ${unitBtn('tune', t)}</th>${STAGES.map((n, i) => `<td><select data-tstage="${esc(t.id)}" data-i="${i}" tabindex="${++tabIdx}" style="padding:5px">${LEVELS.map((L, v) => `<option value="${v}" ${s[i] === v ? 'selected' : ''}>${v ? L : '–'}</option>`).join('')}</select></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${dv('t:' + t.id, p.bpm['t:' + t.id])}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
   return `<section class="card"><h3>Table entry – ${esc(curInst().name)}</h3>
-    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Tap the note next to a name to switch it between quarter- and half-note tempo. Easiest on a computer – when you're done, use
+    <p class="muted" style="margin:0">Type tempos and press Tab to move on; each cell saves as you leave it. Tap the note next to a name to switch the whole row between quarter and half notes. For a single key, type e.g. <b>110h</b> (half notes) or <b>220q</b> (quarter notes); half-note cells have an orange underline. Easiest on a computer – when you're done, use
     <b>Progress → Export backup</b> here and <b>Restore backup</b> on your phone.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" data-act="gotoTab" data-tab2="ex">← Back to exercises</button></div></section>
     ${sections}
@@ -739,10 +753,16 @@ function vGrid() {
 }
 function bindGrid() {
   $$('#view input[data-gkey]').forEach(inp => inp.addEventListener('change', () => {
-    setBpm(inp.dataset.gkey, inp.value, inp.dataset.ex);
+    let val = inp.value.trim();
+    const m = val.match(/^(\d+)\s*([hq])$/i);
+    if (m && inp.dataset.ex) { val = m[1]; setKeyUnit(findEx(inp.dataset.ex).ex, inp.dataset.k, m[2].toLowerCase() === 'h' ? 2 : 1); save(); }
+    if (val && !/^\d+$/.test(val)) { toast('Type a number, optionally followed by h (half) or q (quarter)'); inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]); return; }
+    setBpm(inp.dataset.gkey, val, inp.dataset.ex);
+    inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]);
+    if (inp.dataset.ex) { const h = uk(inp.dataset.gkey) === 2; inp.classList.toggle('half', h); inp.title = h ? 'Half-note tempo' : 'Quarter-note tempo'; }
     const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v) : '';
     if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
-      if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? T(o.ex, i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
+      if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? Tk(exKey(o.ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
   }));
   $$('#view input[data-ttempo]').forEach(cb => cb.addEventListener('change', () => { S.lib.tunes.find(x => x.id === cb.dataset.ttempo).tempo = cb.checked; save(); }));
   $$('#view select[data-tstage]').forEach(sel => sel.addEventListener('change', () => setTuneLevel(sel.dataset.tstage, +sel.dataset.i, +sel.value)));
@@ -875,16 +895,18 @@ function sheetEx(id) {
   const info = exInfo(ex);
   const floorHtml = () => { const i = exInfo(ex);
     if (!i.floor) return '';
-    return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? T(ex, i.min) : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
-      <div><small>Fastest key</small><strong>${i.logged ? T(ex, Math.max(...i.vals.filter(v => v != null))) : '—'}</strong><small>${i.logged ? esc(ex.keys[i.vals.indexOf(Math.max(...i.vals.filter(v => v != null)))]) : ''}</small></div>`; };
+    return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? Tk(exKey(ex, i.mk), i.min) : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
+      ${(() => { if (!i.logged) return '<div><small>Fastest key</small><strong>—</strong></div>'; const mx = Math.max(...i.vals.filter(v => v != null)), fk = ex.keys[i.vals.indexOf(mx)];
+        return `<div><small>Fastest key</small><strong>${Tk(exKey(ex, fk), mx)}</strong><small>${esc(fk)}</small></div>`; })()}`; };
   const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
     return `<label class="krow ${info.floor && info.full && k === info.mk ? 'fl' : ''}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span>
       <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
+      <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
-      <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" title="Metronome" type="button">♩</button></label>`; }).join('');
+      <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
   openSheet(`${head(ex.name, sec.name)}
     <div class="floorbox" id="floorbox">${floorHtml()}</div>
-    <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">Type your best clean tempo for each key. Changes save automatically.</p>${unitBtn('ex', ex, true)}</div>
+    <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">Type your best clean tempo for each key. Tap a key's note to switch just that key between quarter and half notes.</p>${unitBtn('ex', ex, true)}</div>
     <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
@@ -901,7 +923,7 @@ function sheetEx(id) {
       inp.closest('.krow').querySelector('.kn small').textContent = 'today';
       $('#floorbox').innerHTML = floorHtml();
       const i = exInfo(ex); $$('#panel .krow').forEach(r => r.classList.toggle('fl', i.floor && i.full && r.dataset.k === i.mk));
-      if (pb) toast('New record: ' + Ttxt(ex, v) + '  +10 XP');
+      if (pb) toast('New record: ' + TtxtK(inp.dataset.key, v) + '  +10 XP');
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
   });
@@ -912,7 +934,7 @@ function sheetLick(id) {
   openSheet(`${head(l.name, 'all 12 keys')}
     ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
     <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">Best tempo through all 12 keys</label>${unitBtn('lick', l, true)}</div>
-    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="lickBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}">♩</button></div>
+    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="lickBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>
     <label class="f">Notes</label><textarea id="lickNotes" rows="2">${esc(l.notes || '')}</textarea>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="lick" data-id="${esc(l.id)}">+ Today's plan</button></div>
@@ -933,7 +955,7 @@ function sheetTune(id) {
   openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
     ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${T(t, p.bpm[key])}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
     <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">New tempo</label>${unitBtn('tune', t, true)}</div>
-    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}">♩</button></div>` : ''}
+    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
     <div id="stages">${stageHtml()}</div>
     <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
     <label class="f">Notes (form, key, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
@@ -954,7 +976,7 @@ function sheetTune(id) {
 function pickerSheet(t) {
   const p = P(); let rows;
   if (t === 'ex') rows = S.lib.sections.map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
-    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? T(ex, i.vals[0]) : ''}</small></button>`; }).join('')).join('');
+    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? Tk(exKey(ex, ex.keys[0]), i.vals[0]) : ''}</small></button>`; }).join('')).join('');
   else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? T(l, p.bpm['l:' + l.id]) : ''}</small></button>`).join('');
   else rows = S.lib.tunes.map(x => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(x.id)}" data-name="${esc(x.name.toLowerCase())}"><span class="grow">${esc(x.name)}</span>${tunePips(x.id)}</button>`).join('');
   openSheet(`${head('Add ' + (t === 'ex' ? 'an exercise' : t === 'lick' ? 'a lick' : 'a tune') + ' to today')}
@@ -968,7 +990,7 @@ function pickKeySheet(ex) {
   openSheet(`${head('Which key?', ex.name)}
     <button class="btn primary" style="width:100%;margin:6px 0 10px" data-act="pickKey" data-id="${esc(ex.id)}">Auto – weakest or unlogged key</button>
     <div class="keys">${ex.keys.map(k => { const v = p.bpm[exKey(ex, k)];
-      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${T(ex, v)}</small></button>`; }).join('')}</div>`);
+      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${Tk(exKey(ex, k), v)}</small></button>`; }).join('')}</div>`);
 }
 
 function formSheet(title, fields, onOk, extraBtns = '') {
@@ -1041,10 +1063,14 @@ const A = {
   unitToggle: el => {
     const ty = el.dataset.ut, id = el.dataset.id;
     const it = ty === 'ex' ? findEx(id).ex : ty === 'lick' ? S.lib.licks.find(x => x.id === id) : S.lib.tunes.find(x => x.id === id);
-    it.unit = unitOf(it) === 2 ? 1 : 2; save();
-    toast('Showing ' + (it.unit === 2 ? 'half-note' : 'quarter-note') + ' tempos for ' + it.name);
+    if (ty === 'ex' && mixedUnits(it)) { const n = it.keys.filter(k => uk(exKey(it, k)) === 2).length; it.unit = n > it.keys.length / 2 ? 1 : 2; }
+    else it.unit = unitOf(it) === 2 ? 1 : 2;
+    delete it.unitKeys; save();
+    toast((it.unit === 2 ? 'Half' : 'Quarter') + ' notes for ' + (ty === 'ex' ? 'all keys of ' : '') + it.name);
     if (sheetOpen) { ty === 'ex' ? sheetEx(id) : ty === 'lick' ? sheetLick(id) : sheetTune(id); } else render();
   },
+  keyUnit: el => { const ex = findEx(el.dataset.ex).ex, k = el.dataset.k; setKeyUnit(ex, k, uk(exKey(ex, k)) === 2 ? 1 : 2); save();
+    toast(k + ': ' + (uk(exKey(ex, k)) === 2 ? 'half' : 'quarter') + ' notes'); sheetEx(ex.id); },
   gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
