@@ -1673,7 +1673,7 @@ function rhNew() {
 }
 function rhSheet() {
   const bpm = S.settings.rhBpm || 80, st = P().train?.rhythm;
-  openSheet(`${head('Rhythm reading', `${RH_LEVELS[S.settings.rhLevel ?? 0][0]} · ${RH.bars} bar${RH.bars > 1 ? 's' : ''} · ♩=${bpm}` + (st ? ` · ${st.ok}/${st.n} passed` : ''))}
+  openSheet(`${head('Rhythm reading', `${RH_LEVELS[S.settings.rhLevel ?? 0][0]} · ${RH.bars} bar${RH.bars > 1 ? 's' : ''} · ♩=${bpm}${rhSwing() ? ' · swing' : ''}${S.settings.rhClick === 'backbeat' ? ' · click 2 & 4' : ''}` + (st ? ` · ${st.ok}/${st.n} passed` : ''))}
     <div class="rhbox">${rhSvg(RH.notes, RH.bars, RH.marks)}</div>
     ${RH.result ? `<div class="qfb">${RH.result}</div>` : `<p class="muted" style="font-size:.9rem;margin:6px 0">Press Start: you get a 4-beat count-in, then tap the rhythm on the pad (any key works on a computer).</p>`}
     <div class="row"><button class="btn grow" data-act="rhListen">👂 Hear it</button><button class="btn primary grow" data-act="rhGo">${RH.result ? 'Try again' : 'Start'}</button><button class="btn grow" data-act="rhNext">New rhythm</button></div>
@@ -1681,11 +1681,14 @@ function rhSheet() {
 }
 function rhClick(ctx, out, t, hi) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = hi ? 1500 : 1000; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(hi ? .5 : .3, t + .002); g.gain.exponentialRampToValueAtTime(0.0001, t + .04); o.connect(g).connect(out); o.start(t); o.stop(t + .05); }
 function rhWood(ctx, out, t) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = 800; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(.25, t + .002); g.gain.exponentialRampToValueAtTime(0.0001, t + .08); o.connect(g).connect(out); o.start(t); o.stop(t + .1); }
+const rhSwing = () => S.settings.rhFeel === 'swing';
+// Where a written note actually falls: with swing, an off-beat eighth (beat + 1/2) moves to beat + 2/3.
+const rhPlace = n => rhSwing() && !n.tup && Math.abs((n.t % 1) - 0.5) < 1e-6 ? n.t + 1 / 6 : n.t;
 function rhRun(listen) {
   rhStop(); earStop(); const ctx = audioCtx(); const out = EAR.out = ctx.createGain(); out.gain.value = 1; out.connect(ctx.destination);
   const bpm = S.settings.rhBpm || 80, beat = 60 / bpm, t0 = ctx.currentTime + 0.15, start = t0 + 4 * beat, total = RH.bars * 4;
-  for (let i = 0; i < 4 + total; i++) rhClick(ctx, out, t0 + i * beat, i % 4 === 0);
-  if (listen) RH.notes.forEach(n => { if (!n.rest) rhWood(ctx, out, start + n.t * beat); });
+  for (let i = 0; i < 4 + total; i++) if (i < 4 || S.settings.rhClick !== 'backbeat' || i % 2 === 1) rhClick(ctx, out, t0 + i * beat, i % 4 === 0);
+  if (listen) RH.notes.forEach(n => { if (!n.rest) rhWood(ctx, out, start + rhPlace(n) * beat); });
   RH.startPerf = performance.now() + (start - ctx.currentTime) * 1000; RH.beatMs = beat * 1000; RH.taps = []; RH.listen = listen; RH.marks = null; RH.result = null;
   rhSheet(); const pad = $('#rhPad'); pad.textContent = listen ? 'listen…' : 'count-in…';
   setTimeout(() => { const p = $('#rhPad'); if (p) p.textContent = listen ? 'listen…' : 'TAP'; }, (start - ctx.currentTime) * 1000);
@@ -1702,7 +1705,7 @@ function rhCursor() {
 }
 function rhTap() { if (!RH.timer || RH.listen) return; RH.taps.push((performance.now() - RH.startPerf) / RH.beatMs); const p = $('#rhPad'); if (p) { p.classList.add('hit'); setTimeout(() => p.classList.remove('hit'), 80); } }
 function rhGrade() {
-  const exp = RH.notes.map((n, i) => ({ i, t: n.t })).filter(e => !RH.notes[e.i].rest);
+  const exp = RH.notes.map((n, i) => ({ i, t: rhPlace(n) })).filter(e => !RH.notes[e.i].rest);
   // Remove a constant delay (e.g. Bluetooth audio): use the median offset of taps near expected notes.
   const offs = RH.taps.map(tp => { const e = exp.reduce((a, b) => Math.abs(b.t - tp) < Math.abs(a.t - tp) ? b : a); return tp - e.t; }).filter(o => Math.abs(o) < .4).sort((a, b) => a - b);
   const lag = offs.length ? Math.max(-.3, Math.min(.3, offs[Math.floor(offs.length / 2)])) : 0;
@@ -1721,7 +1724,7 @@ function vTrain() {
   const p = P(), wk = awayMinutes(monday(Date.now()).getTime()), tot = awayMinutes(0), tr = p.train || {};
   const pct = k => tr[k]?.n ? Math.round(100 * tr[k].ok / tr[k].n) + '% of ' + tr[k].n : 'not tried yet';
   const vs = allVersions(), quizzes = vs.reduce((a, v) => a + (tuneState(v).qz?.n || 0), 0);
-  const chip = (set, k, v, n) => `<button class="chip ${(S.settings[set] ?? (set === 'rhLevel' ? 0 : set === 'rhBars' ? 1 : set === 'earPool' ? 'mine' : 'any')) === v ? 'on' : ''}" data-act="trainSet" data-k="${set}" data-v="${v}">${n}</button>`;
+  const chip = (set, k, v, n) => `<button class="chip ${(S.settings[set] ?? ({ rhLevel: 0, rhBars: 1, earPool: 'mine', earPart: 'any', rhFeel: 'straight', rhClick: 'all' })[set]) === v ? 'on' : ''}" data-act="trainSet" data-k="${set}" data-v="${v}">${n}</button>`;
   return `<section class="card"><h3>Away from the horn</h3><div class="stats3"><div><small>This week</small><strong>${fmtMin(wk)}</strong></div><div><small>Total</small><strong>${fmtMin(tot)}</strong></div><div><small>Answers right</small><strong>${tr.ok || 0}</strong></div></div>
     <small class="muted">Time here is logged separately from your playing hours.</small></section>
   <section class="card"><h3>🧠 Changes quiz</h3><p class="muted" style="margin-top:0">Fill in the changes of a tune from memory, bar by bar. ${quizzes} quiz${quizzes === 1 ? '' : 'zes'} done.</p>
@@ -1737,6 +1740,7 @@ function vTrain() {
   <section class="card"><h3>🥁 Rhythm reading</h3><p class="muted" style="margin-top:0">See a rhythm, tap it in time. ${tr.rhythm?.n ? tr.rhythm.ok + ' of ' + tr.rhythm.n + ' passed (90%+)' : 'Not tried yet'}.</p>
     <div class="chips">${RH_LEVELS.map((l, i) => chip('rhLevel', 0, i, l[0])).join('')}</div>
     <div class="chips">${[1, 2, 4, 8].map(n => chip('rhBars', 0, n, n + ' bar' + (n > 1 ? 's' : ''))).join('')}</div>
+    <div class="chips">${chip('rhFeel', 0, 'straight', 'Straight 8ths')}${chip('rhFeel', 0, 'swing', 'Swing 8ths')}${chip('rhClick', 0, 'all', 'Click every beat')}${chip('rhClick', 0, 'backbeat', 'Click on 2 & 4')}</div>
     <label class="f">Tempo ♩=<span id="rhBpmV">${S.settings.rhBpm || 80}</span></label><input type="range" id="rhBpm" min="50" max="160" step="5" value="${S.settings.rhBpm || 80}" style="width:100%">
     <button class="btn primary" style="width:100%;margin-top:8px" data-act="rhStart">Start</button></section>`;
 }
