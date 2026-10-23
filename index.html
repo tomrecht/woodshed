@@ -386,6 +386,17 @@ function migrate() {
       if (cp.s1 || cp.s2) cp.s6 = cp.s6 || cp.s1 || cp.s2; if (cp.s3) cp.s7 = cp.s7 || cp.s3; delete cp.s1; delete cp.s2; delete cp.s3; }
     S.solo9 = 1;
   }
+  if (!S.cpClean) {
+    // Undo checkpoints that were ticked automatically when the old Melody/Changes/Soloing levels were converted.
+    // They all share the conversion's timestamp; boxes ticked by hand each have their own.
+    for (const id in S.prog) { const tunes = S.prog[id].tunes || {}, count = {};
+      for (const r of Object.values(tunes)) for (const ts of Object.values(r.cp || {})) count[ts] = (count[ts] || 0) + 1;
+      const bulk = new Set(Object.entries(count).filter(([, n]) => n >= 3).map(([ts]) => +ts));
+      for (const r of Object.values(tunes)) { if (!r.cp) continue; let removed = false;
+        for (const [c, ts] of Object.entries(r.cp)) if (bulk.has(+ts)) { delete r.cp[c]; removed = true; }
+        if (removed) { r.started = true; if (!(r.cp.m3 && r.cp.c4)) delete r.rv; } } }
+    S.cpClean = 1;
+  }
   if (!S.relink8) { for (const t of S.lib.tunes) if (t.chart === null) delete t.chart; S.relink8 = 1; }
   if (S.libRev < 6) {
     for (const l of S.lib.licks) if (l.unit == null) l.unit = 2;   // licks default to half-note tempo
