@@ -1250,7 +1250,7 @@ function quizRender() {
     : `<div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
       <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${[1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc]}</button>`).join('')}</div>
       <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
-      <div class="row" style="margin-top:8px"><small class="muted grow">${answered}/${Q.ask.length} · ${right} right</small>${Q.hear ? '<button class="btn sm" data-act="quizReplay" title="Play again">🔊</button>' : ''}<button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
+      <div class="row" style="margin-top:8px"><small class="muted grow">${answered}/${Q.ask.length} · ${right} right</small>${Q.hear ? '<button class="btn sm" data-act="quizReplay" title="Hear the chord you\'re naming (after the one before it)">🔊 Hear it</button>' : ''}<button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
   openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + QUIZ_LEVEL_NAMES[Q.level])}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
   const q = $('#panel .qq'); if (q) q.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
@@ -1818,7 +1818,11 @@ const A = {
     Q = { vid: el.dataset.id, ch, slots, idx, level: lv, ask: slots.map((sl, i) => want.includes(sl.imp) ? i : -1).filter(i => i >= 0), pos: 0, res: {}, pick: null, fb: '' };
     Q.hear = $('#qHear').checked; S.settings.quizHear = Q.hear; save(true);
     startTrain('quiz'); if (!Q.ask.length) { toast('Nothing to ask at this level'); return; } quizRender(); quizPlay(0, Q.ask[0]); },
-  quizReplay: () => { if (Q.lastPlay?.length) playChords(Q.lastPlay, 120); else toast('Nothing played yet'); },
+  // Speaker button: play the chord being asked for, with the chord before it as a lead-in.
+  quizReplay: () => { if (Q.pos >= Q.ask.length) { if (Q.lastPlay?.length) playChords(Q.lastPlay, 120); return; }
+    const cur = Q.ask[Q.pos], list = [];
+    for (let i = Math.max(0, cur - 1); i <= cur; i++) { const sl = Q.slots[i], b = Q.ch.bars[sl.bi]; list.push({ sym: transposeSym(sl.x, Q.ch.toConcert, false), beats: 4 / b.c.length }); }
+    playChords(list, 120); },
   quizRoot: el => { Q.pick = +el.dataset.pc; $$('#panel .qroots button').forEach(b => b.classList.toggle('on', +b.dataset.pc === Q.pick)); },
   quizFam: el => { if (Q.pick == null) { toast('Pick the root first'); return; } quizAnswer(Q.pick, el.dataset.f); },
   quizReveal: () => quizAnswer(null, null),
