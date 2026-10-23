@@ -191,6 +191,9 @@ nav#tabs button.on{color:var(--accent)}
 .cend{position:absolute;top:1px;left:22px;font-size:.65rem;color:var(--accent);font-weight:700}
 .cch{font-weight:600;word-break:break-word;line-height:1.25}
 .crep{color:var(--muted);font-weight:400;margin:0 2px}
+.cbar.sel{background:rgba(240,168,60,.18)}
+#qfree .cbar{cursor:pointer}
+.qgap{display:inline-block;border:1.5px dashed var(--accent);color:var(--accent);border-radius:5px;padding:0 6px;font-weight:800;cursor:pointer}
 .qq{display:inline-block;background:var(--accent);color:var(--accent-ink);border-radius:5px;padding:0 7px;font-weight:800}
 .qh{color:var(--muted)}
 .qok{color:var(--good)}.qno{color:var(--danger);text-decoration:line-through;text-decoration-thickness:1px}
@@ -1221,14 +1224,57 @@ function openTuneSheet(vid, opts) { if (LIB) return sheetTune(vid, opts); sheetT
 
 /* ---------- quiz UI ---------- */
 let Q = null;
+let QS = null;   // quiz setup state
 function quizSetup(vid) {
-  const t = tuneOf(vid);
-  openSheet(`${head('Changes quiz', vLabel(vid))}
-    <p class="muted" style="margin-top:0">The chart is revealed bar by bar. Name each chord when you reach a <b>?</b> – root and type (extensions and bass notes don't count).</p>
-    <label class="f">How much to ask</label>
+  if (!QS || QS.vid !== vid) QS = { vid };
+  const mode = S.settings.quizMode === 'free' ? 'free' : 'form', len = S.settings.quizLen || 4;
+  const modes = `<div class="chips">${[['form', 'In order'], ['free', 'Any order – listen to any bars']].map(([m, n]) => `<button class="chip ${mode === m ? 'on' : ''}" data-act="quizMode" data-m="${m}">${n}</button>`).join('')}</div>`;
+  const intro = mode === 'form' ? 'The chart is revealed bar by bar. Name each chord when you reach a <b>?</b>.'
+    : 'Tap any bar to hear the bars from there and to answer its missing chord – or tap a <b>?</b> directly. Fill in the gaps in any order.';
+  openSheet(`${head('Changes quiz', vLabel(vid))}${modes}
+    <p class="muted" style="margin-top:0">${intro} Name the root and chord type (extensions and bass notes don't count).</p>
+    <label class="f">Which chords are hidden</label>
     <div class="stages">${Object.entries(QUIZ_LEVEL_NAMES).map(([k, n]) => `<label class="cprow"><input type="radio" name="ql" value="${k}" ${k === (S.settings.quizLevel || 'key') ? 'checked' : ''}><span class="grow"><b>${n}</b><br><small class="muted">${{ key: 'Section starts and chords you can\'t guess from the previous one', std: 'Also where dominants resolve to', all: 'Every chord change, including ii–Vs and repeated sections' }[k]}</small></span></label>`).join('')}</div>
-    <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="qHear" ${S.settings.quizHear !== false ? 'checked' : ''}><span class="grow"><b>Hear the chords as you go</b><br><small class="muted">After each answer, plays it and the bars leading to the next question (concert pitch)</small></span></label></div>
+    ${mode === 'free' ? `<label class="f">Bars to play when you tap one</label><div class="chips">${[2, 4, 8].map(n => `<button class="chip ${len === n ? 'on' : ''}" data-act="quizLen" data-n="${n}">${n} bars</button>`).join('')}</div>` : ''}
+    <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="qHear" ${S.settings.quizHear !== false ? 'checked' : ''}><span class="grow"><b>Hear the chords as you go</b><br><small class="muted">${mode === 'free' ? 'Plays the bars when you tap one, and each chord after you answer it' : 'After each answer, plays it and the bars leading to the next question'} (concert pitch)</small></span></label></div>
     <button class="btn primary big" data-act="quizGo" data-id="${esc(vid)}">Start</button>`, endTrain);
+}
+function quizRenderFree() {
+  const sharp = sharpKey(Q.ch.key), answered = Object.keys(Q.res).length, done = answered >= Q.ask.length, right = Object.values(Q.res).filter(v => v).length;
+  const view = (bi, ci, x, b) => { const si = Q.idx[bi + ':' + ci]; if (si == null) return esc(x);
+    if (!Q.askSet.has(si)) return b.rep ? (ci ? '' : '%') : esc(x);
+    const r = Q.res[si];
+    if (r == null) return `<span class="${si === Q.target && !done ? 'qq' : 'qgap'}" data-act="quizSlot" data-si="${si}">?</span>`;
+    return `<span class="${r ? 'qok' : 'qno'}">${esc(x)}</span>`; };
+  const lastBar = Q.ch.bars[Math.min(Q.ch.bars.length, Q.win + Q.len) - 1];
+  const body = done ? `<div class="card" style="background:var(--surface2)"><h2>${Math.round(100 * right / Q.ask.length)}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${QUIZ_LEVEL_NAMES[Q.level]}</p>${Q.summary || ''}</div>
+      <div class="row"><button class="btn grow" data-act="quizStart" data-id="${esc(Q.vid)}">Again</button><button class="btn grow" data-act="openTune" data-id="${esc(Q.vid)}">Back to tune</button></div>`
+    : `<div class="row" style="margin-top:8px"><button class="btn grow" data-act="quizPlayWin">▶ Bars ${Q.ch.bars[Q.win].n}–${lastBar.n}</button><small class="muted">${answered}/${Q.ask.length} · ${right} right</small></div>
+      <div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
+      <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${[1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc]}</button>`).join('')}</div>
+      <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
+      <div class="row" style="margin-top:8px"><span class="grow"></span><button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
+  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + QUIZ_LEVEL_NAMES[Q.level] + ' · any order')}<div id="qfree">${chartHtml(Q.ch, view)}</div><div class="sp"></div>${body}`, endTrain);
+  $$('#qfree .cbar:not(.off)').forEach((el, bi) => { el.classList.toggle('sel', !done && bi >= Q.win && bi < Q.win + Q.len);
+    el.onclick = e => { if (done || e.target.closest('[data-act=quizSlot]')) return; Q.win = bi; const gap = Q.ask.find(si => Q.res[si] == null && Q.slots[si].bi === bi); if (gap != null) Q.target = gap; quizRender(); if (Q.hear) quizPlayBars(Q.win, Q.win + Q.len); }; });
+}
+function quizAnswerFree(pc, fam) {
+  const si = Q.target; if (si == null || Q.res[si] != null) { toast('Tap a ? to choose a chord'); return; }
+  const s = Q.slots[si], sharp = sharpKey(Q.ch.key), ok = pc === s.root && fam === s.fam;
+  Q.res[si] = ok; Q.pick = null;
+  Q.fb = ok ? `<span class="qok">✓ ${esc(s.x)}</span> <small class="muted">bar ${Q.ch.bars[s.bi].n}</small>` : (pc == null ? `Bar ${Q.ch.bars[s.bi].n}: <b>${esc(s.x)}</b>` : `<span class="qno">✗ ${esc((pc === s.root ? s.x.match(/^[A-G][#b]?/)[0] : pcName(pc, sharp)) + famSym(fam))}</span> – bar ${Q.ch.bars[s.bi].n} is <b>${esc(s.x)}</b>`);
+  if (Q.hear) playChords([{ sym: transposeSym(s.x, Q.ch.toConcert, false), beats: 2 }], 120, { drums: false });
+  // next gap: later in the chart first, then from the top
+  const open = Q.ask.filter(i => Q.res[i] == null);
+  Q.target = open.find(i => i > si) ?? open[0] ?? null;
+  if (!open.length) { Q.pos = Q.ask.length; quizFinish(); }
+  quizRender();
+}
+// Play bars [from, to) of the quiz chart in concert pitch at a listening tempo.
+function quizPlayBars(from, to) {
+  const t = tuneOf(Q.vid), e = t && libEntry(t), bpb = beatsPerBar(Q.ch);
+  Q.lastPlay = barsToChords(Q.ch.bars.slice(Math.max(0, from), to), Q.ch.toConcert, bpb);
+  Q.lastBpm = Math.min(160, styleTempo(e?.s)); playChords(Q.lastPlay, Q.lastBpm, { bpb });
 }
 // Play quiz slots [from, to) in concert pitch – at most the last 8 chords.
 function quizPlay(from, to) {
@@ -1237,21 +1283,22 @@ function quizPlay(from, to) {
   Q.lastPlay = list.slice(-8); if (Q.hear && Q.lastPlay.length) playChords(Q.lastPlay, 120);
 }
 function quizRender() {
+  if (Q.mode === 'free') return quizRenderFree();
   const sharp = sharpKey(Q.ch.key), cur = Q.pos < Q.ask.length ? Q.ask[Q.pos] : Infinity, done = cur === Infinity;
   const view = (bi, ci, x, b) => { const si = Q.idx[bi + ':' + ci]; if (si == null) return esc(x);
-    if (si > cur) return '<span class="qh">·</span>';
+    if (si > cur && (!Q.askSet || Q.askSet.has(si))) return '<span class="qh">·</span>';
     if (si === cur) return '<span class="qq">?</span>';
     const r = Q.res[si], txt = b.rep ? (ci ? '' : '%') : esc(x);
     return r === true ? `<span class="qok">${txt}</span>` : r === false ? `<span class="qno">${txt}</span>` : txt; };
   const right = Object.values(Q.res).filter(v => v).length, answered = Object.keys(Q.res).length;
   const body = done ? (() => { const pct = Q.ask.length ? Math.round(100 * right / Q.ask.length) : 100;
-      return `<div class="card" style="background:var(--surface2)"><h2>${pct}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${QUIZ_LEVEL_NAMES[Q.level]}</p>${Q.summary || ''}</div>
+      return `<div class="card" style="background:var(--surface2)"><h2>${pct}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${(Q.levelName || QUIZ_LEVEL_NAMES[Q.level])}</p>${Q.summary || ''}</div>
       <div class="row"><button class="btn grow" data-act="quizStart" data-id="${esc(Q.vid)}">Again</button><button class="btn grow" data-act="openTune" data-id="${esc(Q.vid)}">Back to tune</button></div>`; })()
     : `<div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
       <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${[1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc]}</button>`).join('')}</div>
       <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><small class="muted grow">${answered}/${Q.ask.length} · ${right} right</small>${Q.hear ? '<button class="btn sm" data-act="quizReplay" title="Hear the chord you\'re naming (after the one before it)">🔊 Hear it</button>' : ''}<button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
-  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + QUIZ_LEVEL_NAMES[Q.level])}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
+  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + (Q.levelName || QUIZ_LEVEL_NAMES[Q.level]))}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
   const q = $('#panel .qq'); if (q) q.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 function quizAnswer(pc, fam) {
@@ -1817,16 +1864,23 @@ const A = {
     slots.forEach((sl, i) => idx[sl.bi + ':' + sl.ci] = i);
     Q = { vid: el.dataset.id, ch, slots, idx, level: lv, ask: slots.map((sl, i) => want.includes(sl.imp) ? i : -1).filter(i => i >= 0), pos: 0, res: {}, pick: null, fb: '' };
     Q.hear = $('#qHear').checked; S.settings.quizHear = Q.hear; save(true);
-    startTrain('quiz'); if (!Q.ask.length) { toast('Nothing to ask at this level'); return; } quizRender(); quizPlay(0, Q.ask[0]); },
+    if (S.settings.quizMode === 'free') { Q.mode = 'free'; Q.askSet = new Set(Q.ask); Q.len = S.settings.quizLen || 4; Q.target = Q.ask[0]; Q.win = Q.slots[Q.ask[0]]?.bi || 0; }
+    startTrain('quiz'); if (!Q.ask.length) { toast('Nothing to ask at this level'); return; } quizRender();
+    if (Q.mode === 'free') { if (Q.hear) quizPlayBars(Q.win, Q.win + Q.len); } else quizPlay(0, Q.ask[0]); },
+  quizMode: el => { S.settings.quizMode = el.dataset.m; save(true); quizSetup(QS.vid); },
+  quizLen: el => { S.settings.quizLen = +el.dataset.n; save(true); quizSetup(QS.vid); },
+  quizSlot: (el, e) => { e.stopPropagation(); const si = +el.dataset.si; if (Q.res[si] != null) return; Q.target = si; Q.win = Q.slots[si].bi; quizRender(); if (Q.hear) quizPlayBars(Q.win, Q.win + Q.len); },
+  quizPlayWin: () => quizPlayBars(Q.win, Q.win + Q.len),
   // Speaker button: play the chord being asked for, with the chord before it as a lead-in.
-  quizReplay: () => { if (Q.pos >= Q.ask.length) { if (Q.lastPlay?.length) playChords(Q.lastPlay, 120); return; }
+  quizReplay: () => { if (Q.mode === 'free') { quizPlayBars(Q.win, Q.win + Q.len); return; }
+    if (Q.pos >= Q.ask.length) { if (Q.lastPlay?.length) playChords(Q.lastPlay, 120); return; }
     const cur = Q.ask[Q.pos], list = [];
     for (let i = Math.max(0, cur - 1); i <= cur; i++) { const sl = Q.slots[i], b = Q.ch.bars[sl.bi]; list.push({ sym: transposeSym(sl.x, Q.ch.toConcert, false), beats: 4 / b.c.length }); }
     playChords(list, 120); },
   quizRoot: el => { Q.pick = +el.dataset.pc; $$('#panel .qroots button').forEach(b => b.classList.toggle('on', +b.dataset.pc === Q.pick)); },
-  quizFam: el => { if (Q.pick == null) { toast('Pick the root first'); return; } quizAnswer(Q.pick, el.dataset.f); },
-  quizReveal: () => quizAnswer(null, null),
-  quizEnd: () => { Q.ask = Q.ask.slice(0, Q.pos); quizFinish(); quizRender(); },
+  quizFam: el => { if (Q.pick == null) { toast('Pick the root first'); return; } Q.mode === 'free' ? quizAnswerFree(Q.pick, el.dataset.f) : quizAnswer(Q.pick, el.dataset.f); },
+  quizReveal: () => Q.mode === 'free' ? quizAnswerFree(null, null) : quizAnswer(null, null),
+  quizEnd: () => { if (Q.mode === 'free') { Q.ask = Q.ask.filter(i => Q.res[i] != null); Q.askSet = new Set(Q.ask); } else Q.ask = Q.ask.slice(0, Q.pos); quizFinish(); quizRender(); },
   earStart: el => { EG.n = 0; startTrain('ear'); const go = () => { earNew(el.dataset.k); EG.played = false; earSheet(); };
     if (el.dataset.k === 'tune') loadLibrary().then(go).catch(() => toast('Could not load charts – are you offline?')); else go(); },
   earPlay: () => { EG.played = true; playChords(EG.chords, EG.bpm, { drums: EG.kind !== 'qual', bpb: EG.kind === 'tune' ? EG.bpb : 4 }); const b = $('#panel [data-act=earPlay]'); if (b) b.textContent = '▶ Play again'; },
