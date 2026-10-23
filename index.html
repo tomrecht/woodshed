@@ -741,6 +741,27 @@ function quizSlots(ch) {
   return slots;
 }
 const QUIZ_LEVELS = { key: ['key'], std: ['key', 'std'], all: ['key', 'std', 'easy', 'rpt'] };
+// Roman numerals relative to the tune's home key (no modulation analysis).
+const ROMAN = ['I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV', 'V', '♭VI', 'VI', '♭VII', 'VII'];
+const romanDeg = (d, fam) => d === 6 && !['ø', '°'].includes(fam) ? '♭V' : ROMAN[d];
+function romanOf(pcRel, fam, q = '') {
+  const lower = ['m', 'm6', 'mΔ', 'ø', '°'].includes(fam), deg = romanDeg(pcRel, fam);
+  const suf = { maj: q === '' ? '' : /^6|69/.test(q) ? '6' : 'maj7', '7': /alt/.test(q) ? '7alt' : '7', m: q === 'm' ? '' : '7', m6: '6', 'mΔ': '(maj7)', 'ø': 'ø7', '°': '°7', sus: '7sus', '+': '+' }[fam];
+  return (lower ? deg.toLowerCase() : deg) + suf;
+}
+const quizTonic = () => PCS[keyRoot(Q.ch.key)];
+// How a chord symbol is shown in the quiz: as written, or as a numeral.
+function quizDisp(x) { if (!Q.roman) return x; const c = parseChord(x); return c ? romanOf(mod12(c.root - quizTonic()), family(c.q), c.q) : x; }
+const quizAnsLabel = (pc, fam) => Q.roman ? romanOf(mod12(pc - quizTonic()), fam, { maj: 'maj7', m: 'm7' }[fam] || '') : pcName(pc, sharpKey(Q.ch.key)) + famSym(fam);
+function rootButtons() {
+  return `<div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(i => { const pc = Q.roman ? mod12(quizTonic() + i) : i;
+    const label = Q.roman ? ROMAN[i] + (i === 6 ? '<br>♭V' : '') : [1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc];
+    return `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${label}</button>`; }).join('')}</div>`;
+}
+function transposeChart(ch, key) {
+  const semis = mod12(PCS[keyRoot(key)] - PCS[keyRoot(ch.key)]), sharp = sharpKey(key);
+  return { ...ch, key, bars: ch.bars.map(b => ({ ...b, c: b.c.map(x => transposeSym(x, semis, sharp)) })) };
+}
 const QUIZ_LEVEL_NAMES = { key: 'Key moments', std: 'Standard', all: 'Every change' };
 
 function totalMinutes(p = P()) { return p.sessions.reduce((a, s) => a + s.min, 0); }
@@ -1190,12 +1211,13 @@ function sheetTune(vid, opts = {}) {
   const qz = ts.qz;
   const chartBox = hasChart(t) ? `<div class="row wrap" style="margin:10px 0"><button class="btn primary grow" data-act="quizStart" data-id="${esc(vid)}">🧠 Quiz the changes</button><button class="btn grow" data-act="showChart" data-id="${esc(vid)}">${opts.chart ? 'Hide chart' : 'Show chart'}</button></div>
       ${qz ? `<small class="muted">Changes quiz: last ${qz.last}% · best ${qz.best}% · ${qz.n} done</small>` : ''}
-      ${opts.chart && ch ? `<div style="margin-top:8px">${chartHtml(ch)}</div><div class="row" style="margin-top:6px"><small class="muted grow">Key ${esc(ch.key)}${t.custom ? ' · typed in by you' : ' · from your iReal export'}</small>${vid === id && !t.custom ? `<button class="btn sm" data-act="setChartKey" data-id="${esc(id)}">Wrong key?</button>` : ''}${t.custom ? `<button class="btn sm" data-act="editChart" data-id="${esc(id)}">Edit</button>` : ''}</div>` : ''}`
+      ${opts.chart && ch ? `<div style="margin-top:8px">${chartHtml(ch)}</div><div class="row" style="margin-top:6px"><small class="muted grow">Key ${esc(ch.key)}${t.custom ? ' · typed in by you' : ' · from your iReal export'}</small>${t.custom ? `<button class="btn sm" data-act="editChart" data-id="${esc(id)}">Edit</button>` : ''}</div>` : ''}`
     : `<div class="card" style="background:var(--surface2);margin:10px 0"><b>No chart for this tune</b><p class="muted" style="margin:4px 0 8px;font-size:.9rem">It isn't in your iReal export under this name. You can search the library or type the changes in.</p>
       <div class="row wrap"><button class="btn sm" data-act="findChart" data-id="${esc(id)}">Search library</button><button class="btn sm" data-act="editChart" data-id="${esc(id)}">Type in changes</button></div></div>`;
   const tagHtml = () => splitTags(t.tags).map(x => `<span class="tagchip">#${esc(x)}<button data-act="tagDel" data-id="${esc(id)}" data-tag="${esc(x)}" aria-label="Remove tag">✕</button></span>`).join('') || '<small class="muted">No tags yet.</small>';
   openSheet(`${head(t.name, [t.composer, t.style].filter(Boolean).join(' · '))}
     ${tabs}
+    ${hasChart(t) && ch ? `<div class="row" style="margin:-2px 0 8px"><small class="muted grow">Home key <b style="color:var(--text)">${esc(chartFor(id)?.mainKey || ch.mainKey)}</b>${t.chartKey ? ' (set by you)' : ''}</small><button class="btn sm" data-act="setChartKey" data-id="${esc(id)}">Change</button></div>` : ''}
     ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${Tk(key, p.bpm[key])}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
     <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">New tempo</label>${unitBtn('tune', t, true)}</div>
     <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
@@ -1227,6 +1249,7 @@ let Q = null;
 let QS = null;   // quiz setup state
 function quizSetup(vid) {
   if (!QS || QS.vid !== vid) QS = { vid };
+  const ch0 = chartFor(vid); if (!ch0) { toast('No chart'); return; }
   const mode = S.settings.quizMode === 'free' ? 'free' : 'form', len = S.settings.quizLen || 4;
   const modes = `<div class="chips">${[['form', 'In order'], ['free', 'Any order – listen to any bars']].map(([m, n]) => `<button class="chip ${mode === m ? 'on' : ''}" data-act="quizMode" data-m="${m}">${n}</button>`).join('')}</div>`;
   const intro = mode === 'form' ? 'The chart is revealed bar by bar. Name each chord when you reach a <b>?</b>.'
@@ -1237,24 +1260,28 @@ function quizSetup(vid) {
     <div class="stages">${Object.entries(QUIZ_LEVEL_NAMES).map(([k, n]) => `<label class="cprow"><input type="radio" name="ql" value="${k}" ${k === (S.settings.quizLevel || 'key') ? 'checked' : ''}><span class="grow"><b>${n}</b><br><small class="muted">${{ key: 'Section starts and chords you can\'t guess from the previous one', std: 'Also where dominants resolve to', all: 'Every chord change, including ii–Vs and repeated sections' }[k]}</small></span></label>`).join('')}</div>
     ${mode === 'free' ? `<label class="f">Bars to play when you tap one</label><div class="chips">${[2, 4, 8].map(n => `<button class="chip ${len === n ? 'on' : ''}" data-act="quizLen" data-n="${n}">${n} bars</button>`).join('')}</div>` : ''}
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="qHear" ${S.settings.quizHear !== false ? 'checked' : ''}><span class="grow"><b>Hear the chords as you go</b><br><small class="muted">${mode === 'free' ? 'Plays the bars when you tap one, and each chord after you answer it' : 'After each answer, plays it and the bars leading to the next question'} (concert pitch)</small></span></label></div>
+    <div class="row wrap" style="margin-top:10px;gap:12px"><div class="grow"><label class="f" style="margin-top:0">Key</label>
+      <select id="qKey"><option value="orig">Original (${esc(ch0.key)})</option><option value="random" ${S.settings.quizKey === 'random' ? 'selected' : ''}>Random key</option>${(isMinorKey(ch0.key) ? MINOR_KEYS : MAJOR_KEYS).filter(k => k !== ch0.key).map(k => `<option>${k}</option>`).join('')}</select></div>
+      <div class="grow"><label class="f" style="margin-top:0">Answer with</label><div class="chips" style="margin:0">${[['names', 'Chord names'], ['roman', 'Roman numerals']].map(([v, n]) => `<button class="chip ${(S.settings.quizAns || 'names') === v ? 'on' : ''}" data-act="quizAns" data-v="${v}">${n}</button>`).join('')}</div></div></div>
+    ${S.settings.quizAns === 'roman' ? `<p class="muted" style="font-size:.85rem;margin:6px 0 0">Numerals are counted from the home key (${esc(ch0.key)} or the key you pick), even where the tune moves to another key – e.g. a bridge on the IV chord is IVmaj7. If the home key looks wrong, change it on the tune's page (Home key → Change).</p>` : ''}
     <button class="btn primary big" data-act="quizGo" data-id="${esc(vid)}">Start</button>`, endTrain);
 }
 function quizRenderFree() {
   const sharp = sharpKey(Q.ch.key), answered = Object.keys(Q.res).length, done = answered >= Q.ask.length, right = Object.values(Q.res).filter(v => v).length;
   const view = (bi, ci, x, b) => { const si = Q.idx[bi + ':' + ci]; if (si == null) return esc(x);
-    if (!Q.askSet.has(si)) return b.rep ? (ci ? '' : '%') : esc(x);
+    if (!Q.askSet.has(si)) return b.rep ? (ci ? '' : '%') : esc(quizDisp(x));
     const r = Q.res[si];
     if (r == null) return `<span class="${si === Q.target && !done ? 'qq' : 'qgap'}" data-act="quizSlot" data-si="${si}">?</span>`;
-    return `<span class="${r ? 'qok' : 'qno'}">${esc(x)}</span>`; };
+    return `<span class="${r ? 'qok' : 'qno'}">${esc(quizDisp(x))}</span>`; };
   const lastBar = Q.ch.bars[Math.min(Q.ch.bars.length, Q.win + Q.len) - 1];
   const body = done ? `<div class="card" style="background:var(--surface2)"><h2>${Math.round(100 * right / Q.ask.length)}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${QUIZ_LEVEL_NAMES[Q.level]}</p>${Q.summary || ''}</div>
       <div class="row"><button class="btn grow" data-act="quizStart" data-id="${esc(Q.vid)}">Again</button><button class="btn grow" data-act="openTune" data-id="${esc(Q.vid)}">Back to tune</button></div>`
     : `<div class="row" style="margin-top:8px"><button class="btn grow" data-act="quizPlayWin">▶ Bars ${Q.ch.bars[Q.win].n}–${lastBar.n}</button><small class="muted">${answered}/${Q.ask.length} · ${right} right</small></div>
       <div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
-      <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${[1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc]}</button>`).join('')}</div>
+      ${rootButtons()}
       <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><span class="grow"></span><button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
-  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + QUIZ_LEVEL_NAMES[Q.level] + ' · any order')}<div id="qfree">${chartHtml(Q.ch, view)}</div><div class="sp"></div>${body}`, endTrain);
+  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + (Q.transposed ? ' (transposed)' : '') + (Q.roman ? ' · numerals' : '') + ' · ' + QUIZ_LEVEL_NAMES[Q.level] + ' · any order')}<div id="qfree">${chartHtml(Q.ch, view)}</div><div class="sp"></div>${body}`, endTrain);
   $$('#qfree .cbar:not(.off)').forEach((el, bi) => { el.classList.toggle('sel', !done && bi >= Q.win && bi < Q.win + Q.len);
     el.onclick = e => { if (done || e.target.closest('[data-act=quizSlot]')) return; Q.win = bi; const gap = Q.ask.find(si => Q.res[si] == null && Q.slots[si].bi === bi); if (gap != null) Q.target = gap; quizRender(); if (Q.hear) quizPlayBars(Q.win, Q.win + Q.len); }; });
 }
@@ -1262,7 +1289,8 @@ function quizAnswerFree(pc, fam) {
   const si = Q.target; if (si == null || Q.res[si] != null) { toast('Tap a ? to choose a chord'); return; }
   const s = Q.slots[si], sharp = sharpKey(Q.ch.key), ok = pc === s.root && fam === s.fam;
   Q.res[si] = ok; Q.pick = null;
-  Q.fb = ok ? `<span class="qok">✓ ${esc(s.x)}</span> <small class="muted">bar ${Q.ch.bars[s.bi].n}</small>` : (pc == null ? `Bar ${Q.ch.bars[s.bi].n}: <b>${esc(s.x)}</b>` : `<span class="qno">✗ ${esc((pc === s.root ? s.x.match(/^[A-G][#b]?/)[0] : pcName(pc, sharp)) + famSym(fam))}</span> – bar ${Q.ch.bars[s.bi].n} is <b>${esc(s.x)}</b>`);
+  const D = esc(quizDisp(s.x)), mine = Q.roman ? quizAnsLabel(pc, fam) : (pc === s.root ? s.x.match(/^[A-G][#b]?/)[0] : pcName(pc, sharp)) + famSym(fam);
+  Q.fb = ok ? `<span class="qok">✓ ${D}</span> <small class="muted">bar ${Q.ch.bars[s.bi].n}</small>` : (pc == null ? `Bar ${Q.ch.bars[s.bi].n}: <b>${D}</b>` : `<span class="qno">✗ ${esc(mine)}</span> – bar ${Q.ch.bars[s.bi].n} is <b>${D}</b>`);
   if (Q.hear) playChords([{ sym: transposeSym(s.x, Q.ch.toConcert, false), beats: 2 }], 120, { drums: false });
   // next gap: later in the chart first, then from the top
   const open = Q.ask.filter(i => Q.res[i] == null);
@@ -1288,24 +1316,25 @@ function quizRender() {
   const view = (bi, ci, x, b) => { const si = Q.idx[bi + ':' + ci]; if (si == null) return esc(x);
     if (si > cur && (!Q.askSet || Q.askSet.has(si))) return '<span class="qh">·</span>';
     if (si === cur) return '<span class="qq">?</span>';
-    const r = Q.res[si], txt = b.rep ? (ci ? '' : '%') : esc(x);
+    const r = Q.res[si], txt = b.rep ? (ci ? '' : '%') : esc(quizDisp(x));
     return r === true ? `<span class="qok">${txt}</span>` : r === false ? `<span class="qno">${txt}</span>` : txt; };
   const right = Object.values(Q.res).filter(v => v).length, answered = Object.keys(Q.res).length;
   const body = done ? (() => { const pct = Q.ask.length ? Math.round(100 * right / Q.ask.length) : 100;
       return `<div class="card" style="background:var(--surface2)"><h2>${pct}%</h2><p class="muted" style="margin:4px 0">${right} of ${Q.ask.length} right · ${(Q.levelName || QUIZ_LEVEL_NAMES[Q.level])}</p>${Q.summary || ''}</div>
       <div class="row"><button class="btn grow" data-act="quizStart" data-id="${esc(Q.vid)}">Again</button><button class="btn grow" data-act="openTune" data-id="${esc(Q.vid)}">Back to tune</button></div>`; })()
     : `<div id="qfb" class="qfb">${Q.fb || '&nbsp;'}</div>
-      <div class="qroots">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(pc => `<button class="${Q.pick === pc ? 'on' : ''}" data-act="quizRoot" data-pc="${pc}">${[1, 3, 6, 8, 10].includes(pc) ? `${SHARPS[pc]}<br>${FLATS[pc]}` : FLATS[pc]}</button>`).join('')}</div>
+      ${rootButtons()}
       <div class="qfams">${FAMS.map(([f, n]) => `<button data-act="quizFam" data-f="${f}">${n}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><small class="muted grow">${answered}/${Q.ask.length} · ${right} right</small>${Q.hear ? '<button class="btn sm" data-act="quizReplay" title="Hear the chord you\'re naming (after the one before it)">🔊 Hear it</button>' : ''}<button class="btn sm" data-act="quizReveal">Show answer</button><button class="btn sm" data-act="quizEnd">End</button></div>`;
-  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + ' · ' + (Q.levelName || QUIZ_LEVEL_NAMES[Q.level]))}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
+  openSheet(`${head(vLabel(Q.vid), 'Key ' + Q.ch.key + (Q.transposed ? ' (transposed)' : '') + (Q.roman ? ' · numerals' : '') + ' · ' + (Q.levelName || QUIZ_LEVEL_NAMES[Q.level]))}${chartHtml(Q.ch, view)}<div class="sp"></div>${body}`, endTrain);
   const q = $('#panel .qq'); if (q) q.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 function quizAnswer(pc, fam) {
   const s = Q.slots[Q.ask[Q.pos]], sharp = sharpKey(Q.ch.key);
   const ok = pc === s.root && fam === s.fam;
   Q.res[Q.ask[Q.pos]] = ok;
-  Q.fb = ok ? `<span class="qok">✓ ${esc(s.x)}</span>` : (pc == null ? `It's <b>${esc(s.x)}</b>` : `<span class="qno">✗ ${esc((pc === s.root ? s.x.match(/^[A-G][#b]?/)[0] : pcName(pc, sharp)) + famSym(fam))}</span> – it's <b>${esc(s.x)}</b>`);
+  const D = esc(quizDisp(s.x)), mine = Q.roman ? quizAnsLabel(pc, fam) : (pc === s.root ? s.x.match(/^[A-G][#b]?/)[0] : pcName(pc, sharp)) + famSym(fam);
+  Q.fb = ok ? `<span class="qok">✓ ${D}</span>` : (pc == null ? `It's <b>${D}</b>` : `<span class="qno">✗ ${esc(mine)}</span> – it's <b>${D}</b>`);
   const from = Q.ask[Q.pos]; Q.pick = null; Q.pos++;
   quizPlay(from, Q.pos < Q.ask.length ? Q.ask[Q.pos] : Q.slots.length);
   if (Q.pos >= Q.ask.length) quizFinish();
@@ -1844,9 +1873,13 @@ const A = {
       fd => { t.keys = [...(t.keys || []), fd.k]; save(); setTimeout(() => openTuneSheet(t.id + '@' + fd.k), 0); }); }); },
   delTuneKey: el => { const vid = el.dataset.id, t = tuneOf(vid), k = vKey(vid); if (!confirm(`Stop tracking ${t.name} in ${k}? Its progress is removed.`)) return;
     t.keys = (t.keys || []).filter(x => x !== k); delete P().tunes[vid]; save(); openTuneSheet(t.id); },
-  setChartKey: el => { const t = tuneOf(el.dataset.id); const e = libEntry(t);
-    formSheet('Chart key', `<p class="muted">The key is guessed from the chart's chords. If it's wrong, transposed keys will be off too.</p><label class="f">Key the chart is written in (alto)</label>
-      <select name="k">${[...MAJOR_KEYS, ...MINOR_KEYS].map(k => `<option ${k === (t.chartKey || e.k) ? 'selected' : ''}>${k}</option>`).join('')}</select>`, fd => { t.chartKey = fd.k; save(); setTimeout(() => openTuneSheet(t.id, { chart: true }), 0); }); },
+  // Home key, shown and chosen in the player's own key; stored relative to the chart as written.
+  setChartKey: el => { const t = tuneOf(el.dataset.id), e = libEntry(t); if (!e) return;
+    const shift = t.custom ? 0 : TRANSP[instTr()], shown = transposeKeyName(t.chartKey || e.k, shift);
+    formSheet('Home key of ' + t.name, `<p class="muted" style="margin-top:0">Guessed from the chart's chords, so it's sometimes wrong. It sets where Roman numerals count from and how extra keys are transposed.</p>
+      <label class="f">Home key (as you read it on ${esc(curInst().name)})</label>
+      <select name="k">${[...MAJOR_KEYS, ...MINOR_KEYS].map(k => `<option ${k === shown ? 'selected' : ''}>${k}</option>`).join('')}</select>`,
+      fd => { const k = transposeKeyName(fd.k, -shift); if (t.custom) t.custom.k = k; else t.chartKey = k; save(); toast('Home key: ' + fd.k); setTimeout(() => openTuneSheet(t.id), 0); }); },
   findChart: el => { const t = tuneOf(el.dataset.id); loadLibrary().then(() => {
     formSheet('Find a chart for ' + t.name, `<label class="f">Title in the library</label><input type="text" name="q" list="libList" value="${esc(t.name)}"><datalist id="libList">${LIB.map(e => `<option value="${esc(e.t)}">`).join('')}</datalist>`,
       fd => { const e = LIB.byNorm.get(normT(fd.q)); if (!e) { toast('No chart with that title'); return false; } t.chart = e.t; delete t.custom; t.style = t.style || e.s; t.composer = t.composer || e.c; save(); toast('Chart linked'); setTimeout(() => openTuneSheet(t.id, { chart: true }), 0); });
@@ -1859,14 +1892,18 @@ const A = {
   quizPick: () => loadLibrary().then(quizPickSheet).catch(() => toast('Could not load charts – are you offline?')),
   quizStart: el => loadLibrary().then(() => quizSetup(el.dataset.id)).catch(() => toast('Could not load charts – are you offline?')),
   quizGo: el => { const lv = ($('#panel input[name=ql]:checked') || {}).value || 'key'; S.settings.quizLevel = lv; save(true);
-    const ch = chartFor(el.dataset.id); if (!ch) { toast('No chart'); return; }
+    let ch = chartFor(el.dataset.id); if (!ch) { toast('No chart'); return; }
+    const ks = $('#qKey').value; S.settings.quizKey = ks === 'random' ? 'random' : 'orig';
+    if (ks === 'random') { const keys = (isMinorKey(ch.key) ? MINOR_KEYS : MAJOR_KEYS).filter(k => k !== ch.key); ch = transposeChart(ch, keys[Math.floor(Math.random() * keys.length)]); }
+    else if (ks !== 'orig') ch = transposeChart(ch, ks);
     const slots = quizSlots(ch), want = QUIZ_LEVELS[lv], idx = {};
     slots.forEach((sl, i) => idx[sl.bi + ':' + sl.ci] = i);
     Q = { vid: el.dataset.id, ch, slots, idx, level: lv, ask: slots.map((sl, i) => want.includes(sl.imp) ? i : -1).filter(i => i >= 0), pos: 0, res: {}, pick: null, fb: '' };
-    Q.hear = $('#qHear').checked; S.settings.quizHear = Q.hear; save(true);
+    Q.hear = $('#qHear').checked; S.settings.quizHear = Q.hear; Q.roman = S.settings.quizAns === 'roman'; Q.transposed = ks !== 'orig'; save(true);
     if (S.settings.quizMode === 'free') { Q.mode = 'free'; Q.askSet = new Set(Q.ask); Q.len = S.settings.quizLen || 4; Q.target = Q.ask[0]; Q.win = Q.slots[Q.ask[0]]?.bi || 0; }
     startTrain('quiz'); if (!Q.ask.length) { toast('Nothing to ask at this level'); return; } quizRender();
     if (Q.mode === 'free') { if (Q.hear) quizPlayBars(Q.win, Q.win + Q.len); } else quizPlay(0, Q.ask[0]); },
+  quizAns: el => { S.settings.quizAns = el.dataset.v; save(true); quizSetup(QS.vid); },
   quizMode: el => { S.settings.quizMode = el.dataset.m; save(true); quizSetup(QS.vid); },
   quizLen: el => { S.settings.quizLen = +el.dataset.n; save(true); quizSetup(QS.vid); },
   quizSlot: (el, e) => { e.stopPropagation(); const si = +el.dataset.si; if (Q.res[si] != null) return; Q.target = si; Q.win = Q.slots[si].bi; quizRender(); if (Q.hear) quizPlayBars(Q.win, Q.win + Q.len); },
