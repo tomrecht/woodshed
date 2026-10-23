@@ -182,6 +182,17 @@ nav#tabs button.on{color:var(--accent)}
   color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hide{display:none!important}
+#cele{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:20px}
+.celeBox{position:relative;overflow:hidden;background:var(--surface);border-radius:20px;padding:24px 20px 16px;max-width:400px;width:100%;text-align:center;animation:pop .35s ease-out}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.celeItem{display:flex;gap:12px;align-items:center;text-align:left;background:var(--surface2);border-radius:12px;padding:10px 12px;margin-top:8px}
+.celeItem>span{font-size:1.7rem}
+.conf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.conf i{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:fall 2s ease-in forwards;opacity:.9}
+@keyframes fall{to{top:110%;transform:rotate(540deg)}}
+.recapHead{position:relative;text-align:center;padding:10px 0 6px}
+.chdone{border:1px solid var(--good)}
+.stats3 small{display:block}
 .chart{font-size:.92rem;margin:4px 0}
 .crow{display:grid;grid-template-columns:repeat(4,1fr);border-left:2px solid var(--line)}
 .cbar{position:relative;border-right:2px solid var(--line);border-bottom:1px solid var(--line);padding:15px 4px 6px;min-height:48px}
@@ -266,6 +277,7 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
 </nav>
 <div id="sheet"><div class="bk" data-act="closeSheet"></div><div class="panel" id="panel"></div></div>
 <div id="toast"></div>
+<div id="cele" class="hide"><div class="celeBox"><div id="celeConf" class="conf"></div><div style="font-size:2.6rem">🎉</div><div id="celeBody"></div><button class="btn primary big" data-act="celeOk">Nice!</button></div></div>
 <input type="file" id="fileIn" accept="image/*" class="hide">
 <input type="file" id="importIn" accept="application/json,.json" class="hide">
 
@@ -784,27 +796,75 @@ const priorFrom = (h, m) => Math.max(0, (+h || 0) + (+m || 0) / 60);
 const totalHours = (p = P()) => (p.priorHours || 0) + totalMinutes(p) / 60;
 function dayMins(p = P()) { const m = {}; for (const s of p.sessions) { const k = dayKey(s.start); m[k] = (m[k] || 0) + s.min; } return m; }
 function weekDaysCount(mon, dm) { let c = 0; for (let i = 0; i < 7; i++) if (dm[dayKey(addDays(mon, i))]) c++; return c; }
-function streaks(p = P()) {
-  const dm = dayMins(p), goal = S.settings.goal;
-  let mon = monday(Date.now()), cur = 0;
-  if (weekDaysCount(mon, dm) >= goal) cur++;
-  for (let i = 0; i < 520; i++) { mon = addDays(mon, -7); if (weekDaysCount(mon, dm) >= goal) cur++; else break; }
-  // best streak
-  const starts = p.sessions.map(s => s.start); let best = cur;
-  if (starts.length) { let m = monday(Math.min(...starts)), run = 0; const end = monday(Date.now());
-    while (m <= end) { if (weekDaysCount(m, dm) >= goal) { run++; best = Math.max(best, run); } else if (m < end) run = 0; m = addDays(m, 7); } }
-  return { cur, best };
+/* ---------- weeks: goals, streak (with freezes), XP multiplier and bonuses ----------
+   A week counts toward the streak when you practise on at least `goal` days. Every 4 streak weeks earns a freeze (max 2),
+   used automatically on a missed week. Practice XP is multiplied by 1 + 0.1 × the streak going into the week (max ×2). */
+const weekMinGoal = () => S.settings.minGoal ?? 300;
+function weekHistory(p = P()) {
+  const dm = dayMins(p), goal = S.settings.goal, minGoal = weekMinGoal(), now = monday(Date.now());
+  if (!p.sessions.length) return { weeks: [], cur: 0, best: 0, freezes: 0 };
+  let m = monday(Math.min(...p.sessions.map(x => x.start))), streak = 0, best = 0, freezes = 0; const weeks = [];
+  while (m <= now) {
+    let days = 0, min = 0; for (let i = 0; i < 7; i++) { const v = dm[dayKey(addDays(m, i))] || 0; if (v) days++; min += v; }
+    const current = +m === +now, met = days >= goal, minMet = min >= minGoal, before = streak; let frozen = false;
+    if (met) { streak++; if (streak % 4 === 0 && freezes < 2) freezes++; }
+    else if (!current) { if (freezes > 0 && streak > 0) { freezes--; frozen = true; } else streak = 0; }
+    best = Math.max(best, streak);
+    const mult = 1 + 0.1 * Math.min(10, before);
+    const bonus = (met ? 50 + 10 * Math.min(10, before) : 0) + (minMet ? 50 : 0);
+    weeks.push({ mon: new Date(m), key: dayKey(m), days, min, met, minMet, frozen, before, streak, mult, bonus, current });
+    m = addDays(m, 7);
+  }
+  return { weeks, cur: streak, best, freezes };
 }
+function streaks(p = P()) { const w = weekHistory(p); return { cur: w.cur, best: w.best, freezes: w.freezes }; }
 const BADGE_XP = 50;
 function xpCalc(p = P()) {
-  let xp = totalMinutes(p);
+  let xp = 0;
+  for (const w of weekHistory(p).weeks) xp += Math.round(w.min * w.mult) + w.bonus;   // practice time × streak multiplier, weekly bonuses
+  xp += CHALLENGE_XP * Object.values(p.challenges || {}).filter(c => c.done).length;
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
   for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0) + (r.qz?.xp || 0); }
   xp += p.train?.xp || 0;
   xp += BADGE_XP * Object.keys(p.badges || {}).filter(id => !(p.badgesNoXp || {})[id]).length;
   return xp;
 }
+// Jazz ranks for levels
+const RANKS = [[1, 'Practice Room'], [3, 'Woodshedder'], [5, 'Jam Session Regular'], [8, 'Sideman'], [12, 'Section Leader'], [16, 'Featured Soloist'], [21, 'Bandleader'], [27, 'Headliner'], [35, 'Legend']];
+const rankOf = n => RANKS.filter(r => n >= r[0]).pop()[1];
 function level(xp) { let n = 1; while (100 * n * (n + 1) / 2 <= xp) n++; const base = 100 * (n - 1) * n / 2, next = 100 * n * (n + 1) / 2; return { n, base, next }; }
+
+/* ---------- weekly challenge: one rotating target per week ---------- */
+const CHALLENGE_XP = 100;
+const CHALLENGES = [
+  { id: 'records', text: 'Set 3 tempo records', goal: 3, prog: (p, ws) => p.hist.filter(h => h.t >= ws && h.prev != null && h.bpm > h.prev).length },
+  { id: 'tunecp', text: 'Tick 3 tune checkpoints', goal: 3, prog: (p, ws) => Object.values(p.tunes).reduce((a, r) => a + Object.values(r.cp || {}).filter(t => t >= ws).length, 0) },
+  { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, prog: (p, ws) => (p.qlog || []).filter(t => t >= ws).length },
+  { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(p.trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
+  { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
+  { id: 'sections', text: 'Work on exercises from 5 different categories', goal: 5, prog: (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean)).size },
+  { id: 'licks', text: 'Practise 4 different licks', goal: 4, prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
+  { id: 'review', text: 'Do 2 tune reviews (or start learning a new tune)', goal: 2, prog: (p, ws) => Object.values(p.tunes).filter(r => (r.rv?.last || 0) >= ws).length },
+];
+function weekChallenge(p = P()) {
+  const ws = monday(Date.now()).getTime(), key = dayKey(ws);
+  p.challenges = p.challenges || {};
+  if (!p.challenges[key]) { let h = 0; for (const ch of key + S.cur) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    p.challenges[key] = { id: CHALLENGES[h % CHALLENGES.length].id }; }
+  const rec = p.challenges[key], c = CHALLENGES.find(x => x.id === rec.id) || CHALLENGES[0];
+  const prog = c.prog(p, ws);
+  return { key, c, rec, prog: Math.min(prog, c.goal), done: !!rec.done };
+}
+
+/* ---------- personal bests ---------- */
+function personalBests(p = P()) {
+  const wh = weekHistory(p), months = {};
+  for (const x of p.sessions) { const d = new Date(x.start), k = d.getFullYear() + '-' + (d.getMonth() + 1); months[k] = (months[k] || 0) + x.min; }
+  return { week: Math.max(0, ...wh.weeks.map(w => w.min)), month: Math.max(0, ...Object.values(months)), session: Math.max(0, ...p.sessions.map(x => x.min)), streak: wh.best };
+}
+const PB_NAMES = { week: 'Best week', month: 'Best month', session: 'Longest session', streak: 'Longest streak' };
+const pbFmt = (k, v) => k === 'streak' ? v + ' week' + (v === 1 ? '' : 's') : fmtMin(v);
+function nextMilestone(h) { const ms = hourMilestones(h); const next = ms.find(m => m > h); const prev = [0, ...ms].filter(m => m <= h).pop(); return { next, prev }; }
 
 /* ---------- badges ---------- */
 function hourMilestones(h) { const out = [10, 50]; for (let m = 100; m <= Math.max(100, h + 100); m += 100) out.push(m); return out; }
@@ -849,15 +909,44 @@ function badgeList() {
   ];
   return B.map(([id, ic, name, desc, ok]) => ({ id, ic, name, desc, ok }));
 }
-function checkBadges(silent) {
-  const p = P(); p.badges = p.badges || {}; const fresh = [];
-  p.badgesNoXp = p.badgesNoXp || {};
+function checkBadges(silent) { return checkAchievements({ silent }); }
+// Compare against what has already been celebrated; return or show anything new.
+function checkAchievements(opts = {}) {
+  const p = P(), items = []; p.badges = p.badges || {}; p.badgesNoXp = p.badgesNoXp || {};
   for (const b of badgeList()) if (b.ok && !p.badges[b.id]) {
     p.badges[b.id] = Date.now();
-    if (/^h\d+$/.test(b.id) && +b.id.slice(1) <= (p.priorHours || 0)) p.badgesNoXp[b.id] = 1; else fresh.push(b);
+    if (/^h\d+$/.test(b.id) && +b.id.slice(1) <= (p.priorHours || 0)) p.badgesNoXp[b.id] = 1;
+    else items.push({ ic: b.ic, title: b.id.startsWith('sec:') ? b.name + ' complete!' : b.name, sub: b.desc + ' · +' + BADGE_XP + ' XP' });
   }
+  const first = !p.cel; const cel = p.cel = p.cel || { wk: {}, pb: {} };
+  const lv = level(xpCalc(p)).n;
+  if (!first && cel.lv && lv > cel.lv) items.push({ ic: '⬆️', title: 'Level ' + lv + (rankOf(lv) !== rankOf(cel.lv) ? ' – ' + rankOf(lv) : ''), sub: rankOf(lv) !== rankOf(cel.lv) ? 'New rank!' : 'Keep it up' });
+  cel.lv = Math.max(cel.lv || 0, lv);
+  const wh = weekHistory(p), w = wh.weeks[wh.weeks.length - 1];
+  if (w && w.current) { const seen = cel.wk[w.key] = cel.wk[w.key] || {};
+    if (w.met && !seen.d) { seen.d = 1; if (!first) items.push({ ic: '🔥', title: 'Weekly goal reached', sub: `${wh.cur}-week streak · +${50 + 10 * Math.min(10, w.before)} XP${wh.cur % 4 === 0 && wh.cur ? ' · 🧊 freeze earned' : ''}` }); }
+    if (w.minMet && !seen.m) { seen.m = 1; if (!first) items.push({ ic: '⏱️', title: fmtMin(weekMinGoal()) + ' this week', sub: 'Weekly time goal reached · +50 XP' }); } }
+  const ch = weekChallenge(p);
+  if (!ch.done && ch.prog >= ch.c.goal) { ch.rec.done = Date.now(); items.push({ ic: '🎯', title: 'Challenge complete', sub: ch.c.text + ' · +' + CHALLENGE_XP + ' XP' }); }
+  const pb = personalBests(p);
+  for (const k in pb) { const old = cel.pb[k] || 0; if (!first && old > 0 && pb[k] > old) items.push({ ic: '🏅', title: 'New record: ' + PB_NAMES[k].toLowerCase(), sub: pbFmt(k, pb[k]) + ' (was ' + pbFmt(k, old) + ')' }); cel.pb[k] = Math.max(old, pb[k]); }
   save(true);
-  if (fresh.length) { save(true); if (!silent) toast(fresh.map(b => b.ic + ' ' + (b.id.startsWith('sec:') ? b.name + ' complete!' : b.name)).join('  ·  ') + '  +' + BADGE_XP * fresh.length + ' XP'); }
+  if (opts.collect) return items;
+  if (!opts.silent && items.length) celebrate(items);
+  return items;
+}
+const CELE = { queue: [] };
+function celebrate(items) {
+  const box = $('#cele'); if (!box) return;
+  const colors = ['#f0a83c', '#6cc28a', '#e0675f', '#8ab4f8', '#f3d36b'];
+  $('#celeConf').innerHTML = Array.from({ length: 46 }, () => `<i style="left:${Math.random() * 100}%;background:${colors[Math.floor(Math.random() * colors.length)]};animation-delay:${Math.random() * .6}s;animation-duration:${1.6 + Math.random() * 1.2}s;transform:rotate(${Math.random() * 360}deg)"></i>`).join('');
+  $('#celeBody').innerHTML = items.map(it => `<div class="celeItem"><span>${it.ic}</span><div><b>${esc(it.title)}</b><br><small>${esc(it.sub || '')}</small></div></div>`).join('');
+  box.classList.remove('hide'); flourish();
+}
+function flourish() {
+  if (S.settings.celeSound === false) return;
+  try { const ctx = audioCtx(); loadPiano().then(() => { const out = masterBus(ctx), t = ctx.currentTime + 0.05;
+    [60, 64, 67, 71, 74, 79].forEach((m, i) => playSample(ctx, out, m, t + i * 0.07, 1.4, 0.32)); }); } catch (e) {}
 }
 
 /* ---------- session plan ---------- */
@@ -916,7 +1005,8 @@ function heatColor(b) {
 function vHome() {
   const p = P(), xp = xpCalc(p), lv = level(xp), pct = Math.round(100 * (xp - lv.base) / (lv.next - lv.base));
   const dm = dayMins(p), mon = monday(Date.now()), today = dayKey(Date.now());
-  const days = weekDaysCount(mon, dm), goal = S.settings.goal, st = streaks(p);
+  const days = weekDaysCount(mon, dm), goal = S.settings.goal, wh = weekHistory(p), st = { cur: wh.cur }, curW = wh.weeks[wh.weeks.length - 1];
+  const mg = weekMinGoal(), mult = 1 + 0.1 * Math.min(10, curW && curW.current ? curW.before : wh.cur), ms = nextMilestone(totalHours(p)), ch = weekChallenge(p);
   const weekMin = [0, 1, 2, 3, 4, 5, 6].reduce((a, i) => a + (dm[dayKey(addDays(mon, i))] || 0), 0);
   const wk = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => { const k = dayKey(addDays(mon, i));
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
@@ -941,13 +1031,18 @@ function vHome() {
   const backupDue = !Sync.on && p.sessions.length > 3 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * DAY);
   return `
   <section class="card"><div class="lvl"><div class="lvbadge">Lv ${lv.n}</div><div class="grow">
-    <div class="row"><b class="grow">${xp.toLocaleString()} XP</b><small>${(lv.next - xp).toLocaleString()} to Lv ${lv.n + 1}</small></div>
-    <div class="bar"><i style="width:${pct}%"></i></div></div></div></section>
+    <div class="row"><b class="grow">${esc(rankOf(lv.n))}</b><small>${xp.toLocaleString()} XP</small></div>
+    <div class="bar"><i style="width:${pct}%"></i></div><small class="muted">${(lv.next - xp).toLocaleString()} XP to Lv ${lv.n + 1}${rankOf(lv.n + 1) !== rankOf(lv.n) ? ' – ' + esc(rankOf(lv.n + 1)) : ''}</small></div></div>
+    ${ms.next ? `<div style="margin-top:10px"><div class="row"><small class="grow">⏳ Next milestone: <b>${ms.next.toLocaleString()} hours</b></small><small>${fmtHM(ms.next - totalHours(p))} to go</small></div>
+      <div class="bar"><i style="width:${Math.round(100 * (totalHours(p) - ms.prev) / (ms.next - ms.prev))}%;background:var(--good)"></i></div></div>` : ''}</section>
   <section class="card"><h3>This week</h3><div class="week">${wk}</div>
-    <div class="stats3"><div><small>Days</small><strong>${days}/${goal}</strong></div><div><small>Time</small><strong>${fmtMin(weekMin)}</strong></div><div><small>Streak</small><strong>🔥 ${st.cur}w</strong></div></div>
+    <div class="stats3"><div><small>Days</small><strong>${days}/${goal}</strong></div><div><small>Time</small><strong>${fmtMin(weekMin)}</strong><small>of ${fmtMin(mg)}</small></div><div><small>Streak</small><strong>🔥 ${st.cur}w</strong><small>${wh.freezes ? '🧊'.repeat(wh.freezes) + ' ' : ''}XP ×${mult.toFixed(1)}</small></div></div>
+    <div class="bar" style="margin-top:8px" title="Weekly time goal"><i style="width:${Math.min(100, Math.round(100 * weekMin / mg))}%"></i></div>
     ${S.session ? '' : `<button class="btn primary big" data-act="startSession">Start practice session</button>`}
     <button class="btn" style="width:100%;margin-top:8px" data-act="logPast">+ Log practice time (practiced without the app)</button>
   </section>
+  <section class="card ${ch.done ? 'chdone' : ''}"><div class="row"><span style="font-size:1.5rem">🎯</span><div class="grow"><small class="muted">This week's challenge · +${CHALLENGE_XP} XP</small><br><b>${esc(ch.c.text)}</b></div><b>${ch.done ? '✓' : ch.prog + '/' + ch.c.goal}</b></div>
+    ${ch.done ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${Math.round(100 * ch.prog / ch.c.goal)}%"></i></div>`}</section>
   ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
   <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="Replace the whole plan">↻ all</button></h3><ul class="plan">${planHtml}</ul>
     <div class="row wrap" style="margin-top:8px"><small class="grow">Add:</small><button class="btn sm" data-act="planAdd" data-t="ex">+ Exercise</button><button class="btn sm" data-act="planAdd" data-t="lick">+ Lick</button><button class="btn sm" data-act="planAdd" data-t="tune">+ Tune</button></div></section>
@@ -1059,6 +1154,7 @@ function vMore() {
   return `
   <section class="card"><h3>Badges <small>${got.length}/${bl.length}</small></h3>
     <div class="badges">${[...got, ...bl.filter(b => !p.badges[b.id])].map(b => `<div class="bdg ${p.badges[b.id] ? 'on' : ''}" title="${esc(b.desc)}"><span class="ic">${b.ic}</span><b>${esc(b.name)}</b>${esc(b.desc)}</div>`).join('')}</div></section>
+  <section class="card"><h3>Personal bests</h3><div class="stats3" style="flex-wrap:wrap">${Object.entries(personalBests(p)).map(([k, v]) => `<div style="min-width:40%"><small>${PB_NAMES[k]}</small><strong>${v ? pbFmt(k, v) : '—'}</strong></div>`).join('')}</div></section>
   <section class="card"><h3>Minutes per week</h3><svg viewBox="0 0 300 116" width="100%">${bars}</svg>
     <small>Last 12 weeks · this week highlighted</small></section>
   <section class="card"><h3><span class="grow">Sessions</span><button class="btn sm" data-act="logPast">+ Log past session</button></h3><ul class="list">${sess || '<li class="muted">No sessions yet.</li>'}</ul></section>
@@ -1068,6 +1164,9 @@ function vMore() {
     <label class="f">Suggested plan size: exercises · licks · tunes</label>
     <div class="row">${['ex', 'lick', 'tune'].map(k => `<select data-plansz="${k}">${[0, 1, 2, 3, 4, 5, 6].map(n => `<option ${planSize()[k] === n ? 'selected' : ''}>${n}</option>`).join('')}</select>`).join('')}</div>
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="drumsChk" ${S.settings.drums !== false ? 'checked' : ''}><span class="grow">Drums when playing chords (ride cymbal and hi-hat)</span></label></div>
+    <label class="f">Weekly time goal</label><select id="minGoalSel">${[60, 120, 180, 240, 300, 360, 420, 480, 600, 720, 900].map(m => `<option value="${m}" ${m === weekMinGoal() ? 'selected' : ''}>${fmtMin(m)}</option>`).join('')}</select>
+    <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="celeChk" ${S.settings.celeSound !== false ? 'checked' : ''}><span class="grow">Sound with celebrations</span></label></div>
+    <details style="margin-top:10px"><summary class="muted">How XP works</summary><p class="muted" style="font-size:.88rem">1 XP per practice minute, multiplied by your streak (+10% per streak week, up to ×2). Weekly goal met: +50, plus 10 per streak week (up to +150). Weekly time goal met: +50. Weekly challenge: +100. Tempo record +10 (first tempo +2), tune checkpoint +10, review +5, quiz +2 per correct chord, ear training +2 per right answer, rhythm passed +2, badge +50. Every 4 streak weeks earns a 🧊 freeze (max 2) that covers a missed week.</p></details>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}<br><small>${fmtHM(totalHours(S.prog[i.id]))}</small></span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
@@ -1105,6 +1204,8 @@ function render() {
     $$('[data-plansz]').forEach(sel => sel.onchange = () => { S.settings.plan = Object.assign(planSize(), { [sel.dataset.plansz]: +sel.value }); S.plan = null; save(); });
     const sf = $('#syncForm'); if (sf) sf.onsubmit = async e => { e.preventDefault(); const t = $('#syncToken').value.trim(); if (!t) return; sf.querySelector('button').disabled = true; await Sync.connect(t); render(); };
     $('#drumsChk').onchange = e => { S.settings.drums = e.target.checked; save(); };
+    $('#minGoalSel').onchange = e => { S.settings.minGoal = +e.target.value; save(); checkAchievements({ silent: true }); render(); };
+    $('#celeChk').onchange = e => { S.settings.celeSound = e.target.checked; save(); };
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
   }
 }
@@ -1354,6 +1455,7 @@ function quizAnswer(pc, fam) {
 function quizFinish() {
   const right = Object.values(Q.res).filter(v => v).length, pct = Q.ask.length ? Math.round(100 * right / Q.ask.length) : 100;
   const r = tuneRec(Q.vid), qz = r.qz = r.qz || { n: 0, best: 0, xp: 0 };
+  P().qlog = [...(P().qlog || []), Date.now()].slice(-200);
   qz.n++; qz.last = pct; qz.best = Math.max(qz.best || 0, pct); qz.xp = (qz.xp || 0) + 2 * right; qz.at = Date.now();
   if (pct === 100 && Q.level === 'all') qz.perfect = true;
   let summary = `<small>+${2 * right} XP</small>`;
@@ -1409,7 +1511,30 @@ function tickSession() {
 setInterval(tickSession, 1000);
 
 function saveSessionRecord(start, min, note, items) {
-  P().sessions.push({ id: uid(), start, min, note: note || '', items: items || [] }); save(); checkBadges();
+  const xpBefore = xpCalc();
+  P().sessions.push({ id: uid(), start, min, note: note || '', items: items || [] }); save();
+  sessionRecap({ start, min, items: items || [] }, xpBefore, checkAchievements({ collect: true }));
+}
+function sessionRecap(sess, xpBefore, got) {
+  const p = P(), xp = xpCalc(p), lv = level(xp), wh = weekHistory(p), w = wh.weeks[wh.weeks.length - 1] || { days: 0, min: 0, met: false }, goal = S.settings.goal, mg = weekMinGoal();
+  const recs = p.hist.filter(h => h.t >= sess.start && h.prev != null && h.bpm > h.prev);
+  const worked = [...new Set(sess.items.map(itemLabel))];
+  const daysLeft = 6 - (new Date().getDay() + 6) % 7, need = Math.max(0, goal - w.days);
+  const streakMsg = w.met ? `🔥 Weekly goal reached – ${wh.cur}-week streak` : need <= daysLeft
+    ? `${need} more practice day${need === 1 ? '' : 's'} this week ${wh.cur ? 'keeps your ' + wh.cur + '-week streak going' : 'starts a streak'}`
+    : wh.freezes && wh.cur ? `Can't make ${goal} days this week – a 🧊 freeze will save your ${wh.cur}-week streak` : `Next week is a fresh start for the streak`;
+  openSheet(`<div class="recapHead">${got.length ? '<div id="recapConf" class="conf"></div>' : ''}<div style="font-size:2.4rem">🎷</div><h2>${fmtMin(sess.min)} logged</h2>
+      <p class="muted" style="margin:4px 0 0">+${(xp - xpBefore).toLocaleString()} XP · Lv ${lv.n} ${esc(rankOf(lv.n))}</p></div>
+    ${got.map(it => `<div class="celeItem"><span>${it.ic}</span><div><b>${esc(it.title)}</b><br><small>${esc(it.sub || '')}</small></div></div>`).join('')}
+    <div class="card" style="background:var(--surface2);margin-top:10px"><b>This week</b>
+      <div class="row" style="margin-top:6px"><small class="grow">Days ${w.days}/${goal}</small><small>${fmtMin(w.min)} / ${fmtMin(mg)}</small></div>
+      <div class="bar"><i style="width:${Math.min(100, Math.round(100 * w.min / mg))}%"></i></div>
+      <p style="margin:8px 0 0">${streakMsg}</p></div>
+    ${recs.length ? `<h3 style="margin:12px 0 4px">Tempo records</h3><ul class="list">${recs.map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><b style="color:var(--accent)">${Tk(h.k, h.bpm)}</b></li>`).join('')}</ul>` : ''}
+    ${worked.length ? `<h3 style="margin:12px 0 4px">Worked on</h3><p class="muted" style="margin:0;font-size:.9rem">${worked.slice(0, 10).map(esc).join(' · ')}${worked.length > 10 ? ' …' : ''}</p>` : ''}
+    <button class="btn primary big" data-act="closeSheet">Done</button>`);
+  if (got.length) { const c = $('#recapConf'), colors = ['#f0a83c', '#6cc28a', '#e0675f', '#8ab4f8', '#f3d36b'];
+    c.innerHTML = Array.from({ length: 36 }, () => `<i style="left:${Math.random() * 100}%;background:${colors[Math.floor(Math.random() * 5)]};animation-delay:${Math.random() * .5}s;animation-duration:${1.4 + Math.random()}s"></i>`).join(''); flourish(); }
 }
 
 /* ---------- metronome ---------- */
@@ -1580,7 +1705,7 @@ function endTrain() {
   if (min >= 1) { const p = P(); p.away = p.away || []; p.away.push({ t: TR.start, min: Math.min(min, 90), kind: TR.kind }); save(); }
   TR.start = null;
 }
-function trainScore(ok, kind) { const p = P(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); }
+function trainScore(ok, kind) { const p = P(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; if (ok) { p.trainDays = p.trainDays || {}; const d = dayKey(Date.now()); p.trainDays[d] = (p.trainDays[d] || 0) + 1; } p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); checkAchievements(); }
 const awayMinutes = (since = 0) => (P().away || []).filter(a => a.t >= since).reduce((s, a) => s + a.min, 0);
 
 /* ---------- ear training: progressions ---------- */
@@ -1856,6 +1981,7 @@ const A = {
     const inp = el.closest('td').querySelector('input'); inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]); el.parentElement.innerHTML = ''; },
   keyUnit: el => { const ex = findEx(el.dataset.ex).ex, k = el.dataset.k; setKeyUnit(ex, k, uk(exKey(ex, k)) === 2 ? 1 : 2); save();
     toast(k + ': ' + (uk(exKey(ex, k)) === 2 ? 'half' : 'quarter') + ' notes'); sheetEx(ex.id); },
+  celeOk: () => $('#cele').classList.add('hide'),
   gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
@@ -1955,14 +2081,14 @@ const A = {
       <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" value="${min}" min="1">
       <label class="f">Note (optional)</label><input type="text" name="note" placeholder="How did it go?">`,
       fd => { const m = Math.round(+fd.min); if (!(m > 0)) { toast('Enter minutes'); return false; }
-        saveSessionRecord(s.start, m, fd.note, s.items); S.session = null; save(); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); toast('Session saved: ' + fmtMin(m) + '  +' + m + ' XP'); },
+        S.session = null; save(); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); setTimeout(() => saveSessionRecord(s.start, m, fd.note, s.items), 80); },
       `<button type="button" class="btn ghost danger" data-act="discardSession">Discard session</button>`);
   },
   discardSession: () => { if (confirm('Discard this session without saving?')) { S.session = null; save(); tickSession(); closeSheet(); } },
   logPast: () => formSheet('Log past session', `<label class="f">Date</label><input type="date" name="d" value="${dayKey(Date.now())}" max="${dayKey(Date.now())}">
       <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" min="1" placeholder="45"><label class="f">Note</label><input type="text" name="note">`,
     fd => { const m = Math.round(+fd.min); if (!(m > 0) || !fd.d) { toast('Enter date and minutes'); return false; } const [y, mo, d] = fd.d.split('-').map(Number);
-      saveSessionRecord(new Date(y, mo - 1, d, 12).getTime(), m, fd.note); toast('Logged ' + fmtMin(m)); }),
+      setTimeout(() => saveSessionRecord(new Date(y, mo - 1, d, 12).getTime(), m, fd.note), 80); }),
   delSession: el => { if (!confirm('Delete this session?')) return; const p = P(); p.sessions = p.sessions.filter(s => s.id !== el.dataset.id); save(); render(); },
   addSec: () => formSheet('New category', `<label class="f">Name</label><input type="text" name="name" required>`, fd => { const n = fd.name.trim(); if (!n) return false;
     S.lib.sections.push({ id: slug(n) + '-' + uid(), name: n, ex: [] }); save(); }),
