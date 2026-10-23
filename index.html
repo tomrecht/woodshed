@@ -1210,7 +1210,7 @@ function sheetTune(vid, opts = {}) {
       <div class="lvl3"><button data-act="review" data-id="${esc(vid)}" data-r="0">Shaky</button><button data-act="review" data-id="${esc(vid)}" data-r="1">OK</button><button data-act="review" data-id="${esc(vid)}" data-r="2">Solid</button></div></div>` : '';
   const qz = ts.qz;
   const chartBox = hasChart(t) ? `<div class="row wrap" style="margin:10px 0"><button class="btn primary grow" data-act="quizStart" data-id="${esc(vid)}">🧠 Quiz the changes</button><button class="btn grow" data-act="showChart" data-id="${esc(vid)}">${opts.chart ? 'Hide chart' : 'Show chart'}</button></div>
-      ${qz ? `<small class="muted">Changes quiz: last ${qz.last}% · best ${qz.best}% · ${qz.n} done</small>` : ''}
+      ${qz ? `<small class="muted">Changes quiz: last ${qz.last}% (${ago(qz.at)}) · best ${qz.best}% · ${qz.n} done</small>` : ''}
       ${opts.chart && ch ? `<div style="margin-top:8px">${chartHtml(ch)}</div><div class="row" style="margin-top:6px"><small class="muted grow">Key ${esc(ch.key)}${t.custom ? ' · typed in by you' : ' · from your iReal export'}</small>${t.custom ? `<button class="btn sm" data-act="editChart" data-id="${esc(id)}">Edit</button>` : ''}</div>` : ''}`
     : `<div class="card" style="background:var(--surface2);margin:10px 0"><b>No chart for this tune</b><p class="muted" style="margin:4px 0 8px;font-size:.9rem">It isn't in your iReal export under this name. You can search the library or type the changes in.</p>
       <div class="row wrap"><button class="btn sm" data-act="findChart" data-id="${esc(id)}">Search library</button><button class="btn sm" data-act="editChart" data-id="${esc(id)}">Type in changes</button></div></div>`;
@@ -1345,7 +1345,6 @@ function quizFinish() {
   const r = tuneRec(Q.vid), qz = r.qz = r.qz || { n: 0, best: 0, xp: 0 };
   qz.n++; qz.last = pct; qz.best = Math.max(qz.best || 0, pct); qz.xp = (qz.xp || 0) + 2 * right; qz.at = Date.now();
   if (pct === 100 && Q.level === 'all') qz.perfect = true;
-  touch('t:' + Q.vid);
   let summary = `<small>+${2 * right} XP</small>`;
   if (Q.level !== 'key' && tuneStatus(Q.vid) === 'done') { const ivl = applyReview(Q.vid, pct >= 90 ? 2 : pct >= 70 ? 1 : 0); summary += `<br><small>Counted as a review – next one in ${ivl} day${ivl === 1 ? '' : 's'}.</small>`; }
   if (pct === 100 && Q.level === 'all' && !r.cp?.c4) summary += `<div style="margin-top:8px"><button class="btn sm" data-act="cpQuick" data-id="${esc(Q.vid)}" data-c="c4">Tick "Changes: all from memory"</button></div>`;
@@ -1862,7 +1861,7 @@ const A = {
   pickItem: el => { const t = el.dataset.t, id = el.dataset.id;
     if (t === 'ex') { const o = findEx(id); if (o.ex.keys.length > 1) return pickKeySheet(o.ex); addToPlan({ t, id, key: o.ex.keys[0] }); }
     else addToPlan({ t, id }); closeSheet(); },
-  tuneStart: el => { tuneRec(el.dataset.id).started = true; touch('t:' + el.dataset.id); save(); toast('Added to your learning list'); sheetTune.refresh(); },
+  tuneStart: el => { tuneRec(el.dataset.id).started = true; save(); toast('Added to your learning list'); sheetTune.refresh(); },
   review: el => { const ivl = applyReview(el.dataset.id, +el.dataset.r); toast(['Shaky', 'OK', 'Solid'][+el.dataset.r] + ' – next review in ' + ivl + ' day' + (ivl === 1 ? '' : 's') + '  +' + REVIEW_XP + ' XP'); sheetTune.refresh(); },
   cpQuick: el => { setCheckpoint(el.dataset.id, el.dataset.c, true); el.remove(); },
   showChart: el => { loadLibrary().then(() => sheetTune(el.dataset.id, { chart: !/Hide/.test(el.textContent) })).catch(() => toast('Could not load charts – are you offline?')); },
