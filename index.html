@@ -305,6 +305,7 @@ const DIM7 = ['Eb-F#-A-C','E-G-Bb-C#','F-Ab-B-D'];
 const DIMSC = ['E-F#','F-G','F#-G#'];
 const WT = ['Eb-F','E-F#'];
 const NONE = ['—'];
+const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
 
@@ -320,7 +321,7 @@ function defaultLib() {
       sec('Harmonic minor', UDT(MIN)),
       sec('Arpeggios', [['Major triads – 16ths', MAJ], ['Minor triads – 16ths', MIN], ['Augmented triads – 16ths', AUG], ['Diminished 7ths – 16ths', DIM7]]),
       sec('Bebop scales', [['Bebop dominant – 16ths', MAJ], ['Bebop major – 16ths', MAJ]]),
-      sec('Diminished scale', UDT(DIMSC)),
+      sec('Diminished scale', [...UDT(DIMSC), ...DIM_PATTERNS.map(n => [n, DIMSC])]),
       sec('Whole-tone', [...UDT(WT), ...ADA('Triads', WT), ...ADA('Tetrads', WT)]),
       sec('Major triads & tetrads', [...ADA('Triads', MAJ), ...ADA('Tetrads', MAJ)]),
       sec('Melodic minor triads & tetrads', [...ADA('Triads', MIN), ...ADA('Tetrads', MIN)]),
@@ -413,6 +414,13 @@ function migrate() {
   if (S.libRev < 6) {
     for (const l of S.lib.licks) if (l.unit == null) l.unit = 2;   // licks default to half-note tempo
     S.libRev = 6;
+  }
+  if (S.libRev < 7) {   // new diminished-scale patterns
+    let sec = S.lib.sections.find(x => x.id === 'diminished-scale' || x.name.toLowerCase() === 'diminished scale');
+    if (!sec) { sec = { id: 'diminished-scale', name: 'Diminished scale', ex: [] }; S.lib.sections.push(sec); }
+    for (const n of DIM_PATTERNS) { const id = slug('Diminished scale ' + n);
+      if (!sec.ex.some(e => e.id === id || e.name === n)) sec.ex.push({ id, name: n, keys: [...DIMSC] }); }
+    S.libRev = 7;
   }
   if (!S.unitsPI) {
     // Quarter/half-note choices become per instrument. Choices made so far (anything that differs from the
