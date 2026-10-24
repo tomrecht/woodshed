@@ -2466,9 +2466,21 @@ const A = {
         const p = P(); p.rewards = p.rewards || []; p.rewards.push({ id: uid(), name: fd.name.trim(), type: fd.type, target, created: Date.now() }); save(); checkAchievements(); render(); });
     const tgt = () => { const ty = $('#rwType').value, p = P(), h = totalHours(p), wh = weekHistory(p), lv = level(xpCalc(p)).n;
       const sugg = { hours: Math.ceil((h + 1) / 100) * 100, streak: Math.max(4, wh.cur + 4), goalweeks: Math.max(10, wh.weeks.filter(w => w.met).length + 10), level: lv + 2, tunes: allVersions().filter(v => tuneStatus(v) === 'done').length + 5 }[ty];
-      $('#rwTarget').innerHTML = ty === 'tune' ? `<label class="f">Tune</label><select name="tune">${allVersions().map(v => `<option value="${esc(v)}">${esc(vLabel(v))}</option>`).join('')}</select>`
-        : ty === 'category' ? `<label class="f">Category</label><select name="cat">${S.lib.sections.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`
-        : `<label class="f">Target</label><input type="number" inputmode="numeric" name="target" min="1" value="${sugg}">`; };
+      // where you are now, so the target can be set sensibly
+      const now = { hours: h, streak: wh.cur, goalweeks: wh.weeks.filter(w => w.met).length, level: lv, tunes: allVersions().filter(v => tuneStatus(v) === 'done').length }[ty];
+      const unit = { hours: ' hours', streak: ' weeks', goalweeks: ' weeks', level: '', tunes: ' tunes' }[ty];
+      const nowTxt = ty === 'hours' ? fmtHM(h) : ty === 'level' ? 'Level ' + lv : now + unit;
+      $('#rwTarget').innerHTML = ty === 'tune' ? `<label class="f">Tune</label><select name="tune" id="rwSel">${allVersions().map(v => `<option value="${esc(v)}">${esc(vLabel(v))}</option>`).join('')}</select><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`
+        : ty === 'category' ? `<label class="f">Category</label><select name="cat" id="rwSel">${S.lib.sections.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`
+        : `<label class="f">Target</label><input type="number" inputmode="numeric" name="target" id="rwNum" min="1" value="${sugg}"><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`;
+      const upd = () => { const el = $('#rwNow'); if (!el) return;
+        if (ty === 'tune') { const v = $('#rwSel').value, n = CP_ALL.filter(c => tuneState(v).cp?.[c.id]).length;
+          el.textContent = 'Now: ' + (tuneStatus(v) === 'done' ? 'already learned' : n + ' of ' + CP_ALL.length + ' checkpoints'); return; }
+        if (ty === 'category') { const sec = S.lib.sections.find(x => x.id === $('#rwSel').value), ks = sec ? sec.ex.flatMap(ex => ex.keys.map(k => exKey(ex, k))) : [];
+          el.textContent = 'Now: ' + ks.filter(k => p.bpm[k]).length + ' of ' + ks.length + ' keys logged'; return; }
+        const t = +$('#rwNum').value, left = t - now;
+        el.innerHTML = `Now: <b style="color:var(--text)">${esc(nowTxt)}</b>` + (t > 0 ? ' · ' + (left > 0 ? (ty === 'hours' ? fmtHM(left) : ty === 'level' ? left + ' level' + (left === 1 ? '' : 's') : left + (ty === 'streak' ? ' weeks' : unit)) + ' to go' : 'already there') : ''); };
+      ($('#rwSel') || $('#rwNum')).oninput = upd; ($('#rwSel') || $('#rwNum')).onchange = upd; upd(); };
     $('#rwType').onchange = tgt; tgt(); }); },
   claimReward: el => { const r = (P().rewards || []).find(x => x.id === el.dataset.id); if (r) { r.claimed = Date.now(); save(); toast('Enjoy it! 🎷'); render(); } },
   delReward: el => { const p = P(); if (!confirm('Delete this reward?')) return; p.rewards = (p.rewards || []).filter(x => x.id !== el.dataset.id); save(); render(); },
