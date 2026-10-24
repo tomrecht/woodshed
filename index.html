@@ -144,6 +144,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .lcard .im img{width:100%;height:100%;object-fit:cover;object-position:left center}
 .lcard .t{padding:8px 10px;display:flex;justify-content:space-between;gap:6px}
 .lickimg{background:#fff;border-radius:10px;width:100%;display:block;margin:8px 0}
+.sheetmusic{margin:10px 0}.smpage{position:relative}.smdel{position:absolute;top:14px;right:6px;background:var(--surface2)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:6px 12px;white-space:nowrap;font-size:.9rem}
 .chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
@@ -541,6 +542,8 @@ const idb = (() => {
     all: () => tx('readonly', s => s.getAllKeys()) };
 })();
 const imgCache = {};
+// Every image id stored on this device: lick notation and tune sheet music (bundled 'licks/…' paths excluded).
+const libImgIds = () => [...S.lib.licks.map(l => l.img), ...S.lib.tunes.flatMap(t => t.imgs || [])].filter(id => id && !id.includes('/'));
 async function hydrateImgs(root = document) {
   for (const el of $$('img[data-img]', root)) {
     const id = el.dataset.img; if (!id) continue;
@@ -584,7 +587,7 @@ const Sync = (() => {
   }
   const fileText = async f => f.truncated ? (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content;
   // Returns null if a photo is missing on this device, so a partial set never overwrites the cloud copy.
-  async function localImgs() { const o = {}; for (const l of S.lib.licks) if (l.img && !l.img.includes('/')) { let v = null; try { v = await idb.get(l.img); } catch (e) {} if (!v) return null; o[l.img] = v; } return o; }
+  async function localImgs() { const o = {}; for (const id of libImgIds()) { let v = null; try { v = await idb.get(id); } catch (e) {} if (!v) return null; o[id] = v; } return o; }
   async function applyRemote(remote, g) {
     const keepSession = S.session;
     if (g.files[IMGFILE]) { try { const im = JSON.parse(await fileText(g.files[IMGFILE])); for (const [k, v] of Object.entries(im)) if (v) { await idb.put(k, v); imgCache[k] = v; } } catch (e) {} }
@@ -1818,6 +1821,9 @@ function sheetTune(vid, opts = {}) {
     <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-u="${uk(key)}" data-k="${esc(key)}" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
     ${review}
     ${chartBox}
+    <div class="sheetmusic"><div class="row"><b class="grow">Sheet music</b><small class="muted">${(t.imgs || []).length ? (t.imgs.length + ' page' + (t.imgs.length === 1 ? '' : 's')) : 'your own copy, kept on this device'}</small></div>
+      ${(t.imgs || []).map((im, i) => `<div class="smpage"><img class="lickimg" data-img="${esc(im)}" alt="${esc(t.name)} page ${i + 1}"><button class="iconbtn smdel" data-act="tuneImgDel" data-id="${esc(id)}" data-i="${i}" title="Remove this page" aria-label="Remove page">✕</button></div>`).join('')}
+      <button class="btn ghost" style="width:100%" data-act="tuneImg" data-id="${esc(id)}">+ Add ${(t.imgs || []).length ? 'another page' : 'sheet music (photo or screenshot)'}</button></div>
     <div id="cps">${cpHtml}</div>
     ${st === 'new' ? `<button class="btn" style="width:100%;margin-bottom:8px" data-act="tuneStart" data-id="${esc(vid)}">Start learning this tune</button>` : ''}
     <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
@@ -2684,6 +2690,11 @@ const A = {
   lickImg: async el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const data = await pickImage(); if (!data) return;
     const id = 'img-' + uid(); try { await idb.put(id, data); } catch (e) { toast('Could not store image'); return; }
     if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {}); l.img = id; imgCache[id] = data; save(); sheetLick(l.id); },
+  tuneImg: async el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const data = await pickImage(); if (!data) return;
+    const id = 'img-' + uid(); try { await idb.put(id, data); } catch (e) { toast('Could not store image'); return; }
+    (t.imgs = t.imgs || []).push(id); imgCache[id] = data; save(); sheetTune.refresh ? sheetTune.refresh() : sheetTune(t.id); },
+  tuneImgDel: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id), i = +el.dataset.i; if (!t || !t.imgs || !confirm('Remove this page?')) return;
+    const [id] = t.imgs.splice(i, 1); if (!t.imgs.length) delete t.imgs; idb.del(id).catch(() => {}); save(); sheetTune.refresh ? sheetTune.refresh() : sheetTune(t.id); },
   renameLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); const n = prompt('Lick name', l.name); if (n && n.trim()) { l.name = n.trim(); save(); sheetLick(l.id); } },
   delLick: el => { const l = S.lib.licks.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${l.name}"?`)) return; if (l.img && !l.img.includes('/')) idb.del(l.img).catch(() => {});
     S.lib.licks = S.lib.licks.filter(x => x !== l); save(); closeSheet(); },
@@ -2697,7 +2708,7 @@ const A = {
       S.lib.tunes.push(t); S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); save();
       toast(e ? 'Chart found ✓' : 'No chart found – you can type the changes in'); setTimeout(() => openTuneSheet(t.id), 0); })); },
   renameTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); const n = prompt('Tune name', t.name); if (n && n.trim()) { t.name = n.trim(); save(); openTuneSheet(t.id); } },
-  delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; versionsOf(t).forEach(v => delete P().tunes[v]); S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
+  delTune: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); if (!confirm(`Delete "${t.name}"?`)) return; (t.imgs || []).forEach(id => idb.del(id).catch(() => {})); versionsOf(t).forEach(v => delete P().tunes[v]); S.lib.tunes = S.lib.tunes.filter(x => x !== t); save(); closeSheet(); },
   addInst: () => formSheet('New instrument', `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Tenor sax">
       <label class="f">Practice time on it so far</label>${priorFields(0)}
       <label class="f">Reads in</label><select name="tr"><option value="Eb">E♭ (alto, baritone sax)</option><option value="Bb">B♭ (tenor, soprano sax, trumpet, clarinet)</option><option value="C">C (concert: flute, piano, guitar…)</option></select>
@@ -2707,7 +2718,7 @@ const A = {
   delInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); if (prompt(`This deletes all progress for ${i.name}. Type DELETE to confirm.`) !== 'DELETE') return;
     S.inst = S.inst.filter(x => x !== i); delete S.prog[i.id]; if (S.cur === i.id) S.cur = S.inst[0].id; S.plan = null; save(); render(); },
   exportData: async () => {
-    const imgs = {}; for (const l of S.lib.licks) if (l.img && !l.img.includes('/')) { try { imgs[l.img] = await idb.get(l.img); } catch (e) {} }
+    const imgs = {}; for (const id of libImgIds()) { try { imgs[id] = await idb.get(id); } catch (e) {} }
     S.settings.lastBackup = Date.now(); save();
     const blob = new Blob([JSON.stringify({ app: 'woodshed', v: 1, exported: new Date().toISOString(), state: S, imgs })], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'woodshed-backup-' + dayKey(Date.now()) + '.json'; a.click();
