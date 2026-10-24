@@ -1190,8 +1190,13 @@ function planRecord(k) {
   }
 }
 function makePlan(keep = []) {
-  const items = [...keep], sz = planSize(), cnt = t => items.filter(i => i.t === t).length;
+  const today = dayKey(Date.now()), cr = S.planCarry, items = [...keep], sz = planSize(), cnt = t => items.filter(i => i.t === t).length;
   items.push(...consDue(items).slice(0, Math.max(0, Math.min(CONS_MAX, sz.ex - cnt('ex')))));
+  if (cr && cr.inst === S.cur && cr.date !== today) {   // unplayed items kept from the last session's plan
+    for (const it of cr.items) if (dayKey(P().touched[planKeyOf(it)] || 0) <= cr.date && !items.some(x => x.t === it.t && x.id === it.id && x.key === it.key)
+      && (it.t === 'ex' ? findEx(it.id) : it.t === 'lick' ? S.lib.licks.some(l => l.id === it.id) : tuneOf(it.id))) items.push(it);
+    S.planCarry = null;
+  }
   if (sz.ex > cnt('ex')) { const f = pickFloor(items); if (f) items.push(f); }
   for (const [t, n] of [['ex', sz.ex - cnt('ex')], ['lick', sz.lick - cnt('lick')], ['tune', sz.tune - cnt('tune')]])
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
@@ -1468,10 +1473,10 @@ function vHome() {
   consTopUp(); planTopUp();
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
-    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : '');
+    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : it.carry ? ' · from last time' : '');
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${Tk(exKey(o.ex, it.key), b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
-    if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
-    if (it.t === 'tune') { const t = tuneOf(it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(vLabel(it.id)); const st = tuneStatus(it.id), nx = CP_ALL.find(c => !tuneState(it.id).cp?.[c.id]);
+    if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick' + (it.carry ? ' · from last time' : ''); label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
+    if (it.t === 'tune') { const t = tuneOf(it.id); if (!t) return ''; tag = (t.tempo ? 'Tempo tune' : 'Tune') + (it.carry ? ' · from last time' : ''); label = esc(vLabel(it.id)); const st = tuneStatus(it.id), nx = CP_ALL.find(c => !tuneState(it.id).cp?.[c.id]);
       key = st === 'done' ? ' <small>review due</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>next: ${esc(nx ? nx.n.toLowerCase() : '')}</small>`; done = dayKey(p.touched['t:' + it.id] || 0) === today;
       if (t.tempo && p.bpm['t:' + it.id]) key = ` <small>${Tk('t:' + it.id, p.bpm['t:' + it.id])}</small>` + key; }
     return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}" data-k="${esc(it.key || '')}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
@@ -2020,19 +2025,99 @@ function tickSession() {
 }
 setInterval(tickSession, 1000);
 
-function saveSessionRecord(start, min, note, items) {
-  const xpBefore = xpCalc();
-  P().sessions.push({ id: uid(), start, min, note: note || '', items: items || [] }); save();
-  sessionRecap({ start, min, items: items || [] }, xpBefore, checkAchievements({ collect: true }));
+function saveSessionRecord(start, min, note, items, live) {
+  const xpBefore = xpCalc(), id = uid();
+  P().sessions.push({ id, start, min, note: note || '', items: items || [] }); save();
+  sessionRecap({ id, start, min, items: items || [], live: !!live }, xpBefore, checkAchievements({ collect: true }));
+}
+/* Per-session counts for the recap's records. A session's window runs from its start to the next session's start
+   (at most 8 hours); tempo history and tune checkpoints are counted in the window they fall in. */
+const SESS_WIN = 8 * 3600e3;
+function sessionStats(p) {
+  const ss = p.sessions.slice().sort((a, b) => a.start - b.start), n = ss.length;
+  const st = ss.map(s => ({ id: s.id, ups: 0, keys: new Set(), exs: new Set(), learned: 0, cps: 0, min: s.min || 0, items: (s.items || []).length }));
+  const at = t => { let lo = 0, hi = n - 1, i = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (ss[m].start <= t) { i = m; lo = m + 1; } else hi = m - 1; }
+    return i >= 0 && t < Math.min(i + 1 < n ? ss[i + 1].start : Infinity, ss[i].start + SESS_WIN) ? i : -1; };
+  const exFirst = {};
+  for (const h of p.hist) {
+    const i = at(h.t);
+    if (h.k.startsWith('e:')) { const ex = h.k.slice(2).split('|')[0]; if (exFirst[ex] == null || h.t < exFirst[ex]) exFirst[ex] = h.t; }
+    if (i < 0) continue;
+    if (h.prev != null && h.bpm > h.prev) st[i].ups++;
+    if (h.prev == null) st[i].keys.add(h.k);
+  }
+  for (const [ex, t] of Object.entries(exFirst)) { const i = at(t); if (i >= 0) st[i].exs.add(ex); }
+  for (const [vid, r] of Object.entries(p.tunes || {})) {
+    const cp = r.cp || {};
+    for (const t of Object.values(cp)) { const i = at(t); if (i >= 0) st[i].cps++; }
+    if (cp.m3 && cp.c4) { const i = at(Math.max(cp.m3, cp.c4)); if (i >= 0) st[i].learned++; }
+  }
+  return st.map(x => ({ ...x, keys: x.keys.size, exs: x.exs.size }));
+}
+const REC_METRICS = [['ups', 'Tempo increases'], ['keys', 'New keys logged'], ['exs', 'New exercises started'], ['learned', 'Tunes learned'], ['cps', 'Tune checkpoints'], ['min', 'Minutes'], ['items', 'Things practised']];
+// "Best ever" beats every earlier session (once there are 3); otherwise "most in 10 sessions" beats the 10 before it.
+function sessionRecords(p, id) {
+  const st = sessionStats(p), i = st.findIndex(x => x.id === id); if (i < 0) return [];
+  const before = st.slice(0, i), last = before.slice(-10), out = [];
+  for (const [m, name] of REC_METRICS) {
+    const v = st[i][m]; if (!(v > 0)) continue;
+    const best = Math.max(0, ...before.map(x => x[m])), best10 = Math.max(0, ...last.map(x => x[m]));
+    if (before.length >= 3 && v > best) out.push({ name, v, m, what: 'Best ever', prev: best });
+    else if (before.length > 10 && v > best10) out.push({ name, v, m, what: 'Most in 10 sessions', prev: best10 });
+  }
+  return out;
 }
 function sessionRecap(sess, xpBefore, got) {
   const p = P(), xp = xpCalc(p), lv = level(xp), wh = weekHistory(p), w = wh.weeks[wh.weeks.length - 1] || { days: 0, min: 0, met: false }, goal = S.settings.goal, mg = weekMinGoal();
-  const recs = p.hist.filter(h => h.t >= sess.start && h.prev != null && h.bpm > h.prev);
-  const worked = [...new Set(sess.items.map(itemLabel))];
   const daysLeft = 6 - (new Date().getDay() + 6) % 7, need = Math.max(0, goal - w.days);
   const streakMsg = w.met ? `🔥 Weekly goal reached – ${wh.cur}-week streak` : need <= daysLeft
     ? `${need} more practice day${need === 1 ? '' : 's'} this week ${wh.cur ? 'keeps your ' + wh.cur + '-week streak going' : 'starts a streak'}`
     : wh.freezes && wh.cur ? `Can't make ${goal} days this week – a 🧊 freeze will save your ${wh.cur}-week streak` : `Next week is a fresh start for the streak`;
+  const H = t => `<h3 style="margin:14px 0 4px">${t}</h3>`, now = Date.now(), inSess = t => t >= sess.start && t <= now;
+  let body = '';
+  if (sess.live) {
+    // records
+    const recs = sessionRecords(p, sess.id);
+    if (recs.length) body += H('🏆 Records') + `<ul class="list">${recs.map(r => `<li><span class="grow">${esc(r.name)} <small class="muted">· ${esc(r.what)}</small></span><b style="color:var(--accent)">${r.m === 'min' ? fmtMin(r.v) : r.v}</b>${r.prev ? `<small class="muted">&nbsp;(was ${r.m === 'min' ? fmtMin(r.prev) : r.prev})</small>` : ''}</li>`).join('')}</ul>`;
+    // plan
+    const today = dayKey(now), plan = S.plan && S.plan.date === today && S.plan.inst === S.cur ? S.plan.items : null;
+    if (plan && plan.length) {
+      const open = plan.filter(it => !planItemDone(it)), nDone = plan.length - open.length;
+      body += H(`Plan · ${nDone} of ${plan.length} done`);
+      if (open.length) body += `<p class="muted" style="margin:0;font-size:.9rem">Not played: ${open.slice(0, 8).map(it => esc(itemLabel(planKeyOf(it)))).join(' · ')}${open.length > 8 ? ' …' : ''}</p>
+        <button class="btn sm" id="carryBtn" data-act="planCarry" style="margin-top:6px">${S.planCarry && S.planCarry.inst === S.cur && S.planCarry.date === today ? '✓ Kept for next time' : 'Keep these for next time'}</button>`;
+    }
+    // tempo changes, per key: first → last this session
+    const ch = new Map();
+    for (const h of p.hist) if (inSess(h.t)) { const c = ch.get(h.k); if (c) c.to = h.bpm; else ch.set(h.k, { from: h.prev, to: h.bpm }); }
+    const rows = [...ch].filter(([, c]) => c.to !== c.from);
+    if (rows.length) body += H('Tempos') + `<ul class="list">${rows.map(([k, c]) => { const d = c.from == null ? null : Math.round(c.to / uk(k)) - Math.round(c.from / uk(k));
+      return `<li><span class="grow">${esc(itemLabel(k))}</span>${c.from == null ? '<small class="muted">new&nbsp;</small>' : `<small>${dv(k, c.from)} → </small>`}<b style="color:var(--accent)">${Tk(k, c.to)}</b>${d != null ? `<small class="muted">&nbsp;${d > 0 ? '+' : ''}${d}</small>` : ''}</li>`; }).join('')}</ul>`;
+    // tunes: checkpoints ticked, learned, reviewed
+    const tn = [], tnKeys = [];
+    for (const [vid, r] of Object.entries(p.tunes || {})) {
+      if (!tuneOf(vid)) continue; const cp = r.cp || {};
+      const ticked = CP_ALL.filter(c => cp[c.id] && inSess(cp[c.id])), learned = cp.m3 && cp.c4 && inSess(Math.max(cp.m3, cp.c4)), rev = r.rv && r.rv.last && inSess(r.rv.last);
+      if (!ticked.length && !rev) continue; tnKeys.push('t:' + vid);
+      tn.push(`<li><span class="grow">${learned ? '🎶 ' : ''}<b>${esc(vLabel(vid))}</b>${learned ? ' <small style="color:var(--accent)">learned!</small>' : ''}<br><small class="muted">${[ticked.length ? ticked.map(c => c.n).join(', ') : '', rev ? `reviewed – next in ${r.rv.ivl} day${r.rv.ivl === 1 ? '' : 's'}` : ''].filter(Boolean).map(esc).join(' · ')}</small></span></li>`);
+    }
+    if (tn.length) body += H('Tunes') + `<ul class="list">${tn.join('')}</ul>`;
+    // everything else touched
+    const listed = new Set([...rows.map(([k]) => k), ...tnKeys]);
+    const other = [...new Set(sess.items.filter(k => !listed.has(k)).map(itemLabel))];
+    if (other.length) body += H('Also practised') + `<p class="muted" style="margin:0;font-size:.9rem">${other.slice(0, 12).map(esc).join(' · ')}${other.length > 12 ? ' …' : ''}</p>`;
+    // next time
+    const cons = Object.entries(p.cons || {}).filter(([k, c]) => consIsDue(c) && findEx(k.slice(2).split('|')[0])).map(([k]) => itemLabel(k));
+    const sl = nextSlot(), nx = [];
+    if (cons.length) nx.push(`<li><span class="grow">Play again to lock in: ${cons.slice(0, 6).map(esc).join(' · ')}${cons.length > 6 ? ' …' : ''}</span></li>`);
+    const dueSoon = allVersions().filter(v => tuneStatus(v) === 'done' && (tuneState(v).rv?.due || 0) <= now + 2 * DAY).map(vLabel);
+    if (dueSoon.length) nx.push(`<li><span class="grow">Tune reviews due: ${dueSoon.slice(0, 5).map(esc).join(' · ')}${dueSoon.length > 5 ? ' …' : ''}</span></li>`);
+    if (sl) nx.push(`<li><span class="grow">Next practice: <b>${esc(slotRange(sl))}</b></span></li>`);
+    if (nx.length) body += H('Next time') + `<ul class="list">${nx.join('')}</ul>`;
+  } else {
+    const worked = [...new Set(sess.items.map(itemLabel))];
+    if (worked.length) body += H('Worked on') + `<p class="muted" style="margin:0;font-size:.9rem">${worked.slice(0, 10).map(esc).join(' · ')}${worked.length > 10 ? ' …' : ''}</p>`;
+  }
   openSheet(`<div class="recapHead">${got.length ? '<div id="recapConf" class="conf"></div>' : ''}<div style="font-size:2.4rem">🎷</div><h2>${fmtMin(sess.min)} logged</h2>
       <p class="muted" style="margin:4px 0 0">+${(xp - xpBefore).toLocaleString()} XP · Lv ${lv.n} ${esc(rankOf(lv.n))}</p></div>
     ${got.map(it => `<div class="celeItem"><span>${it.ic}</span><div><b>${esc(it.title)}</b><br><small>${esc(it.sub || '')}</small></div></div>`).join('')}
@@ -2040,8 +2125,7 @@ function sessionRecap(sess, xpBefore, got) {
       <div class="row" style="margin-top:6px"><small class="grow">Days ${w.days}/${goal}</small><small>${fmtMin(w.min)} / ${fmtMin(mg)}</small></div>
       <div class="bar"><i style="width:${Math.min(100, Math.round(100 * w.min / mg))}%"></i></div>
       <p style="margin:8px 0 0">${streakMsg}</p></div>
-    ${recs.length ? `<h3 style="margin:12px 0 4px">Tempo records</h3><ul class="list">${recs.map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><b style="color:var(--accent)">${Tk(h.k, h.bpm)}</b></li>`).join('')}</ul>` : ''}
-    ${worked.length ? `<h3 style="margin:12px 0 4px">Worked on</h3><p class="muted" style="margin:0;font-size:.9rem">${worked.slice(0, 10).map(esc).join(' · ')}${worked.length > 10 ? ' …' : ''}</p>` : ''}
+    ${body}
     <button class="btn primary big" data-act="closeSheet">Done</button>`);
   if (got.length) { const c = $('#recapConf'), colors = ['#f0a83c', '#6cc28a', '#e0675f', '#8ab4f8', '#f3d36b'];
     c.innerHTML = Array.from({ length: 36 }, () => `<i style="left:${Math.random() * 100}%;background:${colors[Math.floor(Math.random() * 5)]};animation-delay:${Math.random() * .5}s;animation-duration:${1.4 + Math.random()}s"></i>`).join(''); flourish(); }
@@ -2742,9 +2826,13 @@ const A = {
       <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" value="${min}" min="1">
       <label class="f">Note (optional)</label><input type="text" name="note" placeholder="How did it go?">`,
       fd => { const m = Math.round(+fd.min); if (!(m > 0)) { toast('Enter minutes'); return false; }
-        S.session = null; save(); mShow(false); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); setTimeout(() => saveSessionRecord(s.start, m, fd.note, s.items), 80); },
+        S.session = null; save(); mShow(false); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); setTimeout(() => saveSessionRecord(s.start, m, fd.note, s.items, true), 80); },
       `<button type="button" class="btn ghost danger" data-act="discardSession">Discard session</button>`);
   },
+  planCarry: el => { const today = dayKey(Date.now());
+    if (S.planCarry && S.planCarry.inst === S.cur && S.planCarry.date === today) { S.planCarry = null; el.textContent = 'Keep these for next time'; }
+    else { S.planCarry = { inst: S.cur, date: today, items: S.plan.items.filter(it => !planItemDone(it)).map(it => ({ ...it, carry: 1 })) }; el.textContent = '✓ Kept for next time'; }
+    save(); },
   discardSession: () => { if (confirm('Discard this session without saving?')) { S.session = null; save(); tickSession(); closeSheet(); } },
   logPast: () => formSheet('Log past session', `<label class="f">Date</label><input type="date" name="d" value="${dayKey(Date.now())}" max="${dayKey(Date.now())}">
       <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" min="1" placeholder="45"><label class="f">Note</label><input type="text" name="note">`,
