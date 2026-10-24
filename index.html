@@ -431,6 +431,26 @@ function migrate() {
     if (!sec.ex.some(e => e.id === id || e.name === NEFF)) sec.ex.push({ id, name: NEFF, keys: [...MAJ] });
     S.libRev = 8;
   }
+  if (!S.earShared) {
+    // Ear training becomes shared across instruments; quiz results move to one store per pitch.
+    const E = (S.ear = S.ear || {}); S.quiz = S.quiz || {};
+    for (const i of S.inst) { const p = S.prog[i.id]; if (!p) continue;
+      if (p.train) { const t = (E.train = E.train || { xp: 0, ok: 0, n: 0 });
+        for (const [k, v] of Object.entries(p.train)) {
+          if (typeof v === 'number') t[k] = (t[k] || 0) + v;
+          else if (v && typeof v === 'object') { const o = (t[k] = t[k] || { n: 0, ok: 0 }); o.n += v.n || 0; o.ok += v.ok || 0; } } }
+      if (p.trainDays) { E.trainDays = E.trainDays || {}; for (const [d, n] of Object.entries(p.trainDays)) E.trainDays[d] = (E.trainDays[d] || 0) + n; }
+      if (p.away) E.away = [...(E.away || []), ...p.away].sort((a, b) => a.t - b.t);
+      const Qs = (S.quiz[i.tr || 'Eb'] = S.quiz[i.tr || 'Eb'] || { tunes: {}, log: [] });
+      for (const [vid, r] of Object.entries(p.tunes || {})) { if (!r.qz) continue; const a = Qs.tunes[vid], b = r.qz;
+        Qs.tunes[vid] = !a ? b : { n: (a.n || 0) + (b.n || 0), best: Math.max(a.best || 0, b.best || 0), xp: (a.xp || 0) + (b.xp || 0),
+          ...((b.at || 0) > (a.at || 0) ? { last: b.last, at: b.at } : { last: a.last, at: a.at }), ...(a.perfect || b.perfect ? { perfect: true } : {}) };
+        delete r.qz; }
+      if (p.qlog) Qs.log = [...Qs.log, ...p.qlog].sort((a, b) => a - b).slice(-200);
+      delete p.train; delete p.trainDays; delete p.away; delete p.qlog;
+    }
+    S.earShared = 1;
+  }
   if (!S.unitsPI) {
     // Quarter/half-note choices become per instrument. Choices made so far (anything that differs from the
     // built-in default) go to the first instrument; the library keeps only the defaults.
@@ -662,6 +682,12 @@ const vKey = vid => String(vid).includes('@') ? String(vid).split('@')[1] : null
 const versionsOf = t => [t.id, ...(t.keys || []).map(k => t.id + '@' + k)];
 const allVersions = () => S.lib.tunes.flatMap(versionsOf);
 const tuneState = vid => P().tunes[vid] || { cp: {}, notes: '' };
+// Ear training is shared by all instruments; changes-quiz results are kept per pitch (Eb, Bb, C) –
+// instruments that read in the same key share them.
+const EARS = () => S.ear || (S.ear = {});
+const progTr = p => S.inst.find(i => S.prog[i.id] === p)?.tr || 'Eb';
+const QUIZ = (p = P()) => { S.quiz = S.quiz || {}; const tr = progTr(p); return S.quiz[tr] || (S.quiz[tr] = { tunes: {}, log: [] }); };
+const quizOf = (vid, p = P()) => QUIZ(p).tunes[vid];
 const tuneRec = vid => { const p = P(); const r = p.tunes[vid] = p.tunes[vid] || { cp: {}, notes: '' }; r.cp = r.cp || {}; return r; };
 // Learned = melody and changes both from memory. Soloing keeps growing after that.
 const tuneStatus = vid => { const r = tuneState(vid), cp = r.cp || {}; return cp.m3 && cp.c4 ? 'done' : (r.started || Object.keys(cp).length) ? 'learning' : 'new'; };
@@ -860,8 +886,9 @@ function xpCalc(p = P()) {
   for (const w of weekHistory(p).weeks) xp += Math.round(w.min * w.mult) + w.bonus;   // practice time × streak multiplier, weekly bonuses
   xp += CHALLENGE_XP * Object.values(p.challenges || {}).filter(c => c.done).length;
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
-  for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0) + (r.qz?.xp || 0); }
-  xp += p.train?.xp || 0;
+  for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0); }
+  for (const q of Object.values(QUIZ(p).tunes)) xp += q.xp || 0;
+  xp += EARS().train?.xp || 0;
   xp += BADGE_XP * Object.keys(p.badges || {}).filter(id => !(p.badgesNoXp || {})[id]).length;
   return xp;
 }
@@ -875,8 +902,8 @@ const CHALLENGE_XP = 100;
 const CHALLENGES = [
   { id: 'records', text: 'Set 3 tempo records', goal: 3, prog: (p, ws) => p.hist.filter(h => h.t >= ws && h.prev != null && h.bpm > h.prev).length },
   { id: 'tunecp', text: 'Tick 3 tune checkpoints', goal: 3, prog: (p, ws) => Object.values(p.tunes).reduce((a, r) => a + Object.values(r.cp || {}).filter(t => t >= ws).length, 0) },
-  { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, prog: (p, ws) => (p.qlog || []).filter(t => t >= ws).length },
-  { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(p.trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
+  { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, prog: (p, ws) => QUIZ(p).log.filter(t => t >= ws).length },
+  { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(EARS().trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
   { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
   { id: 'sections', text: 'Work on exercises from 5 different categories', goal: 5, prog: (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean)).size },
   { id: 'licks', text: 'Practise 4 different licks', goal: 4, prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
@@ -936,8 +963,8 @@ function badgeList() {
   const vers = allVersions(), memo = vers.filter(v => tuneStatus(v) === 'done').length;
   const tfull = vers.filter(v => CP_ALL.every(c => tuneState(v).cp?.[c.id])).length;
   const reviews = vers.reduce((a, v) => a + (tuneState(v).rv?.n || 0), 0);
-  const quizzes = vers.reduce((a, v) => a + (tuneState(v).qz?.n || 0), 0), perfect = vers.some(v => tuneState(v).qz?.perfect);
-  const earOk = p.train?.ok || 0;
+  const quizzes = vers.reduce((a, v) => a + (quizOf(v, p)?.n || 0), 0), perfect = vers.some(v => quizOf(v, p)?.perfect);
+  const earOk = EARS().train?.ok || 0;
   const B = [
     ['first', '🎷', 'First session', 'Log a practice session', p.sessions.length >= 1],
     ['s10', '📅', 'Regular', '10 sessions', p.sessions.length >= 10],
@@ -1406,7 +1433,7 @@ function sheetTune(vid, opts = {}) {
   const review = st === 'done' ? `<div class="card" style="background:var(--surface2);margin:8px 0"><b>${reviewDue(vid) ? '🔁 Review due' : '🔁 ' + esc(dueText(vid))}</b>
       <p class="muted" style="margin:4px 0 8px;font-size:.9rem">Play it through from memory, then rate how it went. Shaky brings it back soon; solid pushes it further out.</p>
       <div class="lvl3"><button data-act="review" data-id="${esc(vid)}" data-r="0">Shaky</button><button data-act="review" data-id="${esc(vid)}" data-r="1">OK</button><button data-act="review" data-id="${esc(vid)}" data-r="2">Solid</button></div></div>` : '';
-  const qz = ts.qz;
+  const qz = quizOf(vid);
   const chartBox = hasChart(t) ? `<div class="row wrap" style="margin:10px 0"><button class="btn primary grow" data-act="quizStart" data-id="${esc(vid)}">🧠 Quiz the changes</button><button class="btn grow" data-act="showChart" data-id="${esc(vid)}">${opts.chart ? 'Hide chart' : 'Show chart'}</button></div>
       ${qz ? `<small class="muted">Changes quiz: last ${qz.last}% (${ago(qz.at)}) · best ${qz.best}% · ${qz.n} done</small>` : ''}
       ${opts.chart && ch ? `<div style="margin-top:8px">${chartHtml(ch)}</div><div class="row" style="margin-top:6px"><small class="muted grow">Key ${esc(ch.key)}${t.custom ? ' · typed in by you' : ' · from your iReal export'}</small>${t.custom ? `<button class="btn sm" data-act="editChart" data-id="${esc(id)}">Edit</button>` : ''}</div>` : ''}`
@@ -1540,8 +1567,8 @@ function quizAnswer(pc, fam) {
 }
 function quizFinish() {
   const right = Object.values(Q.res).filter(v => v).length, pct = Q.ask.length ? Math.round(100 * right / Q.ask.length) : 100;
-  const r = tuneRec(Q.vid), qz = r.qz = r.qz || { n: 0, best: 0, xp: 0 };
-  P().qlog = [...(P().qlog || []), Date.now()].slice(-200);
+  const r = tuneRec(Q.vid), QS2 = QUIZ(), qz = QS2.tunes[Q.vid] = QS2.tunes[Q.vid] || { n: 0, best: 0, xp: 0 };
+  QS2.log = [...QS2.log, Date.now()].slice(-200);
   qz.n++; qz.last = pct; qz.best = Math.max(qz.best || 0, pct); qz.xp = (qz.xp || 0) + 2 * right; qz.at = Date.now();
   if (pct === 100 && Q.level === 'all') qz.perfect = true;
   let summary = `<small>+${2 * right} XP</small>`;
@@ -1788,11 +1815,11 @@ function startTrain(kind) { if (!TR.start) { TR.start = Date.now(); TR.kind = ki
 function endTrain() {
   earStop(); if (RH.timer) rhStop();
   if (!TR.start) return; const min = Math.round((Date.now() - TR.start) / 60000);
-  if (min >= 1) { const p = P(); p.away = p.away || []; p.away.push({ t: TR.start, min: Math.min(min, 90), kind: TR.kind }); save(); }
+  if (min >= 1) { const p = EARS(); p.away = p.away || []; p.away.push({ t: TR.start, min: Math.min(min, 90), kind: TR.kind }); save(); }
   TR.start = null;
 }
-function trainScore(ok, kind) { const p = P(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; if (ok) { p.trainDays = p.trainDays || {}; const d = dayKey(Date.now()); p.trainDays[d] = (p.trainDays[d] || 0) + 1; } p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); checkAchievements(); }
-const awayMinutes = (since = 0) => (P().away || []).filter(a => a.t >= since).reduce((s, a) => s + a.min, 0);
+function trainScore(ok, kind) { const p = EARS(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; if (ok) { p.trainDays = p.trainDays || {}; const d = dayKey(Date.now()); p.trainDays[d] = (p.trainDays[d] || 0) + 1; } p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); checkAchievements(); }
+const awayMinutes = (since = 0) => (EARS().away || []).filter(a => a.t >= since).reduce((s, a) => s + a.min, 0);
 
 /* ---------- ear training: progressions ---------- */
 // Chords as [semitones above the key, quality]; one inner array per bar.
@@ -1875,7 +1902,7 @@ function earPart(e, want) {
 }
 function earSheet() {
   const title = { prog: 'Name the progression', qual: 'Chord qualities', tune: 'Name that tune' }[EG.kind];
-  const st = P().train?.[EG.kind];
+  const st = EARS().train?.[EG.kind];
   if (EG.error) { openSheet(`${head(title)}<p>${esc(EG.error)}</p>`, endTrain); return; }
   const fb = EG.answered == null ? '' : EG.answered === EG.answer ? `<div class="qfb"><span class="qok">✓ ${esc(EG.answer)}</span></div>` : `<div class="qfb"><span class="qno">✗</span> It was <b>${esc(EG.answer)}</b></div>`;
   const extra = EG.answered == null ? '' : EG.kind === 'prog' ? `<p class="muted" style="font-size:.9rem">For you (${esc(curInst().name)}): ${esc(EG.reveal)}</p>`
@@ -1969,7 +1996,7 @@ function rhNew() {
   rhSheet();
 }
 function rhSheet() {
-  const bpm = S.settings.rhBpm || 80, st = P().train?.rhythm;
+  const bpm = S.settings.rhBpm || 80, st = EARS().train?.rhythm;
   openSheet(`${head('Rhythm reading', `${RH_LEVELS[S.settings.rhLevel ?? 0][0]} · ${RH.bars} bar${RH.bars > 1 ? 's' : ''} · ♩=${bpm}${rhSwing() ? ' · swing' : ''}${S.settings.rhClick === 'backbeat' ? ' · click 2 & 4' : ''}` + (st ? ` · ${st.ok}/${st.n} passed` : ''))}
     <div class="rhbox">${rhSvg(RH.notes, RH.bars, RH.marks)}</div>
     ${RH.result ? `<div class="qfb">${RH.result}</div>` : `<p class="muted" style="font-size:.9rem;margin:6px 0">Press Start: you get a 4-beat count-in, then tap the rhythm on the pad (any key works on a computer).</p>`}
@@ -2018,9 +2045,9 @@ function rhGrade() {
 
 /* ---------- Train tab ---------- */
 function vTrain() {
-  const p = P(), wk = awayMinutes(monday(Date.now()).getTime()), tot = awayMinutes(0), tr = p.train || {};
+  const p = P(), wk = awayMinutes(monday(Date.now()).getTime()), tot = awayMinutes(0), tr = EARS().train || {};
   const pct = k => tr[k]?.n ? Math.round(100 * tr[k].ok / tr[k].n) + '% of ' + tr[k].n : 'not tried yet';
-  const vs = allVersions(), quizzes = vs.reduce((a, v) => a + (tuneState(v).qz?.n || 0), 0);
+  const vs = allVersions(), quizzes = vs.reduce((a, v) => a + (quizOf(v)?.n || 0), 0);
   const chip = (set, k, v, n) => `<button class="chip ${(S.settings[set] ?? ({ rhLevel: 0, rhBars: 1, earPool: 'mine', earPart: 'any', rhFeel: 'straight', rhClick: 'all' })[set]) === v ? 'on' : ''}" data-act="trainSet" data-k="${set}" data-v="${v}">${n}</button>`;
   return `<section class="card"><h3>Away from the horn</h3><div class="stats3"><div><small>This week</small><strong>${fmtMin(wk)}</strong></div><div><small>Total</small><strong>${fmtMin(tot)}</strong></div><div><small>Answers right</small><strong>${tr.ok || 0}</strong></div></div>
     <small class="muted">Time here is logged separately from your playing hours.</small></section>
@@ -2045,7 +2072,7 @@ function quizPickSheet() {
   const order = { due: 0, learning: 1, done: 2, new: 3 };
   const vs = allVersions().filter(v => hasChart(tuneOf(v))).map(v => ({ v, k: reviewDue(v) ? 'due' : tuneStatus(v) })).sort((a, b) => order[a.k] - order[b.k] || vLabel(a.v).localeCompare(vLabel(b.v)));
   openSheet(`${head('Changes quiz', 'Pick a tune')}<input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">
-    ${vs.map(({ v, k }) => `<button class="trow" data-act="quizStart" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}<br><small>${{ due: 'review due', learning: 'learning', done: 'learned', new: 'not started' }[k]}${tuneState(v).qz ? ' · best ' + tuneState(v).qz.best + '%' : ''}</small></span>${tunePips(v)}</button>`).join('')}`);
+    ${vs.map(({ v, k }) => `<button class="trow" data-act="quizStart" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}<br><small>${{ due: 'review due', learning: 'learning', done: 'learned', new: 'not started' }[k]}${quizOf(v) ? ' · best ' + quizOf(v).best + '%' : ''}</small></span>${tunePips(v)}</button>`).join('')}`);
   $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#panel .trow').forEach(r => r.classList.toggle('hide', !!q && !r.dataset.name.includes(q))); };
 }
 
