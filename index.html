@@ -1086,28 +1086,33 @@ function flourish() {
 }
 
 /* ---------- session plan ---------- */
-// Weakest key of an exercise: a random unlogged key if any, otherwise the slowest one.
+// Exercises in Ascending / Descending / Alternating versions are worked in that order WITHIN each key (or pattern):
+// a key of a later direction is only suggested once the direction before it (same section, same name) has that key logged.
+const DIR_ORDER = ['Ascending', 'Descending', 'Alternating'];
+function dirPrev(ex) {
+  const m = /^(.*) – (Descending|Alternating)$/.exec(ex.name), o = m && findEx(ex.id); if (!o) return null;
+  return o.sec.ex.find(e => e.name === m[1] + ' – ' + DIR_ORDER[DIR_ORDER.indexOf(m[2]) - 1]) || null;
+}
+function readyKeys(ex) {
+  const prev = dirPrev(ex), p = P();
+  return prev ? ex.keys.filter(k => p.bpm[exKey(prev, k)] != null) : ex.keys;
+}
+// Weakest key of an exercise: a random unlogged key if any, otherwise the slowest one (among keys it is ready for;
+// all keys if none is ready, e.g. when you add it to the plan yourself).
 function weakestKey(ex) {
-  const p = P(); const unlogged = ex.keys.filter(k => p.bpm[exKey(ex, k)] == null);
+  const p = P(), ready = readyKeys(ex), keys = ready.length ? ready : ex.keys;
+  const unlogged = keys.filter(k => p.bpm[exKey(ex, k)] == null);
   if (unlogged.length) return unlogged[Math.floor(Math.random() * unlogged.length)];
-  return ex.keys.reduce((a, k) => (p.bpm[exKey(ex, k)] < p.bpm[exKey(ex, a)] ? k : a), ex.keys[0]);
+  return keys.reduce((a, k) => (p.bpm[exKey(ex, k)] < p.bpm[exKey(ex, a)] ? k : a), keys[0]);
 }
 // Neglected items score higher; the random part keeps suggestions varied.
 const staleScore = t => Math.min(60, (Date.now() - (t || 0)) / DAY) + Math.random() * 20;
-// Exercises in Ascending / Descending / Alternating versions are worked in that order: a later direction is
-// only suggested once the one before it (same section, same name) has every key logged.
-const DIR_ORDER = ['Ascending', 'Descending', 'Alternating'];
-function dirReady(sec, ex) {
-  const m = /^(.*) – (Descending|Alternating)$/.exec(ex.name); if (!m) return true;
-  const prev = sec.ex.find(e => e.name === m[1] + ' – ' + DIR_ORDER[DIR_ORDER.indexOf(m[2]) - 1]);
-  return !prev || (exInfo(prev).full && dirReady(sec, prev));
-}
 function pickFor(t, items) {
   const p = P(), inPlan = new Set(items.filter(i => i.t === t).map(i => i.id));
   const best = arr => arr.sort((a, b) => b.s - a.s)[0];
   if (t === 'ex') {
     const usedSecs = new Set(items.filter(i => i.t === 'ex').map(i => findEx(i.id)?.sec.id));
-    const c = best(allEx().filter(o => !inPlan.has(o.ex.id) && dirReady(o.sec, o.ex)).map(o => ({ o, s: staleScore(p.touched['x:' + o.ex.id]) - (usedSecs.has(o.sec.id) ? 40 : 0) })));
+    const c = best(allEx().filter(o => !inPlan.has(o.ex.id) && readyKeys(o.ex).length).map(o => ({ o, s: staleScore(p.touched['x:' + o.ex.id]) - (usedSecs.has(o.sec.id) ? 40 : 0) })));
     return c && { t, id: c.o.ex.id, key: weakestKey(c.o.ex) };
   }
   if (t === 'lick') { const c = best(S.lib.licks.filter(l => !inPlan.has(l.id)).map(l => ({ l, s: staleScore(p.touched['l:' + l.id]) })));
