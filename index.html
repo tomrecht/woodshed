@@ -1141,6 +1141,7 @@ function vEx() {
     }).join('') + `<button class="btn ghost" data-act="addSec">+ Add category</button>`;
 }
 /* Table entry: built for typing in existing tempos on a computer */
+const TRIO_DIRS = ['Ascending', 'Descending', 'Alternating'], TRIO_RE = /^(.*) – (Ascending|Descending|Alternating)$/;
 function vGrid() {
   const p = P();
   let tabIdx = 0;
@@ -1148,11 +1149,24 @@ function vGrid() {
     // group exercises sharing the same key set so each table has one header row
     const groups = [];
     for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
-    return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= FLOOR_MIN ? '<th>Floor</th>' : ''}</tr></thead><tbody>
+    // single-tempo trios ("X – Ascending/Descending/Alternating") share one row, one column per direction
+    const trioHtml = g => {
+      if (g.keys.length !== 1 || g.keys[0] !== '—') return '';
+      const rows = [];
+      g.ex = g.ex.filter(ex => { const m = ex.name.match(TRIO_RE); if (!m) return true;
+        let r = rows.find(r => r.name === m[1]); if (!r) rows.push(r = { name: m[1], d: {} }); r.d[m[2]] = ex; return false; });
+      if (!rows.length) return '';
+      return `<div class="gwrap"><table class="grid"><thead><tr><th></th>${TRIO_DIRS.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>
+        ${rows.map(r => `<tr><th>${esc(r.name)}</th>${TRIO_DIRS.map(d => { const ex = r.d[d]; if (!ex) return '<td></td>';
+          const key = exKey(ex, '—'), v = p.bpm[key];
+          return `<td class="gc">${unitBtn('ex', ex)}<span class="cuw">${cellUnit(ex, '—')}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="—" value="${dv(key, v)}" tabindex="${++tabIdx}" title="${esc(ex.name)}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}</tr>`).join('')}
+      </tbody></table></div>`;
+    };
+    return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => { const trio = trioHtml(g); return (!g.ex.length ? '' : `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= FLOOR_MIN ? '<th>Floor</th>' : ''}</tr></thead><tbody>
       ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)} ${unitBtn('ex', ex)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
         return `<td class="gc"><span class="cuw">${cellUnit(ex, k)}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
         ${ex.keys.length >= FLOOR_MIN ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? Tk(exKey(ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
-      </tbody></table></div>`).join('')}</section>`;
+      </tbody></table></div>`) + trio; }).join('')}</section>`;
   }).join('');
   const lickRows = S.lib.licks.map(l => `<tr><th>${esc(l.name)} ${unitBtn('lick', l)}</th><td><input type="number" data-gkey="l:${esc(l.id)}" value="${dv('l:' + l.id, p.bpm['l:' + l.id])}" tabindex="${++tabIdx}"></td></tr>`).join('');
   const tuneRows = S.lib.tunes.map(t => { const cp = tuneState(t.id).cp || {}; return `<tr><th>${esc(t.name)} ${unitBtn('tune', t)}</th>${CP_ALL.map(c => `<td><input type="checkbox" data-tcp="${esc(t.id)}" data-c="${c.id}" ${cp[c.id] ? 'checked' : ''} title="${esc(c.g + ': ' + c.n)}"></td>`).join('')}<td><input type="checkbox" data-ttempo="${esc(t.id)}" ${t.tempo ? 'checked' : ''}></td><td><input type="number" data-gkey="t:${esc(t.id)}" value="${dv('t:' + t.id, p.bpm['t:' + t.id])}" tabindex="${++tabIdx}"></td></tr>`; }).join('');
