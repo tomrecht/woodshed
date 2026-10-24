@@ -1197,6 +1197,20 @@ function makePlan(keep = []) {
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
   S.plan = { date: dayKey(Date.now()), inst: S.cur, items, fc: 1 }; save(true);   // automatic, not a user edit
 }
+// The plan always offers at least PLAN_OPEN_MIN things still to do: when practising ticks items off, it tops up
+// with the type furthest below its share of the plan size (types set to 0 are left out).
+const PLAN_OPEN_MIN = 4;
+function planTopUp() {
+  if (!S.plan) return; const sz = planSize(), items = S.plan.items;
+  let types = ['ex', 'tune', 'lick'].filter(t => sz[t] > 0); if (!types.length) types = ['ex', 'tune', 'lick'];
+  const open = t => items.filter(i => (!t || i.t === t) && !planItemDone(i)).length, dead = new Set(); let added = false;
+  while (open() < PLAN_OPEN_MIN) {
+    const cand = types.filter(t => !dead.has(t)).sort((a, b) => (open(a) / sz[a] || 0) - (open(b) / sz[b] || 0) || types.indexOf(a) - types.indexOf(b));
+    if (!cand.length) break;
+    const it = pickFor(cand[0], items); if (it) { items.push(it); added = true; } else dead.add(cand[0]);
+  }
+  if (added) save(true);
+}
 const planSize = () => Object.assign({ ex: 3, lick: 1, tune: 2 }, S.settings.plan || {});
 function addToPlan(it) {
   if (!S.plan) makePlan();
@@ -1451,7 +1465,7 @@ function vHome() {
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
   if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
   else if (!S.plan.fc) { S.plan.fc = 1; if (planSize().ex > 0 && !hasFloor(S.plan.items)) { const f = pickFloor(S.plan.items); if (f) S.plan.items.unshift(f); } save(true); }
-  consTopUp();
+  consTopUp(); planTopUp();
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : '');
