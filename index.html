@@ -14,6 +14,7 @@
   --text:#ecebe7;--muted:#9a9ca3;--accent:#f0a83c;--accent-ink:#1b1408;
   --good:#6cc28a;--danger:#e0675f;--empty:#2c3039;
   --r:14px;
+  color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -238,7 +239,7 @@ table.grid td{padding:2px}
 table.grid td.gc{white-space:nowrap}
 .cuw{display:inline-block;width:14px}
 .cu{padding:0;color:var(--accent)}
-table.grid td input[type=text],table.grid td input[type=number]{width:62px;padding:6px 4px;text-align:center}
+table.grid td input[type=text],table.grid td input[type=number]{width:56px;padding:6px 4px;text-align:center}
 table.grid td.fl{padding-left:10px;white-space:nowrap;color:var(--accent);font-weight:650}
 table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);display:block;margin:0 auto}
 .sp{height:10px}
@@ -305,6 +306,7 @@ const DIM7 = ['Eb-F#-A-C','E-G-Bb-C#','F-Ab-B-D'];
 const DIMSC = ['E-F#','F-G','F#-G#'];
 const WT = ['Eb-F','E-F#'];
 const NONE = ['—'];
+const NEFF = 'Bebop dom. Neff ex. 1-12';
 const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
@@ -320,7 +322,7 @@ function defaultLib() {
       sec('Melodic minor', UDT(MIN)),
       sec('Harmonic minor', UDT(MIN)),
       sec('Arpeggios', [['Major triads – 16ths', MAJ], ['Minor triads – 16ths', MIN], ['Augmented triads – 16ths', AUG], ['Diminished 7ths – 16ths', DIM7]]),
-      sec('Bebop scales', [['Bebop dominant – 16ths', MAJ], ['Bebop major – 16ths', MAJ]]),
+      sec('Bebop scales', [['Bebop dominant – 16ths', MAJ], ['Bebop major – 16ths', MAJ], [NEFF, MAJ]]),
       sec('Diminished scale', [...UDT(DIMSC), ...DIM_PATTERNS.map(n => [n, DIMSC])]),
       sec('Whole-tone', [...UDT(WT), ...ADA('Triads', WT), ...ADA('Tetrads', WT)]),
       sec('Major triads & tetrads', [...ADA('Triads', MAJ), ...ADA('Tetrads', MAJ)]),
@@ -421,6 +423,13 @@ function migrate() {
     for (const n of DIM_PATTERNS) { const id = slug('Diminished scale ' + n);
       if (!sec.ex.some(e => e.id === id || e.name === n)) sec.ex.push({ id, name: n, keys: [...DIMSC] }); }
     S.libRev = 7;
+  }
+  if (S.libRev < 8) {   // new bebop exercise
+    let sec = S.lib.sections.find(x => x.id === 'bebop-scales' || x.name.toLowerCase() === 'bebop scales');
+    if (!sec) { sec = { id: 'bebop-scales', name: 'Bebop scales', ex: [] }; S.lib.sections.push(sec); }
+    const id = slug('Bebop scales ' + NEFF);
+    if (!sec.ex.some(e => e.id === id || e.name === NEFF)) sec.ex.push({ id, name: NEFF, keys: [...MAJ] });
+    S.libRev = 8;
   }
   if (!S.unitsPI) {
     // Quarter/half-note choices become per instrument. Choices made so far (anything that differs from the
