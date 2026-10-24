@@ -1166,8 +1166,23 @@ let tab = 'home';
 const openSecs = new Set();
 let tuneFilter = 'all';
 
-function heatColor(b) {
+// Notes per metronome click (in the exercise's own unit), used to compare speeds fairly across exercises.
+// Default: triads/triplets 3 (6/8 feel), quintuplets 5 per beat, everything else 16ths (4 per quarter note).
+const NPC_OPTS = [2, 3, 4, 5, 6, 8];
+function npcDefault(ex) {
+  const sec = findEx(ex.id)?.sec, txt = ex.name + ' ' + (sec ? sec.name : ''), u = unitOf(ex);
+  if (/16ths/i.test(ex.name)) return 4 * u;
+  if (/quintuplet/i.test(txt)) return 5 * u;
+  if (/triplet|triad|6\/8/i.test(txt)) return 3;
+  return 4 * u;
+}
+// A chosen value is stored as notes per quarter note (ex.npq), so it survives switching the exercise between quarter and half notes.
+const npqOf = ex => ex.npq > 0 ? ex.npq : npcDefault(ex) / unitOf(ex);
+const npcOf = ex => Math.round(npqOf(ex) * unitOf(ex) * 100) / 100;
+// Tempo colour. For an exercise, the stored quarter-note tempo is converted to notes per minute and compared with 16ths.
+function heatColor(b, ex) {
   if (b == null) return 'var(--empty)';
+  if (ex) b = b * npqOf(ex) / 4;
   const t = Math.max(0, Math.min(1, (b - 60) / 160));
   return `hsl(${28 + t * 14},${70 + t * 15}%,${22 + t * 40}%)`;
 }
@@ -1453,7 +1468,7 @@ function exRow(ex) {
   if (i.n === 1) meta = i.vals[0] ? `<b>${Tk(exKey(ex, ex.keys[0]), i.vals[0])}</b>` : '—';
   else if (i.floor) meta = i.full ? `floor <b>${Tk(exKey(ex, i.mk), i.min)}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ${Tk(exKey(ex, i.mk), i.min)}` : ''}`;
   else meta = i.vals.map((v, j) => v ? `<b>${Tk(exKey(ex, ex.keys[j]), v)}</b>` : '—').join(' / ');
-  const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
+  const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v, ex)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
   return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${meta}</span></div>${strip}</button>`;
 }
 // Reorder mode (Exercises and Licks tabs): rows get ↑/↓ buttons instead of opening.
@@ -1495,12 +1510,12 @@ function vGrid() {
       return `<div class="gwrap"><table class="grid"><thead><tr><th></th>${TRIO_DIRS.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>
         ${rows.map(r => `<tr><th>${esc(r.name)}</th>${TRIO_DIRS.map(d => { const ex = r.d[d]; if (!ex) return '<td></td>';
           const key = exKey(ex, '—'), v = p.bpm[key];
-          return `<td class="gc">${unitBtn('ex', ex)}<span class="cuw">${cellUnit(ex, '—')}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="—" value="${dv(key, v)}" tabindex="${++tabIdx}" title="${esc(ex.name)}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}</tr>`).join('')}
+          return `<td class="gc">${unitBtn('ex', ex)}<span class="cuw">${cellUnit(ex, '—')}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="—" value="${dv(key, v)}" tabindex="${++tabIdx}" title="${esc(ex.name)}" style="background:${v ? heatColor(v, ex) : ''}"></td>`; }).join('')}</tr>`).join('')}
       </tbody></table></div>`;
     };
     return `<section class="card"><h3>${esc(sec.name)}</h3>${groups.map(g => { const trio = trioHtml(g); return (!g.ex.length ? '' : `<div class="gwrap"><table class="grid"><thead><tr><th></th>${g.keys.map(k => `<th>${k === '—' ? 'BPM' : esc(k)}</th>`).join('')}${g.keys.length >= FLOOR_MIN ? '<th>Floor</th>' : ''}</tr></thead><tbody>
       ${g.ex.map(ex => { const i = exInfo(ex); return `<tr><th>${esc(ex.name)} ${unitBtn('ex', ex)}</th>${ex.keys.map(k => { const key = exKey(ex, k); const v = p.bpm[key];
-        return `<td class="gc"><span class="cuw">${cellUnit(ex, k)}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v) : ''}"></td>`; }).join('')}
+        return `<td class="gc"><span class="cuw">${cellUnit(ex, k)}</span><input type="text" inputmode="numeric" data-gkey="${esc(key)}" data-ex="${esc(ex.id)}" data-k="${esc(k)}" value="${dv(key, v)}" tabindex="${++tabIdx}" style="background:${v ? heatColor(v, ex) : ''}"></td>`; }).join('')}
         ${ex.keys.length >= FLOOR_MIN ? `<td class="fl" data-floor="${esc(ex.id)}">${i.full ? Tk(exKey(ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'}</td>` : ''}</tr>`; }).join('')}
       </tbody></table></div>`) + trio; }).join('')}</section>`;
   }).join('');
@@ -1524,7 +1539,7 @@ function bindGrid() {
     setBpm(inp.dataset.gkey, val, inp.dataset.ex, true);
     inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]);
     if (inp.dataset.ex) { const ex = findEx(inp.dataset.ex).ex; inp.closest('td').querySelector('.cuw').innerHTML = cellUnit(ex, inp.dataset.k); }
-    const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v) : '';
+    const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v, inp.dataset.ex && findEx(inp.dataset.ex)?.ex) : '';
     if (inp.dataset.ex) { const o = findEx(inp.dataset.ex); const cell = $(`[data-floor="${CSS.escape(o.ex.id)}"]`);
       if (cell) { const i = exInfo(o.ex); cell.innerHTML = i.full ? Tk(exKey(o.ex, i.mk), i.min) + ' <small>' + esc(i.mk) + '</small>' : '—'; } }
   }));
@@ -1656,7 +1671,7 @@ function openSheet(html, onClose) {
   hydrateImgs($('#panel'));
 }
 function closeSheet(fromPop) {
-  if (!sheetOpen) return; sheetOpen = false; $('#sheet').classList.remove('on'); M.loadedFor = null;
+  if (!sheetOpen) return; sheetOpen = false; $('#sheet').classList.remove('on'); M.loadedFor = null; if (!M.on) mShow(false);
   const cb = sheetOnClose; sheetOnClose = null; if (cb) cb();
   if (!fromPop) history.back();
   render();
@@ -1691,7 +1706,7 @@ function sheetEx(id, planKey) {
       ${(() => { if (!i.logged) return '<div><small>Fastest key</small><strong>—</strong></div>'; const mx = Math.max(...i.vals.filter(v => v != null)), fk = ex.keys[i.vals.indexOf(mx)];
         return `<div><small>Fastest key</small><strong>${Tk(exKey(ex, fk), mx)}</strong><small>${esc(fk)}</small></div>`; })()}`; };
   const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
-    return `<label class="krow ${info.floor && info.full && k === info.mk ? 'fl' : ''}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span>
+    return `<label class="krow ${info.floor && info.full && k === info.mk ? 'fl' : ''}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v, ex)}"></span>
       <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
       <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
@@ -1711,7 +1726,7 @@ function sheetEx(id, planKey) {
   inputs.forEach((inp, j) => {
     inp.addEventListener('change', () => {
       const pb = setBpm(inp.dataset.key, inp.value, ex.id);
-      const v = P().bpm[inp.dataset.key]; inp.closest('.krow').querySelector('.sw').style.background = heatColor(v);
+      const v = P().bpm[inp.dataset.key]; inp.closest('.krow').querySelector('.sw').style.background = heatColor(v, ex);
       inp.closest('.krow').querySelector('.kn small').textContent = 'today';
       $('#floorbox').innerHTML = floorHtml();
       const i = exInfo(ex); $$('#panel .krow').forEach(r => r.classList.toggle('fl', i.floor && i.full && r.dataset.k === i.mk));
@@ -1723,7 +1738,7 @@ function sheetEx(id, planKey) {
   if (!wasLoaded) { const i = exInfo(ex);
     const k = planKey && ex.keys.includes(planKey) && p.bpm[exKey(ex, planKey)] ? planKey : i.mk || ex.keys[0];
     metroLoad(exKey(ex, k)); }
-  M.loadedFor = id; sheetOnClose = () => { if (M.auto && !M.on) mShow(false); };
+  M.loadedFor = id;
 }
 
 function sheetLick(id) {
@@ -1913,7 +1928,7 @@ function pickKeySheet(ex) {
   openSheet(`${head('Which key?', ex.name)}
     <button class="btn primary" style="width:100%;margin:6px 0 10px" data-act="pickKey" data-id="${esc(ex.id)}">Auto – weakest or unlogged key</button>
     <div class="keys">${ex.keys.map(k => { const v = p.bpm[exKey(ex, k)];
-      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${Tk(exKey(ex, k), v)}</small></button>`; }).join('')}</div>`);
+      return `<button class="krow" data-act="pickKey" data-id="${esc(ex.id)}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v, ex)}"></span><span class="kn grow" style="text-align:left">${esc(k)}</span><small>${Tk(exKey(ex, k), v)}</small></button>`; }).join('')}</div>`);
 }
 
 function formSheet(title, fields, onOk, extraBtns = '') {
@@ -2574,7 +2589,7 @@ const A = {
       <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" value="${min}" min="1">
       <label class="f">Note (optional)</label><input type="text" name="note" placeholder="How did it go?">`,
       fd => { const m = Math.round(+fd.min); if (!(m > 0)) { toast('Enter minutes'); return false; }
-        S.session = null; save(); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); setTimeout(() => saveSessionRecord(s.start, m, fd.note, s.items), 80); },
+        S.session = null; save(); mShow(false); if (wakeLock) wakeLock.release().catch(() => {}); tickSession(); setTimeout(() => saveSessionRecord(s.start, m, fd.note, s.items), 80); },
       `<button type="button" class="btn ghost danger" data-act="discardSession">Discard session</button>`);
   },
   discardSession: () => { if (confirm('Discard this session without saving?')) { S.session = null; save(); tickSession(); closeSheet(); } },
@@ -2601,8 +2616,10 @@ const A = {
   editEx: el => { const { sec, ex } = findEx(el.dataset.id);
     formSheet('Edit exercise', `<label class="f">Name</label><input type="text" name="name" value="${esc(ex.name)}" required>
       <label class="f">Category</label><select name="sec">${S.lib.sections.map(x => `<option value="${esc(x.id)}" ${x === sec ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>${keysetFields(ex.keys)}
-      <p class="muted" style="font-size:.85rem">Tempos for keys you remove stay in backups but won't show.</p>`,
+      <label class="f">Notes per click <small class="muted">(so tempo colours compare fairly)</small></label><select name="npc">${[...new Set([...NPC_OPTS, npcOf(ex)])].sort((a, b) => a - b).map(n => `<option value="${n}" ${npcOf(ex) === n ? 'selected' : ''}>${n}${n === npcDefault(ex) ? ' (default)' : ''}</option>`).join('')}</select>
+      <p class="muted" style="font-size:.85rem">Counted per ${unitOf(ex) === 2 ? 'half' : 'quarter'}-note click: 16ths = ${4 * unitOf(ex)}, 6/8 triads = 3. Tempos for keys you remove stay in backups but won't show.</p>`,
       fd => { ex.name = fd.name.trim() || ex.name; const k = keysFrom(fd); if (k.length) ex.keys = k;
+        const npc = +fd.npc; if (npc === npcDefault(ex)) delete ex.npq; else ex.npq = npc / unitOf(ex);
         const to = S.lib.sections.find(x => x.id === fd.sec);
         if (to && to !== sec) { sec.ex = sec.ex.filter(x => x !== ex); to.ex.push(ex); openSecs.add(to.id); toast('Moved to ' + to.name); }
         save(); },
@@ -2667,7 +2684,7 @@ const A = {
     if (M.taps.length >= 2) { const iv = (M.taps[M.taps.length - 1] - M.taps[0]) / (M.taps.length - 1); mSet(60000 / iv); } },
 };
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; reorderMode = false; if (sheetOpen) closeSheet(); render(); window.scrollTo(0, 0); return; }
+  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; reorderMode = false; if (!M.on) mShow(false); if (sheetOpen) closeSheet(); render(); window.scrollTo(0, 0); return; }
   const a = e.target.closest('[data-act]'); if (!a || !A[a.dataset.act]) return;
   A[a.dataset.act](a, e);
 });
