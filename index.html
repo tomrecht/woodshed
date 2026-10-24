@@ -681,11 +681,12 @@ const Ttxt = (it, v) => Math.round(v / unitOf(it)) + (unitOf(it) === 2 ? ' (half
 const unitBtn = (type, it, full) => `<button type="button" class="${full ? 'btn sm' : 'iconbtn'}" data-act="unitToggle" data-ut="${type}" data-id="${esc(it.id)}" title="Switch between quarter-note and half-note tempo">${NOTE(unitOf(it))}${full ? ' ' + (type === 'ex' && mixedUnits(it) ? 'Mixed' : (unitOf(it) === 2 ? 'Half' : 'Quarter') + ' notes') + ' ⇄' : ''}</button>`;
 
 /* ---------- progress logic ---------- */
-function touch(k, exId, bulk) {
+function touch(k, exId, bulk, noPlan) {
   const p = P(), now = Date.now();
   p.touched[k] = now; if (exId) p.touched['x:' + exId] = now;
   if (!bulk) consPracticed(k);
   if (S.session && !S.session.items.includes(k)) S.session.items.push(k);
+  if (!bulk && !noPlan) planRecord(k);
 }
 // bulk = typed into the table entry page (catching up on old tempos), which doesn't start consolidation
 function setBpm(k, v, exId, bulk) {
@@ -694,7 +695,7 @@ function setBpm(k, v, exId, bulk) {
   if (v != null) v *= uk(k);
   const prev = p.bpm[k] ?? null; if (v === prev) return false;
   if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
-  touch(k, exId, bulk); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k); save(); checkBadges(); return v != null && prev != null && v > prev;
+  touch(k, exId, bulk, v == null); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k); save(); checkBadges(); return v != null && prev != null && v > prev;
 }
 const FLOOR_MIN = 2;   // every exercise with keys gets a floor (slowest key); keyless ones have a single tempo
 function exInfo(ex) {
@@ -1162,11 +1163,29 @@ function pickFloor(items) {
   return c && { t: 'ex', id: c.o.ex.id, key: c.i.mk, floor: true };
 }
 const hasFloor = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); if (!o) return false; const i = exInfo(o.ex); return i.floor && i.full && it.key === i.mk; });
-function makePlan() {
-  const items = [], sz = planSize();
-  items.push(...consDue(items).slice(0, Math.min(CONS_MAX, sz.ex)));
-  if (sz.ex > items.length) { const f = pickFloor(items); if (f) items.push(f); }
-  for (const [t, n] of [['ex', sz.ex - items.length], ['lick', sz.lick], ['tune', sz.tune]])
+// Practised today = the plan item's own key / lick / tune version was touched today.
+const planKeyOf = it => it.t === 'ex' ? 'e:' + it.id + '|' + it.key : (it.t === 'lick' ? 'l:' : 't:') + it.id;
+const planItemDone = it => dayKey(P().touched[planKeyOf(it)] || 0) === dayKey(Date.now());
+// Whatever you practise goes on today's plan: an unticked suggestion of the same exercise switches to the key you
+// played (not consolidation / floor items, which are about their own key), otherwise the item is added.
+function planRecord(k) {
+  if (!S.plan || S.plan.date !== dayKey(Date.now()) || S.plan.inst !== S.cur) makePlan();
+  const items = S.plan.items, m = /^([elt]):(.*)$/.exec(k); if (!m) return;
+  if (m[1] === 'e') {
+    const [id, key] = m[2].split('|'); if (!findEx(id)) return;
+    if (items.some(i => i.t === 'ex' && i.id === id && i.key === key)) return;
+    const same = items.find(i => i.t === 'ex' && i.id === id && !i.cons && !i.floor && !planItemDone(i));
+    if (same) same.key = key; else items.push({ t: 'ex', id, key });
+  } else {
+    const t = m[1] === 'l' ? 'lick' : 'tune';
+    if (!items.some(i => i.t === t && i.id === m[2])) items.push({ t, id: m[2] });
+  }
+}
+function makePlan(keep = []) {
+  const items = [...keep], sz = planSize(), cnt = t => items.filter(i => i.t === t).length;
+  items.push(...consDue(items).slice(0, Math.max(0, Math.min(CONS_MAX, sz.ex - cnt('ex')))));
+  if (sz.ex > cnt('ex')) { const f = pickFloor(items); if (f) items.push(f); }
+  for (const [t, n] of [['ex', sz.ex - cnt('ex')], ['lick', sz.lick - cnt('lick')], ['tune', sz.tune - cnt('tune')]])
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
   S.plan = { date: dayKey(Date.now()), inst: S.cur, items, fc: 1 }; save(true);   // automatic, not a user edit
 }
@@ -2510,7 +2529,7 @@ const A = {
   openLick: el => sheetLick(el.dataset.id),
   openTune: el => openTuneSheet(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id, el.dataset.k) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
-  replan: () => { makePlan(); save(); render(); },
+  replan: () => { makePlan(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan.items.filter(planItemDone) : []); save(); render(); },
   planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
     if (cur.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + cur.id + '|' + cur.key];
@@ -2595,7 +2614,9 @@ const A = {
   tagDel: el => { const t = S.lib.tunes.find(x => x.id === el.dataset.id); t.tags = splitTags(t.tags).filter(x => x !== el.dataset.tag).join(', '); save(); sheetTune.refresh(); },
   pickKey: el => { const o = findEx(el.dataset.id); const k = el.dataset.k || weakestKey(o.ex); addToPlan({ t: 'ex', id: o.ex.id, key: k }); closeSheet(); },
   tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
-  practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id); }); P().touched['x:' + o.ex.id] = Date.now(); save(); toast('Marked practiced'); },
+  practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id, false, true); }); P().touched['x:' + o.ex.id] = Date.now();
+    if (!S.plan || !S.plan.items.some(i => i.t === 'ex' && i.id === o.ex.id && planItemDone(i))) { const k = exKey(o.ex, exInfo(o.ex).mk || o.ex.keys[0]); touch(k, o.ex.id, false, true); planRecord(k); }
+    save(); toast('Marked practiced'); },
   practicedItem: el => { touch(el.dataset.k); save(); toast('Marked practiced'); },
   schedSheet: () => { schedAddDay = null; schedSheet(); },
   schedNav: el => { schedWeek = Math.max(0, schedWeek + +el.dataset.d); schedAddDay = null; schedSheet(); },
