@@ -2813,8 +2813,11 @@ const A = {
   metroToggle: () => mShow(!$('#metro').classList.contains('on')),
   mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm;
     if (el.dataset.u) mSetUnit(+el.dataset.u, false); if (b) { mSet(b); M.goal = null; } if (el.dataset.k) M.key = el.dataset.k; M.auto = false; mShow(true); if (!M.on) mStart(); },
-  mSave: () => { const k = M.key; if (!k || !itemOfKey(k)) return; const v = Math.round(M.bpm * M.unit / uk(k)), old = P().bpm[k];
-    if (old && v * uk(k) < old && !confirm(`That's slower than your logged ${TtxtK(k, old)}. Save anyway?`)) return;
+  mSave: () => { const k = M.key; if (!k || !itemOfKey(k)) return; const q = M.bpm * M.unit, old = P().bpm[k];   // q: quarter-note bpm
+    if (old && q < old && !confirm(`That's slower than your logged ${TtxtK(k, old)}. Save anyway?`)) return;
+    // keep the metronome's note value: a half-note tempo is saved (and shown) as half notes for this key / item
+    if (M.unit !== uk(k)) { if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'), ex = findEx(id)?.ex; if (ex) setKeyUnit(ex, key, M.unit); } else setUnit(itemOfKey(k), M.unit); }
+    const v = Math.round(q / uk(k));
     const ex = k.startsWith('e:') ? k.slice(2).split('|')[0] : undefined, pb = setBpm(k, v, ex);
     M.goal = M.unit === uk(k) ? v : M.bpm; mPaint();
     toast((pb ? 'New record: ' : 'Saved: ') + itemLabel(k) + ' ' + TtxtK(k, P().bpm[k]) + (pb ? '  +10 XP' : ''));
