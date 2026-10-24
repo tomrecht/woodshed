@@ -961,22 +961,25 @@ function weekChallenge(p = P()) {
 }
 
 /* ---------- rewards you promise yourself ---------- */
-const REWARD_TYPES = { hours: 'Total practice hours reach', streak: 'Streak reaches (weeks)', goalweeks: 'Weeks hitting my goal (total)', level: 'Level reaches', tunes: 'Tunes learned (total)', tune: 'This tune is learned', category: 'This category is complete' };
+const REWARD_TYPES = { hours: 'Total practice hours reach', streak: 'Streak reaches (weeks)', goalweeks: 'Weeks hitting my goal (total)', level: 'Level reaches', tunes: 'Tunes learned (total)', tune: 'This tune is learned', category: 'This category is complete', custom: 'My own goal (I decide when it’s done)' };
 function rewardProgress(r, p = P()) {
   const wh = weekHistory(p);
   const cur = r.type === 'hours' ? totalHours(p) : r.type === 'streak' ? wh.cur : r.type === 'goalweeks' ? wh.weeks.filter(w => w.met).length
     : r.type === 'level' ? level(xpCalc(p)).n : r.type === 'tunes' ? allVersions().filter(v => tuneStatus(v) === 'done').length
     : r.type === 'tune' ? (tuneStatus(r.target) === 'done' ? 1 : CP_ALL.filter(c => tuneState(r.target).cp?.[c.id]).length / CP_ALL.length)
     : r.type === 'category' ? (() => { const sec = S.lib.sections.find(x => x.id === r.target); if (!sec) return 0; const ks = sec.ex.flatMap(ex => ex.keys.map(k => exKey(ex, k))); return ks.filter(k => p.bpm[k]).length / Math.max(1, ks.length); })() : 0;
+  if (r.type === 'custom') return { cur: 0, target: 1, pct: r.unlocked ? 100 : 0, done: !!r.unlocked };
   const target = ['tune', 'category'].includes(r.type) ? 1 : +r.target;
   return { cur, target, pct: Math.min(100, Math.round(100 * cur / target)), done: !!r.unlocked || cur >= target };
 }
 function rewardGoalText(r) {
+  if (r.type === 'custom') return r.target;
   if (r.type === 'tune') return 'Learn ' + vLabel(r.target);
   if (r.type === 'category') return 'Complete ' + (S.lib.sections.find(x => x.id === r.target)?.name || 'category');
   return { hours: (+r.target).toLocaleString() + ' practice hours', streak: r.target + '-week streak', goalweeks: r.target + ' weeks hitting your goal', level: 'Reach level ' + r.target, tunes: r.target + ' tunes learned' }[r.type];
 }
 function rewardProgText(r, pr) {
+  if (r.type === 'custom') return 'you decide';
   if (r.type === 'hours') return pr.done ? 'done' : fmtHM(pr.target - pr.cur) + ' to go';
   if (['tune', 'category'].includes(r.type)) return pr.pct + '%';
   return Math.floor(pr.cur) + ' / ' + pr.target;
@@ -1445,7 +1448,7 @@ function vHome() {
     if (ready.length) return `<section class="card chdone"><div class="row"><span style="font-size:1.5rem">🎁</span><div class="grow"><small class="muted">Reward unlocked – go claim it!</small><br><b>${esc(ready[0].name)}</b></div><button class="btn sm" data-act="claimReward" data-id="${ready[0].id}">Claimed ✓</button></div></section>`;
     if (!open.length) return '';
     const { r, pr } = open[0];
-    return `<section class="card"><div class="row"><span style="font-size:1.5rem">🎁</span><div class="grow"><small class="muted">Next reward · ${esc(rewardGoalText(r))}</small><br><b>${esc(r.name)}</b></div><small>${rewardProgText(r, pr)}</small></div><div class="bar" style="margin-top:8px"><i style="width:${pr.pct}%"></i></div></section>`; })()}
+    return `<section class="card"><div class="row"><span style="font-size:1.5rem">🎁</span><div class="grow"><small class="muted">Next reward · ${esc(rewardGoalText(r))}</small><br><b>${esc(r.name)}</b></div>${r.type === 'custom' ? `<button class="btn sm" data-act="didReward" data-id="${r.id}">I did it ✓</button>` : `<small>${rewardProgText(r, pr)}</small>`}</div>${r.type === 'custom' ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${pr.pct}%"></i></div>`}</section>`; })()}
   <section class="card ${ch.done ? 'chdone' : ''}"><div class="row"><span style="font-size:1.5rem">🎯</span><div class="grow"><small class="muted">This week's challenge · +${CHALLENGE_XP} XP</small><br><b>${esc(ch.c.text)}</b></div><b>${ch.done ? '✓' : ch.prog + '/' + ch.c.goal}</b></div>
     ${ch.done ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${Math.round(100 * ch.prog / ch.c.goal)}%"></i></div>`}</section>
   ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
@@ -1590,7 +1593,7 @@ function vMore() {
     ${(p.rewards || []).length ? `<ul class="list">${p.rewards.map(r => { const pr = rewardProgress(r, p);
       return `<li style="display:block"><div class="row"><b class="grow">${esc(r.name)}${r.claimed ? ' <small class="muted">· claimed</small>' : ''}</b><button class="iconbtn" data-act="delReward" data-id="${r.id}" aria-label="Delete">✕</button></div>
         <small class="muted">${esc(rewardGoalText(r))} · ${r.unlocked ? '🎁 unlocked ' + ago(r.unlocked) : rewardProgText(r, pr)}</small>
-        ${r.unlocked ? (r.claimed ? '' : `<div style="margin-top:6px"><button class="btn sm" data-act="claimReward" data-id="${r.id}">Mark as claimed ✓</button></div>`) : `<div class="bar"><i style="width:${pr.pct}%"></i></div>`}</li>`; }).join('')}</ul>`
+        ${r.unlocked ? (r.claimed ? '' : `<div style="margin-top:6px"><button class="btn sm" data-act="claimReward" data-id="${r.id}">Mark as claimed ✓</button></div>`) : r.type === 'custom' ? `<div style="margin-top:6px"><button class="btn sm" data-act="didReward" data-id="${r.id}">I did it ✓</button></div>` : `<div class="bar"><i style="width:${pr.pct}%"></i></div>`}</li>`; }).join('')}</ul>`
       : '<p class="muted" style="margin-top:0">Promise yourself something for reaching a goal – a mouthpiece, a lesson, a night at a club.</p>'}
     <button class="btn ghost" data-act="addReward">+ Add a reward</button></section>
   <section class="card"><h3>Personal bests</h3><div class="stats3" style="flex-wrap:wrap">${Object.entries(personalBests(p)).map(([k, v]) => `<div style="min-width:40%"><small>${PB_NAMES[k]}</small><strong>${v ? pbFmt(k, v) : '—'}</strong></div>`).join('')}</div></section>
@@ -2461,10 +2464,12 @@ const A = {
     formSheet('New reward', `<label class="f">What will you treat yourself to?</label><input type="text" name="name" required placeholder="e.g. New mouthpiece, lesson with …, night at a jazz club">
       <label class="f">Unlocked when…</label><select name="type" id="rwType">${Object.entries(REWARD_TYPES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>
       <div id="rwTarget"></div>`, fd => {
-        const target = fd.type === 'tune' ? fd.tune : fd.type === 'category' ? fd.cat : +fd.target;
-        if (!fd.name.trim() || (!['tune', 'category'].includes(fd.type) && !(target > 0))) { toast('Fill in the reward and a target'); return false; }
+        const target = fd.type === 'tune' ? fd.tune : fd.type === 'category' ? fd.cat : fd.type === 'custom' ? (fd.goal || '').trim() : +fd.target;
+        if (!fd.name.trim() || (fd.type === 'custom' ? !target : !['tune', 'category'].includes(fd.type) && !(target > 0))) { toast('Fill in the reward and a target'); return false; }
         const p = P(); p.rewards = p.rewards || []; p.rewards.push({ id: uid(), name: fd.name.trim(), type: fd.type, target, created: Date.now() }); save(); checkAchievements(); render(); });
     const tgt = () => { const ty = $('#rwType').value, p = P(), h = totalHours(p), wh = weekHistory(p), lv = level(xpCalc(p)).n;
+      if (ty === 'custom') { $('#rwTarget').innerHTML = `<label class="f">Goal</label><input type="text" name="goal" required placeholder="e.g. Play Donna Lee at a jam session">
+        <p class="muted" style="margin:6px 0 0">Tap “I did it” on the reward when you’ve done it.</p>`; return; }
       const sugg = { hours: Math.ceil((h + 1) / 100) * 100, streak: Math.max(4, wh.cur + 4), goalweeks: Math.max(10, wh.weeks.filter(w => w.met).length + 10), level: lv + 2, tunes: allVersions().filter(v => tuneStatus(v) === 'done').length + 5 }[ty];
       // where you are now, so the target can be set sensibly
       const now = { hours: h, streak: wh.cur, goalweeks: wh.weeks.filter(w => w.met).length, level: lv, tunes: allVersions().filter(v => tuneStatus(v) === 'done').length }[ty];
@@ -2482,6 +2487,8 @@ const A = {
         el.innerHTML = `Now: <b style="color:var(--text)">${esc(nowTxt)}</b>` + (t > 0 ? ' · ' + (left > 0 ? (ty === 'hours' ? fmtHM(left) : ty === 'level' ? left + ' level' + (left === 1 ? '' : 's') : left + (ty === 'streak' ? ' weeks' : unit)) + ' to go' : 'already there') : ''); };
       ($('#rwSel') || $('#rwNum')).oninput = upd; ($('#rwSel') || $('#rwNum')).onchange = upd; upd(); };
     $('#rwType').onchange = tgt; tgt(); }); },
+  didReward: el => { const r = (P().rewards || []).find(x => x.id === el.dataset.id); if (!r || !confirm(`Did you do it?\n\n${r.target}`)) return;
+    r.unlocked = Date.now(); save(); toast('🎁 Reward unlocked: ' + r.name + ' – you earned it!'); render(); },
   claimReward: el => { const r = (P().rewards || []).find(x => x.id === el.dataset.id); if (r) { r.claimed = Date.now(); save(); toast('Enjoy it! 🎷'); render(); } },
   delReward: el => { const p = P(); if (!confirm('Delete this reward?')) return; p.rewards = (p.rewards || []).filter(x => x.id !== el.dataset.id); save(); render(); },
   celeOk: () => $('#cele').classList.add('hide'),
