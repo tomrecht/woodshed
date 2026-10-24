@@ -716,7 +716,7 @@ const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
 /* ---------- tunes: keys (versions), checkpoints, spaced review ---------- */
 const CP_GROUPS = [
   ['Melody', [['m1', 'Sing it'], ['m2', 'Play from the chart'], ['m3', 'Play from memory']]],
-  ['Changes', [['c1', 'Roots through the form'], ['c2', 'Guide tones (3rds & 7ths)'], ['c3', 'Arpeggios'], ['c4', 'All from memory']]],
+  ['Changes', [['c1', 'Roots through the form'], ['c2', 'Guide tones (3rds & 7ths)'], ['c3', 'Arpeggios (ascending)'], ['c3d', 'Arpeggios (descending)'], ['c4', 'All from memory']]],
   ['Soloing', [['s4', 'Paraphrase the melody'], ['s5', 'Make the changes (land on chord tones)'], ['s6', 'Keep the form without the chart'], ['s7', 'Solo at performance tempo'], ['s8', 'Learn a recorded solo on it'], ['s9', 'Play it with others (session or gig)']]],
 ];
 const CP_ALL = CP_GROUPS.flatMap(([g, l]) => l.map(([id, n]) => ({ g, id, n })));
@@ -1571,7 +1571,7 @@ function vGrid() {
     ${sections}
     <section class="card"><h3>Licks</h3><div class="gwrap"><table class="grid"><thead><tr><th></th><th>BPM (all 12 keys)</th></tr></thead><tbody>${lickRows}</tbody></table></div></section>
     <section class="card"><h3>Tunes <small>(main key)</small></h3><div class="gwrap"><table class="grid"><thead><tr><th></th>${CP_GROUPS.map(([g, l]) => `<th colspan="${l.length}" style="text-align:center">${g}</th>`).join('')}<th></th><th></th></tr>
-      <tr><th></th>${CP_ALL.map(c => `<th class="cph" title="${esc(c.n)}">${esc({ m1: 'Sing', m2: 'Chart', m3: 'Mem', c1: 'Roots', c2: 'Guide', c3: 'Arps', c4: 'Mem', s4: 'Melody', s5: 'Changes', s6: 'Form', s7: 'Tempo', s8: 'Transcr.', s9: 'Out' }[c.id])}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
+      <tr><th></th>${CP_ALL.map(c => `<th class="cph" title="${esc(c.n)}">${esc({ m1: 'Sing', m2: 'Chart', m3: 'Mem', c1: 'Roots', c2: 'Guide', c3: 'Arps ↑', c3d: 'Arps ↓', c4: 'Mem', s4: 'Melody', s5: 'Changes', s6: 'Form', s7: 'Tempo', s8: 'Transcr.', s9: 'Out' }[c.id])}</th>`).join('')}<th>Tempo tune</th><th>BPM</th></tr></thead><tbody>${tuneRows}</tbody></table></div></section>`;
 }
 function bindGrid() {
   $$('#view input[data-gkey]').forEach(inp => inp.addEventListener('change', () => {
@@ -2221,18 +2221,45 @@ function styleTempo(style) {
 const beatsPerBar = e => parseInt((e.ts || '4/4').split('/')[0]) || 4;
 
 /* ---------- chart player: play the whole form under any chart that is shown ---------- */
-// Bar order with repeats (‖: :‖, taken once) and 1st/2nd endings. Segno / Coda / D.C. marks are not followed.
+// Bar order: repeats (‖: :‖, taken once), 1st/2nd endings, and D.C. / D.S. with al Fine / al Coda.
+// The marks come from a PDF export and sit only roughly where they belong, so the reading is forgiving:
+// the jump happens at the end of the bar carrying "D.C./D.S."; a Segno on the last bar before a section (or on a
+// repeat's closing bar) means that section; "to Coda" is the first Coda sign between the jump target and the D.C.,
+// the coda itself the last Coda sign after it (or the bar after the D.C.). On the way back repeats are not taken
+// and the last ending is played; the coda plays as written. Only the first D.C./D.S. is followed. Without one the
+// chart plays straight through.
+function formJump(bars) {
+  const n = bars.length, mk = i => (bars[i].mk || []).join('|'), has = (i, re) => (bars[i].mk || []).some(x => re.test(x));
+  const D = bars.findIndex((b, i) => /D\.\s*[CS]\./i.test(mk(i))); if (D < 0) return null;
+  const txt = mk(D); let target = 0;
+  if (/D\.\s*S\./i.test(txt)) { let sg = bars.findIndex((b, i) => has(i, /^segno$/i));
+    if (sg >= 0 && sg + 1 < n && (bars[sg].rc || (bars[sg + 1].sec && !bars[sg].sec))) sg++; target = Math.max(0, sg); }
+  const codas = bars.map((b, i) => has(i, /^coda$/i) ? i : -1).filter(i => i >= 0);
+  const fine = bars.findIndex((b, i) => has(i, /^fine$/i));
+  const alFine = /fine/i.test(txt) || (!/coda/i.test(txt) && fine >= 0);
+  const alCoda = !alFine && (/coda/i.test(txt) || codas.length > 0);
+  const toCoda = alCoda ? codas.find(i => i >= target && i < D) : undefined;
+  let codaStart = alCoda ? codas.filter(i => i > D).pop() : undefined;
+  if (alCoda && codaStart === undefined && D + 1 < n) codaStart = D + 1;
+  return { D, target, fine: alFine && fine >= target ? fine : -1, toCoda: toCoda ?? -1, codaStart: codaStart ?? -1 };
+}
 function formOrder(bars) {
-  const out = [], n = bars.length; let i = 0, start = 0, pass = 1, guard = 0;
-  while (i < n && guard++ < 4 * n) {
+  const out = [], n = bars.length, jump = formJump(bars); let i = 0, start = 0, pass = 1, al = false, done = false, guard = 0;
+  while (i < n && guard++ < 8 * n) {
     const b = bars[i];
-    if (b.ro && i !== start) { start = i; pass = 1; }
+    if (!al && b.ro && i !== start) { start = i; pass = 1; }
     if (b.end && b.end !== pass) {            // the other ending: jump to this pass's ending, or past the repeat
       let j = i + 1; while (j < n && bars[j].end !== pass) j++;
       if (j < n) { i = j; continue; }
       j = i; while (j < n && !bars[j].rc) j++; i = j + 1; continue; }
     out.push(i);
+    if (al) {                                  // after the D.C./D.S.: no repeats, stop at Fine, jump to the coda
+      if (jump.fine === i) break;
+      if ((jump.toCoda === i || (jump.toCoda < 0 && i === jump.D)) && jump.codaStart > i) { i = start = jump.codaStart; al = false; done = true; pass = 1; continue; }   // the coda plays as written
+      i++; continue;
+    }
     if (b.rc) { if (pass === 1) { pass = 2; i = start; continue; } pass = 1; start = i + 1; }
+    if (jump && !done && i === jump.D) { al = true; done = true; pass = 2; i = jump.target; continue; }
     i++;
   }
   return out;
