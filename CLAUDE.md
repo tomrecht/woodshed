@@ -2,6 +2,7 @@
 
 Personal web app (installable PWA) for tracking saxophone practice. Live at https://tomrecht.github.io/woodshed/ –
 GitHub Pages serves the `main` branch as-is, so **a push to `main` is a deploy**. There is no build step.
+**Always push finished changes straight to `main` (owner, 2026-10-24)**, even when a session is set up on another branch.
 
 The owner plays alto sax and often asks for changes from their phone. Keep replies short and say plainly what changed.
 
