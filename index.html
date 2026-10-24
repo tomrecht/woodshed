@@ -185,9 +185,13 @@ nav#tabs button.on{color:var(--accent)}
 /* metronome */
 #metro{position:fixed;left:8px;right:8px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:50;background:var(--surface2);border:1px solid var(--line);
   border-radius:16px;padding:8px 10px;display:none;align-items:center;gap:6px;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:520px;margin:0 auto}
-#metro.on{display:flex}
+#metro.on{display:flex;flex-direction:column;align-items:stretch}
+#metro .mrow{display:flex;align-items:center;gap:4px}
+#beats{display:flex;gap:4px;margin-left:4px}
+#metro .beat.acc{width:14px;height:14px}
+#mUnit .nt{height:1.2em;width:.75em}
 #metro input{width:56px;text-align:center;font-weight:700;font-size:1.1rem;padding:6px}
-#metro .beat{width:12px;height:12px;border-radius:50%;background:var(--empty);flex:none}
+#metro .beat{width:12px;height:12px;border-radius:50%;background:#555b68;flex:none}
 #metro .beat.hit{background:var(--accent)}
 #metro button{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 6px;font-weight:650;font-size:.85rem;min-width:30px}
 #metro{gap:4px!important;padding:8px 6px!important}
@@ -249,7 +253,7 @@ th.cph{font-size:.7rem;font-weight:500;color:var(--muted)}
 .rhpad{width:100%;height:150px;margin-top:12px;border-radius:16px;border:2px dashed var(--line);background:var(--surface2);font-size:1.4rem;font-weight:800;color:var(--muted);touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .rhpad.hit{background:var(--accent);color:var(--accent-ink)}
 .nt{height:1.05em;width:.6em;vertical-align:-.18em;margin-right:1px}
-body.metro-on #sheet .panel{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+body.metro-on #sheet .panel{padding-bottom:calc(130px + env(safe-area-inset-bottom))}
 button.krow{width:100%;border:0;text-align:left}
 main.wide{max-width:1280px}
 .gwrap{overflow-x:auto;margin-bottom:10px}
@@ -278,16 +282,24 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
   <button data-act="pauseSession" id="pauseBtn">Pause</button><button data-act="finishSession">Finish</button></div>
 <main id="view"></main>
 <div id="metro">
-  <span class="beat" id="beat"></span>
-  <button data-act="mStep" data-d="-5">−5</button>
-  <button data-act="mStep" data-d="-1">−1</button>
-  <input id="mBpm" type="number" inputmode="numeric" min="20" max="400" value="120" aria-label="Metronome BPM">
-  <button data-act="mStep" data-d="1">+1</button>
-  <button data-act="mStep" data-d="5">+5</button>
-  <button data-act="mTap">Tap</button>
-  <button class="play" data-act="mPlay" id="mPlay">▶</button>
-  <div class="grow"></div>
-  <button data-act="metroToggle" aria-label="Close metronome">✕</button>
+  <div class="mrow">
+    <button id="mUnit" data-act="mUnit" title="Click on quarter or half notes"></button>
+    <button data-act="mStep" data-d="-5">−5</button>
+    <button data-act="mStep" data-d="-1">−1</button>
+    <input id="mBpm" type="number" inputmode="numeric" min="20" max="400" value="120" aria-label="Metronome BPM">
+    <button data-act="mStep" data-d="1">+1</button>
+    <button data-act="mStep" data-d="5">+5</button>
+    <button class="play" data-act="mPlay" id="mPlay">▶</button>
+  </div>
+  <div class="mrow">
+    <button id="mTs" data-act="mTs" title="Time signature (beats per bar)">4/4</button>
+    <span id="beats"></span>
+    <div class="grow"></div>
+    <button id="mGoal" data-act="mGoal" class="hide" title="Jump to your logged tempo"></button>
+    <button id="mSave" data-act="mSave" class="hide">Save</button>
+    <button data-act="mTap">Tap</button>
+    <button data-act="metroToggle" aria-label="Close metronome">✕</button>
+  </div>
 </div>
 <nav id="tabs">
   <button data-tab="home" class="on"><span>⌂</span>Home</button>
@@ -1021,12 +1033,18 @@ function badgeList() {
   ];
   return B.map(([id, ic, name, desc, ok]) => ({ id, ic, name, desc, ok }));
 }
+const SHARED_BADGES = { ear50: 'ear', ear250: 'ear', quiz1: 'quiz', quizP: 'quiz' };
 function checkBadges(silent) { return checkAchievements({ silent }); }
 // Compare against what has already been celebrated; return or show anything new.
 function checkAchievements(opts = {}) {
   const p = P(), items = []; p.badges = p.badges || {}; p.badgesNoXp = p.badgesNoXp || {};
   for (const b of badgeList()) if (b.ok && !p.badges[b.id]) {
     p.badges[b.id] = Date.now();
+    // Badges built on shared data (ear training: all instruments; quizzes: same pitch) go to every instrument that shares it,
+    // and only pop up during the activity that earned them.
+    const grp = SHARED_BADGES[b.id];
+    if (grp) { for (const i of S.inst) { const q = S.prog[i.id]; if (q && q !== p && (grp === 'ear' || (i.tr || 'Eb') === (curInst().tr || 'Eb'))) { q.badges = q.badges || {}; q.badges[b.id] = q.badges[b.id] || Date.now(); } }
+      if (opts.from !== grp) continue; }
     if (/^h\d+$/.test(b.id) && +b.id.slice(1) <= (p.priorHours || 0)) p.badgesNoXp[b.id] = 1;
     else items.push({ ic: b.ic, title: b.id.startsWith('sec:') ? b.name + ' complete!' : b.name, sub: b.desc + ' · +' + BADGE_XP + ' XP' });
   }
@@ -1343,7 +1361,7 @@ function vHome() {
     if (it.t === 'tune') { const t = tuneOf(it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(vLabel(it.id)); const st = tuneStatus(it.id), nx = CP_ALL.find(c => !tuneState(it.id).cp?.[c.id]);
       key = st === 'done' ? ' <small>review due</small>' : st === 'new' ? ' <small>start learning</small>' : ` <small>next: ${esc(nx ? nx.n.toLowerCase() : '')}</small>`; done = dayKey(p.touched['t:' + it.id] || 0) === today;
       if (t.tempo && p.bpm['t:' + it.id]) key = ` <small>${Tk('t:' + it.id, p.bpm['t:' + it.id])}</small>` + key; }
-    return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
+    return `<li><span class="chk ${done ? 'on' : ''}">${done ? '✓' : ''}</span><button class="item" data-act="openPlan" data-t="${it.t}" data-id="${esc(it.id)}" data-k="${esc(it.key || '')}"><div class="tag">${esc(tag)}</div>${label}${key}</button>
       <button class="iconbtn" data-act="planSwap" data-i="${idx}" title="Suggest something else" aria-label="Swap">⇄</button><button class="iconbtn" data-act="planDel" data-i="${idx}" title="Remove" aria-label="Remove">✕</button></li>`;
   }).join('') || '<li class="muted">Empty – add something below.</li>';
   // heatmap: 20 weeks
@@ -1591,12 +1609,13 @@ function applyExFilter() {
 /* ---------- sheet ---------- */
 let sheetOpen = false, sheetOnClose = null;
 function openSheet(html, onClose) {
+  M.loadedFor = null;
   $('#panel').innerHTML = html; $('#sheet').classList.add('on'); $('#panel').scrollTop = 0;
   if (!sheetOpen) history.pushState({ sheet: 1 }, ''); sheetOpen = true; sheetOnClose = onClose || null;
   hydrateImgs($('#panel'));
 }
 function closeSheet(fromPop) {
-  if (!sheetOpen) return; sheetOpen = false; $('#sheet').classList.remove('on');
+  if (!sheetOpen) return; sheetOpen = false; $('#sheet').classList.remove('on'); M.loadedFor = null;
   const cb = sheetOnClose; sheetOnClose = null; if (cb) cb();
   if (!fromPop) history.back();
   render();
@@ -1621,8 +1640,8 @@ function histList(prefix, labelFn) {
   return `<h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all, uk(all[0].k)) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${dv(x.k, x.prev)}→</small>` : ''}${Tk(x.k, x.bpm)}</b></li>`).join('')}</ul>`;
 }
 
-function sheetEx(id) {
-  const o = findEx(id); if (!o) return; const { sec, ex } = o; const p = P();
+function sheetEx(id, planKey) {
+  const o = findEx(id); if (!o) return; const { sec, ex } = o; const p = P(), wasLoaded = M.loadedFor === id;
   const list = allEx(); const idx = list.findIndex(x => x.ex.id === id);
   const info = exInfo(ex);
   const floorHtml = () => { const i = exInfo(ex);
@@ -1635,7 +1654,7 @@ function sheetEx(id) {
       <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
       <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
-      <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
+      <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" data-u="${uk(key)}" data-k="${esc(key)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
   openSheet(`${head(ex.name, sec.name)}
     <div class="floorbox" id="floorbox">${floorHtml()}</div>
     <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">Type your best clean tempo for each key. Tap a key's note to switch just that key between quarter and half notes.</p>${unitBtn('ex', ex, true)}</div>
@@ -1659,6 +1678,11 @@ function sheetEx(id) {
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
   });
+  // metronome comes up when you start on an exercise (not when the sheet is just refreshed)
+  if (!wasLoaded) { const i = exInfo(ex);
+    const k = planKey && ex.keys.includes(planKey) && p.bpm[exKey(ex, planKey)] ? planKey : i.mk || ex.keys[0];
+    metroLoad(exKey(ex, k)); }
+  M.loadedFor = id; sheetOnClose = () => { if (M.auto && !M.on) mShow(false); };
 }
 
 function sheetLick(id) {
@@ -1666,7 +1690,7 @@ function sheetLick(id) {
   openSheet(`${head(l.name, 'all 12 keys')}
     ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
     <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">Best tempo through all 12 keys</label>${unitBtn('lick', l, true)}</div>
-    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="lickBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>
+    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="lickBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-u="${uk(key)}" data-k="${esc(key)}" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>
     <label class="f">Notes</label><textarea id="lickNotes" rows="2">${esc(l.notes || '')}</textarea>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="lick" data-id="${esc(l.id)}">+ Today's plan</button></div>
@@ -1700,7 +1724,7 @@ function sheetTune(vid, opts = {}) {
     ${hasChart(t) && ch ? `<div class="row" style="margin:-2px 0 8px"><small class="muted grow">Home key <b style="color:var(--text)">${esc(chartFor(id)?.mainKey || ch.mainKey)}</b>${t.chartKey ? ' (set by you)' : ''}</small><button class="btn sm" data-act="setChartKey" data-id="${esc(id)}">Change</button></div>` : ''}
     ${t.tempo ? `<div class="floorbox"><div><small>Best tempo</small><strong style="color:var(--accent)">${Tk(key, p.bpm[key])}</strong><small>${p.touched[key] ? 'last played ' + ago(p.touched[key]) : ''}</small></div></div>
     <div class="row" style="margin-top:10px"><label class="f grow" style="margin:0">New tempo</label>${unitBtn('tune', t, true)}</div>
-    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
+    <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-u="${uk(key)}" data-k="${esc(key)}" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
     ${review}
     ${chartBox}
     <div id="cps">${cpHtml}</div>
@@ -1829,7 +1853,7 @@ function quizFinish() {
   let summary = `<small>+${2 * right} XP</small>`;
   if (Q.level !== 'key' && tuneStatus(Q.vid) === 'done') { const ivl = applyReview(Q.vid, pct >= 90 ? 2 : pct >= 70 ? 1 : 0); summary += `<br><small>Counted as a review – next one in ${ivl} day${ivl === 1 ? '' : 's'}.</small>`; }
   if (pct === 100 && Q.level === 'all' && !r.cp?.c4) summary += `<div style="margin-top:8px"><button class="btn sm" data-act="cpQuick" data-id="${esc(Q.vid)}" data-c="c4">Tick "Changes: all from memory"</button></div>`;
-  Q.summary = summary; save(); checkBadges();
+  Q.summary = summary; save(); checkAchievements({ from: 'quiz' });
 }
 function pickerSheet(t) {
   const p = P(); let rows;
@@ -1906,21 +1930,49 @@ function sessionRecap(sess, xpBefore, got) {
 }
 
 /* ---------- metronome ---------- */
-const M = { ctx: null, on: false, bpm: 120, next: 0, beat: 0, timer: null, taps: [] };
+// The BPM shown counts the click note: quarter notes (unit 1) or half notes (unit 2). bpb = clicks per bar (first one accented).
+const M = { ctx: null, on: false, bpm: 120, unit: 1, bpb: 4, goal: null, next: 0, beat: 0, timer: null, taps: [], auto: false };
 function mSet(b) { M.bpm = Math.max(20, Math.min(400, Math.round(+b) || 120)); $('#mBpm').value = M.bpm; }
+function mPaint() {
+  $('#mUnit').innerHTML = NOTE(M.unit); $('#mTs').textContent = M.bpb === 1 ? 'no bars' : M.bpb + '/' + (M.unit === 2 ? 2 : 4);
+  $('#beats').innerHTML = Array.from({ length: M.bpb }, (_, i) => `<span class="beat ${i === 0 && M.bpb > 1 ? 'acc' : ''}"></span>`).join('');
+  const g = $('#mGoal'); g.classList.toggle('hide', M.goal == null); if (M.goal != null) g.textContent = 'Goal ' + M.goal;
+  const sv = $('#mSave'); sv.classList.toggle('hide', !M.key || !itemOfKey(M.key)); if (M.key) sv.title = 'Save this tempo as your best for ' + itemLabel(M.key);
+}
+function mSetUnit(u, keepTempo = true) {
+  if (u === M.unit) return;
+  if (keepTempo) mSet(u === 2 ? M.bpm / 2 : M.bpm * 2);
+  if (M.goal != null) M.goal = Math.round(u === 2 ? M.goal / 2 : M.goal * 2);
+  M.bpb = u === 2 ? (M.bpb % 2 === 0 ? M.bpb / 2 : M.bpb) : (M.bpb * 2 <= 7 ? M.bpb * 2 : M.bpb);
+  M.unit = u; S.settings.mBpb = M.bpb; save(true); mPaint();
+}
+// Warm-up: a little under the logged tempo (12–16 slower in quarter notes, 6–8 in half notes), landing on an even number or a multiple of 5.
+function warmTempo(v, u) {
+  const [lo, hi, mid] = u === 2 ? [6, 8, 7] : [12, 16, 14]; let best = null;
+  for (let x = v - hi; x <= v - lo; x++) if (x % 2 === 0 || x % 5 === 0) {
+    const sc = Math.abs(x - (v - mid)) - (x % 5 === 0 ? 0.1 : 0); if (best == null || sc < best.sc) best = { x, sc }; }
+  return Math.max(20, best ? best.x : v - mid);
+}
+// Load the metronome for an item: tempo key k (or none), shown in that key's unit; logged tempos start at warm-up.
+function metroLoad(k) {
+  const u = k ? uk(k) : M.unit, v = k ? P().bpm[k] : null;
+  M.unit = u; M.key = k || null; M.bpb = S.settings.mBpb || (u === 2 ? 2 : 4);
+  if (v) { const d = Math.round(v / u); M.goal = d; mSet(warmTempo(d, u)); } else M.goal = null;
+  mPaint(); if (!$('#metro').classList.contains('on')) { M.auto = true; mShow(true); }
+}
 // Clicks are short pre-built sound buffers, scheduled ahead on the audio clock.
 function mBuf(freq) {
   const sr = M.ctx.sampleRate, n = Math.floor(sr * 0.05), b = M.ctx.createBuffer(1, n, sr), d = b.getChannelData(0);
   for (let i = 0; i < n; i++) d[i] = Math.sin(2 * Math.PI * freq * i / sr) * Math.exp(-i / (sr * 0.008));
   return b;
 }
-function mClick(t, acc) {
-  const src = M.ctx.createBufferSource(); src.buffer = acc ? M.hi : M.lo; src.connect(M.ctx.destination); src.start(t);
+function mClick(t, i) {
+  const src = M.ctx.createBufferSource(); src.buffer = i === 0 && M.bpb > 1 ? M.hi : M.lo; src.connect(M.ctx.destination); src.start(t);
   const delay = Math.max(0, (t - M.ctx.currentTime) * 1000);
-  setTimeout(() => { const b = $('#beat'); b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90); }, delay);
+  setTimeout(() => { const b = $$('#beats .beat')[i]; if (!b) return; b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90); }, delay);
 }
 function mSched() { if (M.ctx.state !== 'running') return; if (M.next < M.ctx.currentTime) M.next = M.ctx.currentTime + 0.03;
-  while (M.next < M.ctx.currentTime + 0.12) { mClick(M.next, M.beat % 4 === 0); M.next += 60 / M.bpm; M.beat++; } }
+  while (M.next < M.ctx.currentTime + 0.12) { mClick(M.next, M.beat % M.bpb); M.next += 60 / M.bpm; M.beat++; } }
 async function mStart() {
   try {
     M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)();
@@ -1933,7 +1985,7 @@ async function mStart() {
   } catch (e) { M.on = false; $('#mPlay').textContent = '▶'; toast('Could not start audio: ' + e.message); }
 }
 function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent = '▶'; }
-function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) mStop(); }
+function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) { mStop(); M.auto = false; } else mPaint(); }
 $('#mBpm').addEventListener('change', e => mSet(e.target.value));
 
 /* ---------- chord playback: sampled piano, jazz voicings, comping ----------
@@ -2073,7 +2125,7 @@ function endTrain() {
   if (min >= 1) { const p = EARS(); p.away = p.away || []; p.away.push({ t: TR.start, min: Math.min(min, 90), kind: TR.kind }); save(); }
   TR.start = null;
 }
-function trainScore(ok, kind) { const p = EARS(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; if (ok) { p.trainDays = p.trainDays || {}; const d = dayKey(Date.now()); p.trainDays[d] = (p.trainDays[d] || 0) + 1; } p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); checkAchievements(); }
+function trainScore(ok, kind) { const p = EARS(); p.train = p.train || { xp: 0, ok: 0, n: 0 }; if (ok) { p.trainDays = p.trainDays || {}; const d = dayKey(Date.now()); p.trainDays[d] = (p.trainDays[d] || 0) + 1; } p.train.n++; if (ok) { p.train.ok++; p.train.xp += 2; } p.train[kind] = p.train[kind] || { n: 0, ok: 0 }; p.train[kind].n++; if (ok) p.train[kind].ok++; save(true); checkAchievements({ from: 'ear' }); }
 const awayMinutes = (since = 0) => (EARS().away || []).filter(a => a.t >= since).reduce((s, a) => s + a.min, 0);
 
 /* ---------- ear training: progressions ---------- */
@@ -2369,7 +2421,7 @@ const A = {
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
   openTune: el => openTuneSheet(el.dataset.id),
-  openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
+  openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id, el.dataset.k) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
   replan: () => { makePlan(); save(); render(); },
   planDel: el => { S.plan.items.splice(+el.dataset.i, 1); save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
@@ -2556,7 +2608,17 @@ const A = {
       S = d.state; S.session = null; localStorage.setItem(LS, JSON.stringify(S)); load(); render(); toast('Backup restored');
     } catch (e) { toast('That file is not a Woodshed backup'); } }; f.click(); },
   metroToggle: () => mShow(!$('#metro').classList.contains('on')),
-  mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm; if (b) mSet(b); mShow(true); if (!M.on) mStart(); },
+  mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm;
+    if (el.dataset.u) mSetUnit(+el.dataset.u, false); if (b) { mSet(b); M.goal = null; } if (el.dataset.k) M.key = el.dataset.k; M.auto = false; mShow(true); if (!M.on) mStart(); },
+  mSave: () => { const k = M.key; if (!k || !itemOfKey(k)) return; const v = Math.round(M.bpm * M.unit / uk(k)), old = P().bpm[k];
+    if (old && v * uk(k) < old && !confirm(`That's slower than your logged ${TtxtK(k, old)}. Save anyway?`)) return;
+    const ex = k.startsWith('e:') ? k.slice(2).split('|')[0] : undefined, pb = setBpm(k, v, ex);
+    M.goal = M.unit === uk(k) ? v : M.bpm; mPaint();
+    toast((pb ? 'New record: ' : 'Saved: ') + itemLabel(k) + ' ' + TtxtK(k, P().bpm[k]) + (pb ? '  +10 XP' : ''));
+    if (sheetOpen && ex && M.loadedFor === ex) sheetEx(ex); else if (!sheetOpen) render(); },
+  mUnit: () => mSetUnit(M.unit === 2 ? 1 : 2),
+  mTs: () => { const o = [4, 3, 2, 5, 6, 7, 1]; M.bpb = o[(o.indexOf(M.bpb) + 1) % o.length]; M.beat = 0; S.settings.mBpb = M.bpb; save(true); mPaint(); },
+  mGoal: () => { if (M.goal != null) mSet(M.goal); },
   mStep: el => { mSet(M.bpm + +el.dataset.d); },
   mPlay: () => M.on ? mStop() : mStart(),
   mTap: () => { const now = performance.now(); M.taps = M.taps.filter(t => now - t < 2500); M.taps.push(now);
