@@ -681,18 +681,20 @@ const Ttxt = (it, v) => Math.round(v / unitOf(it)) + (unitOf(it) === 2 ? ' (half
 const unitBtn = (type, it, full) => `<button type="button" class="${full ? 'btn sm' : 'iconbtn'}" data-act="unitToggle" data-ut="${type}" data-id="${esc(it.id)}" title="Switch between quarter-note and half-note tempo">${NOTE(unitOf(it))}${full ? ' ' + (type === 'ex' && mixedUnits(it) ? 'Mixed' : (unitOf(it) === 2 ? 'Half' : 'Quarter') + ' notes') + ' ⇄' : ''}</button>`;
 
 /* ---------- progress logic ---------- */
-function touch(k, exId) {
+function touch(k, exId, bulk) {
   const p = P(), now = Date.now();
   p.touched[k] = now; if (exId) p.touched['x:' + exId] = now;
+  if (!bulk) consPracticed(k);
   if (S.session && !S.session.items.includes(k)) S.session.items.push(k);
 }
-function setBpm(k, v, exId) {
+// bulk = typed into the table entry page (catching up on old tempos), which doesn't start consolidation
+function setBpm(k, v, exId, bulk) {
   const p = P(); v = v === '' || v == null ? null : Math.round(+v);
   if (v != null && (!isFinite(v) || v <= 0)) v = null;
   if (v != null) v *= uk(k);
   const prev = p.bpm[k] ?? null; if (v === prev) return false;
   if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
-  touch(k, exId); save(); checkBadges(); return v != null && prev != null && v > prev;
+  touch(k, exId, bulk); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k); save(); checkBadges(); return v != null && prev != null && v > prev;
 }
 const FLOOR_MIN = 2;   // every exercise with keys gets a floor (slowest key); keyless ones have a single tempo
 function exInfo(ex) {
@@ -1109,6 +1111,33 @@ function pickFor(t, items) {
   const c = best(pool.filter(v => kindOf(v) === kind).map(v => ({ v, s: kind === 'due' ? (Date.now() - tuneState(v).rv.due) / DAY + Math.random() * 5 : staleScore(p.touched['t:' + v]) })));
   return c && { t, id: c.v };
 }
+/* Consolidation: an exercise key logged for the first time comes back in the next practice session, then 3 sessions after that.
+   Sessions are numbered 1, 2, 3…; s = the session it was learned/practised in (the running one, or the last one if logged
+   outside a session). It's due once the running or upcoming session is s + 1 (step 1), then s + 3 (step 2).
+   P().cons = { 'e:exId|key': { step: 1|2, s, t: when } }. Practising it once due (and not right after logging it) moves it on. */
+const CONS_GAP = { 1: 1, 2: 3 };
+const consMap = () => P().cons || (P().cons = {});
+const sessNo = () => P().sessions.length + (S.session ? 1 : 0);           // the session we're in, or the last one
+const consIsDue = c => P().sessions.length + 1 >= c.s + CONS_GAP[c.step];   // running or upcoming session
+function consStart(k) { consMap()[k] = { step: 1, s: sessNo(), t: Date.now() }; }
+function consPracticed(k) {
+  const c = (P().cons || {})[k]; if (!c || !consIsDue(c) || Date.now() - c.t < 30 * 60e3) return;
+  if (c.step === 1) Object.assign(c, { step: 2, s: sessNo(), t: Date.now() }); else delete P().cons[k];
+}
+// due consolidation keys as plan items, longest-waiting first
+function consDue(items) {
+  const have = new Set(items.filter(i => i.t === 'ex').map(i => i.id + '|' + i.key)), out = new Set(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan.consOut || [] : []);
+  return Object.entries(P().cons || {}).filter(([k, c]) => consIsDue(c) && !out.has(k) && findEx(k.slice(2).split('|')[0]))
+    .sort((a, b) => a[1].t - b[1].t).map(([k, c]) => { const [id, key] = k.slice(2).split('|'); return { t: 'ex', id, key, cons: c.step }; })
+    .filter(it => !have.has(it.id + '|' + it.key));
+}
+// keep today's plan topped up with due consolidation keys (they can become due mid-day, when a session starts or ends)
+function consTopUp() {
+  if (!S.plan || planSize().ex <= 0) return;
+  const n = S.plan.items.filter(i => i.cons).length, add = consDue(S.plan.items).slice(0, Math.max(0, CONS_MAX - n));
+  if (add.length) { S.plan.items.unshift(...add); save(true); }
+}
+const CONS_MAX = 2;   // consolidation takes at most this many exercise slots
 // The floor (slowest key) of a completed exercise – the most neglected one – so finished exercises keep moving up.
 function pickFloor(items) {
   const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex').map(i => i.id));
@@ -1119,7 +1148,8 @@ function pickFloor(items) {
 const hasFloor = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); if (!o) return false; const i = exInfo(o.ex); return i.floor && i.full && it.key === i.mk; });
 function makePlan() {
   const items = [], sz = planSize();
-  if (sz.ex > 0) { const f = pickFloor(items); if (f) items.push(f); }
+  items.push(...consDue(items).slice(0, Math.min(CONS_MAX, sz.ex)));
+  if (sz.ex > items.length) { const f = pickFloor(items); if (f) items.push(f); }
   for (const [t, n] of [['ex', sz.ex - items.length], ['lick', sz.lick], ['tune', sz.tune]])
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
   S.plan = { date: dayKey(Date.now()), inst: S.cur, items, fc: 1 }; save(true);   // automatic, not a user edit
@@ -1363,9 +1393,10 @@ function vHome() {
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
   if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
   else if (!S.plan.fc) { S.plan.fc = 1; if (planSize().ex > 0 && !hasFloor(S.plan.items)) { const f = pickFloor(S.plan.items); if (f) S.plan.items.unshift(f); } save(true); }
+  consTopUp();
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
-    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : '');
+    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : '');
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${Tk(exKey(o.ex, it.key), b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick'; label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
     if (it.t === 'tune') { const t = tuneOf(it.id); if (!t) return ''; tag = t.tempo ? 'Tempo tune' : 'Tune'; label = esc(vLabel(it.id)); const st = tuneStatus(it.id), nx = CP_ALL.find(c => !tuneState(it.id).cp?.[c.id]);
@@ -1490,7 +1521,7 @@ function bindGrid() {
     const m = val.match(/^(\d+)\s*([hq])$/i);
     if (m && inp.dataset.ex) { val = m[1]; setKeyUnit(findEx(inp.dataset.ex).ex, inp.dataset.k, m[2].toLowerCase() === 'h' ? 2 : 1); save(); }
     if (val && !/^\d+$/.test(val)) { toast('Type a number, optionally followed by h (half) or q (quarter)'); inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]); return; }
-    setBpm(inp.dataset.gkey, val, inp.dataset.ex);
+    setBpm(inp.dataset.gkey, val, inp.dataset.ex, true);
     inp.value = dv(inp.dataset.gkey, P().bpm[inp.dataset.gkey]);
     if (inp.dataset.ex) { const ex = findEx(inp.dataset.ex).ex; inp.closest('td').querySelector('.cuw').innerHTML = cellUnit(ex, inp.dataset.k); }
     const v = P().bpm[inp.dataset.gkey]; inp.style.background = v ? heatColor(v) : '';
@@ -2433,9 +2464,10 @@ const A = {
   openTune: el => openTuneSheet(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id, el.dataset.k) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
   replan: () => { makePlan(); save(); render(); },
-  planDel: el => { S.plan.items.splice(+el.dataset.i, 1); save(); render(); },
+  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
-    const it = (cur.floor && pickFloor(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
+    if (cur.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + cur.id + '|' + cur.key];
+    const it = (cur.cons && consDue(S.plan.items)[0]) || (cur.floor && pickFloor(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
     S.plan.items[i] = it; save(); render(); },
   planAddDirect: el => { const it = { t: el.dataset.t, id: el.dataset.id };
     if (it.t === 'ex') { const o = findEx(it.id); return pickKeySheet(o.ex); } addToPlan(it); },
