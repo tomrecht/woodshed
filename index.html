@@ -2825,6 +2825,7 @@ const A = {
   pauseSession: () => { const s = S.session; if (s.runSince) { s.acc += Date.now() - s.runSince; s.runSince = null; if (wakeLock) wakeLock.release().catch(() => {}); } else { s.runSince = Date.now(); keepAwake(); } save(); tickSession(); },
   finishSession: () => {
     const min = Math.max(1, Math.round(sessMs() / 60000)); const s = S.session;
+    if (!confirm(`End this session (${fmtMin(min)})?`)) return;
     formSheet('Finish session', `<p class="muted">${s.items.length} item${s.items.length === 1 ? '' : 's'} worked on.</p>
       <label class="f">Minutes</label><input type="number" inputmode="numeric" name="min" value="${min}" min="1">
       <label class="f">Note (optional)</label><input type="text" name="note" placeholder="How did it go?">`,
