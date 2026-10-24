@@ -414,9 +414,25 @@ function migrate() {
     for (const l of S.lib.licks) if (l.unit == null) l.unit = 2;   // licks default to half-note tempo
     S.libRev = 6;
   }
+  if (!S.unitsPI) {
+    // Quarter/half-note choices become per instrument. Choices made so far (anything that differs from the
+    // built-in default) go to the first instrument; the library keeps only the defaults.
+    const U = (S.prog[S.inst[0].id].units = S.prog[S.inst[0].id].units || {});
+    const fix = (pfx, it, def) => { const u = it.unit === 2 ? 2 : 1; if (u !== def) U[pfx + it.id] = u;
+      if (def === 2) it.unit = 2; else delete it.unit; };
+    for (const sec of S.lib.sections) for (const ex of sec.ex) {
+      const def = (/triplet|triad/i.test(ex.name) || /triplet/i.test(sec.name)) && !/16ths/i.test(ex.name) ? 2 : 1;
+      fix('e:', ex, def);
+      for (const [k, u] of Object.entries(ex.unitKeys || {})) if (u === 1 || u === 2) U['e:' + ex.id + '|' + k] = u;
+      delete ex.unitKeys;
+    }
+    for (const l of S.lib.licks) fix('l:', l, 2);
+    for (const t of S.lib.tunes) fix('t:', t, 1);
+    S.unitsPI = 1;
+  }
 }
 const splitTags = s => [...new Set((s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean))];
-const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {} });
+const newProg = () => ({ bpm: {}, hist: [], sessions: [], tunes: {}, touched: {}, priorHours: 0, badges: {}, units: {} });
 
 /* ---------- state ---------- */
 const LS = 'woodshed.v1';
@@ -564,22 +580,25 @@ function itemOfKey(k) {
   if (k.startsWith('l:')) return S.lib.licks.find(x => x.id === k.slice(2));
   if (k.startsWith('t:')) return tuneOf(k.slice(2));
 }
-const unitOf = it => it && it.unit === 2 ? 2 : 1;
+// The library's `unit` is the default; each instrument keeps its own overrides in P().units,
+// keyed like tempos: 'e:exId', 'e:exId|key' (one key of an exercise), 'l:lickId', 't:tuneId'.
+const PU = () => P().units || (P().units = {});
+const itemPfx = it => S.lib.licks.includes(it) ? 'l:' : S.lib.tunes.includes(it) ? 't:' : 'e:';
+const okU = u => u === 1 || u === 2;
+const unitOf = it => { if (!it) return 1; const o = PU()[itemPfx(it) + it.id]; return okU(o) ? o : it.unit === 2 ? 2 : 1; };
+function setUnit(it, u) { const k = itemPfx(it) + it.id; if (u === (it.unit === 2 ? 2 : 1)) delete PU()[k]; else PU()[k] = u; }
 // Unit for one stored tempo. Exercise keys can override the exercise's unit.
 function uk(k) {
-  if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'); const ex = findEx(id)?.ex; if (!ex) return 1;
-    const o = ex.unitKeys && ex.unitKeys[key]; return o === 1 || o === 2 ? o : unitOf(ex); }
+  if (k.startsWith('e:')) { const ex = findEx(k.slice(2).split('|')[0])?.ex; if (!ex) return 1;
+    const o = PU()[k]; return okU(o) && k.includes('|') ? o : unitOf(ex); }
   return unitOf(itemOfKey(k));
 }
 // Table cell marker: shown only when a key's unit differs from its exercise's.
 const cellUnit = (ex, k) => { const u = uk(exKey(ex, k)); return u === unitOf(ex) ? '' :
   `<button type="button" class="iconbtn cu" data-act="keyUnitGrid" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="${u === 2 ? 'Half' : 'Quarter'} notes for this key – click to match the exercise">${NOTE(u)}</button>`; };
-const mixedUnits = ex => !!(ex.unitKeys && Object.keys(ex.unitKeys).length);
-function setKeyUnit(ex, key, u) {
-  ex.unitKeys = ex.unitKeys || {};
-  if (u === unitOf(ex)) delete ex.unitKeys[key]; else ex.unitKeys[key] = u;
-  if (!Object.keys(ex.unitKeys).length) delete ex.unitKeys;
-}
+const keyUnitIds = ex => Object.keys(PU()).filter(k => k.startsWith('e:' + ex.id + '|'));
+const mixedUnits = ex => keyUnitIds(ex).length > 0;
+function setKeyUnit(ex, key, u) { const k = exKey(ex, key); if (u === unitOf(ex)) delete PU()[k]; else PU()[k] = u; }
 const dv = (k, v) => v == null ? '' : Math.round(v / uk(k));          // value to show in an input
 const NOTE = u => u === 2
   ? '<svg class="nt" viewBox="0 0 10 20" aria-label="half note"><ellipse cx="4.2" cy="15.5" rx="3.4" ry="2.4" transform="rotate(-25 4.2 15.5)" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="7.1" y="1" width="1.4" height="14" fill="currentColor"/></svg>'
@@ -2007,10 +2026,10 @@ const A = {
   unitToggle: el => {
     const ty = el.dataset.ut, id = el.dataset.id;
     const it = ty === 'ex' ? findEx(id).ex : ty === 'lick' ? S.lib.licks.find(x => x.id === id) : S.lib.tunes.find(x => x.id === id);
-    if (ty === 'ex' && mixedUnits(it)) { const n = it.keys.filter(k => uk(exKey(it, k)) === 2).length; it.unit = n > it.keys.length / 2 ? 1 : 2; }
-    else it.unit = unitOf(it) === 2 ? 1 : 2;
-    delete it.unitKeys; save();
-    toast((it.unit === 2 ? 'Half' : 'Quarter') + ' notes for ' + (ty === 'ex' ? 'all keys of ' : '') + it.name);
+    let u = unitOf(it) === 2 ? 1 : 2;
+    if (ty === 'ex' && mixedUnits(it)) { const n = it.keys.filter(k => uk(exKey(it, k)) === 2).length; u = n > it.keys.length / 2 ? 1 : 2; }
+    setUnit(it, u); if (ty === 'ex') keyUnitIds(it).forEach(k => delete PU()[k]); save();
+    toast((u === 2 ? 'Half' : 'Quarter') + ' notes for ' + (ty === 'ex' ? 'all keys of ' : '') + it.name + ' (' + curInst().name + ')');
     if (sheetOpen) { ty === 'ex' ? sheetEx(id) : ty === 'lick' ? sheetLick(id) : sheetTune.refresh(); } else render();
   },
   keyUnitGrid: el => { const ex = findEx(el.dataset.ex).ex, k = el.dataset.k; setKeyUnit(ex, k, unitOf(ex)); save();
