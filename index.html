@@ -44,6 +44,12 @@ main{padding:14px 16px;max-width:720px;margin:0 auto}
 .btn.danger{color:var(--danger)}
 .btn.sm{padding:6px 10px;font-size:.9rem}
 .iconbtn{background:none;border:0;color:var(--muted);font-size:1.1rem;padding:4px 8px}
+.rorow{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.rorow:last-child{border-bottom:0}
+.rorow.sub{padding-left:12px;font-size:.95rem}
+.mv{display:flex;gap:2px;flex:none}
+.mv .iconbtn{font-size:1.2rem;padding:6px 12px;color:var(--text)}
+.mv .iconbtn:disabled{opacity:.25}
 .row{display:flex;gap:8px;align-items:center}
 .row.wrap{flex-wrap:wrap}
 input[type=number],input[type=text],input[type=search],input[type=date],select,textarea{
@@ -550,7 +556,8 @@ const Sync = (() => {
     return r.json();
   }
   const fileText = async f => f.truncated ? (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content;
-  async function localImgs() { const o = {}; for (const l of S.lib.licks) if (l.img && !l.img.includes('/')) { try { o[l.img] = await idb.get(l.img); } catch (e) {} } return o; }
+  // Returns null if a photo is missing on this device, so a partial set never overwrites the cloud copy.
+  async function localImgs() { const o = {}; for (const l of S.lib.licks) if (l.img && !l.img.includes('/')) { let v = null; try { v = await idb.get(l.img); } catch (e) {} if (!v) return null; o[l.img] = v; } return o; }
   async function applyRemote(remote, g) {
     const keepSession = S.session;
     if (g.files[IMGFILE]) { try { const im = JSON.parse(await fileText(g.files[IMGFILE])); for (const [k, v] of Object.entries(im)) if (v) { await idb.put(k, v); imgCache[k] = v; } } catch (e) {} }
@@ -571,8 +578,8 @@ const Sync = (() => {
   async function push(force) {
     if (!force && (S.savedAt || 0) <= (cfg.pushedAt || 0)) return;
     const files = { [FILE]: { content: JSON.stringify({ app: 'woodshed', savedAt: S.savedAt, state: S }) } };
-    const imgs = await localImgs(), sig = Object.keys(imgs).sort().join();
-    if (sig !== (cfg.imgSig || '')) files[IMGFILE] = { content: JSON.stringify(imgs) };
+    const imgs = await localImgs(), sig = imgs ? Object.keys(imgs).sort().join() : cfg.imgSig || '';
+    if (imgs && sig !== (cfg.imgSig || '')) files[IMGFILE] = { content: JSON.stringify(imgs) };
     await api('PATCH', '/gists/' + cfg.gist, { files });
     cfg.pushedAt = S.savedAt; cfg.seen = S.savedAt; cfg.imgSig = sig; store();
   }
@@ -1158,8 +1165,19 @@ function exRow(ex) {
   const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
   return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${meta}</span></div>${strip}</button>`;
 }
+// Reorder mode (Exercises and Licks tabs): rows get ↑/↓ buttons instead of opening.
+let reorderMode = false;
+const mvBtns = (kind, id, i, n) => `<span class="mv"><button type="button" class="iconbtn" data-act="mv" data-kind="${kind}" data-id="${esc(id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button type="button" class="iconbtn" data-act="mv" data-kind="${kind}" data-id="${esc(id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="Move down">↓</button></span>`;
+const reorderBtn = () => `<button class="btn sm ${reorderMode ? 'primary' : ''}" data-act="reorderToggle">${reorderMode ? 'Done' : 'Reorder'}</button>`;
+function vExReorder() {
+  const secs = S.lib.sections;
+  return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Move categories and exercises with the arrows. To move an exercise to another category, open it and tap Edit exercise.</span>${reorderBtn()}</div>` +
+    secs.map((sec, si) => `<section class="card"><div class="rorow"><b class="grow">${esc(sec.name)}</b>${mvBtns('sec', sec.id, si, secs.length)}</div>
+      ${sec.ex.map((ex, i) => `<div class="rorow sub"><span class="grow">${esc(ex.name)}</span>${mvBtns('ex', ex.id, i, sec.ex.length)}</div>`).join('') || '<p class="muted">No exercises.</p>'}</section>`).join('');
+}
 function vEx() {
-  return `<div class="row" style="margin-bottom:12px"><input type="search" id="exFilter" placeholder="Filter exercises…" class="grow"><button class="btn sm" data-act="gotoTab" data-tab2="grid">Table entry</button></div>` +
+  if (reorderMode) return vExReorder();
+  return `<div class="row" style="margin-bottom:12px"><input type="search" id="exFilter" placeholder="Filter exercises…" class="grow"><button class="btn sm" data-act="gotoTab" data-tab2="grid">Table entry</button>${reorderBtn()}</div>` +
     S.lib.sections.map(sec => {
       const full = sec.ex.filter(ex => exInfo(ex).full).length;
       return `<details class="sec" data-sec="${esc(sec.id)}" ${openSecs.has(sec.id) ? 'open' : ''}><summary><span class="grow"><b>${esc(sec.name)}</b>${secDone(sec) ? '<span class="donebadge">✓ complete</span>' : ''}</span><small>${full}/${sec.ex.length}</small></summary>
@@ -1224,8 +1242,10 @@ function bindGrid() {
 }
 
 function vLicks() {
-  const p = P();
-  return `<div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
+  const p = P(), L = S.lib.licks;
+  if (reorderMode) return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Move licks with the arrows.</span>${reorderBtn()}</div>
+    <section class="card">${L.map((l, i) => `<div class="rorow"><span class="grow">${esc(l.name)}</span>${mvBtns('lick', l.id, i, L.length)}</div>`).join('')}</section>`;
+  return `<div class="row" style="margin-bottom:12px;justify-content:flex-end">${reorderBtn()}</div><div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
     return `<button class="lcard" data-act="openLick" data-id="${esc(l.id)}"><div class="im">${l.img ? `<img data-img="${esc(l.img)}" alt="">` : 'no image'}</div>
       <div class="t"><span>${esc(l.name)}</span><b style="color:${b ? 'var(--accent)' : 'var(--muted)'}">${T(l, b)}</b></div></button>`; }).join('')}</div>
     <button class="btn ghost" data-act="addLick">+ Add lick</button>`;
@@ -1305,7 +1325,7 @@ function render() {
   $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'grid' ? 'ex' : tab)));
   $('#instSel').innerHTML = S.inst.map(i => `<option value="${i.id}" ${i.id === S.cur ? 'selected' : ''}>${esc(i.name)}</option>`).join('');
   if (tab === 'licks') hydrateImgs(v);
-  if (tab === 'ex') {
+  if (tab === 'ex' && !reorderMode) {
     const f = $('#exFilter'); f.value = exFilterVal; applyExFilter();
     f.oninput = () => { exFilterVal = f.value; applyExFilter(); };
     $$('details.sec').forEach(d => d.addEventListener('toggle', () => d.open ? openSecs.add(d.dataset.sec) : openSecs.delete(d.dataset.sec)));
@@ -2110,7 +2130,7 @@ const A = {
   claimReward: el => { const r = (P().rewards || []).find(x => x.id === el.dataset.id); if (r) { r.claimed = Date.now(); save(); toast('Enjoy it! 🎷'); render(); } },
   delReward: el => { const p = P(); if (!confirm('Delete this reward?')) return; p.rewards = (p.rewards || []).filter(x => x.id !== el.dataset.id); save(); render(); },
   celeOk: () => $('#cele').classList.add('hide'),
-  gotoTab: el => { tab = el.dataset.tab2; render(); window.scrollTo(0, 0); },
+  gotoTab: el => { tab = el.dataset.tab2; reorderMode = false; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
   openTune: el => openTuneSheet(el.dataset.id),
@@ -2218,6 +2238,11 @@ const A = {
     fd => { const m = Math.round(+fd.min); if (!(m > 0) || !fd.d) { toast('Enter date and minutes'); return false; } const [y, mo, d] = fd.d.split('-').map(Number);
       setTimeout(() => saveSessionRecord(new Date(y, mo - 1, d, 12).getTime(), m, fd.note), 80); }),
   delSession: el => { if (!confirm('Delete this session?')) return; const p = P(); p.sessions = p.sessions.filter(s => s.id !== el.dataset.id); save(); render(); },
+  reorderToggle: () => { reorderMode = !reorderMode; render(); },
+  mv: el => { const { kind, id } = el.dataset, d = +el.dataset.d;
+    const list = kind === 'sec' ? S.lib.sections : kind === 'lick' ? S.lib.licks : findEx(id).sec.ex;
+    const i = list.findIndex(x => x.id === id), j = i + d; if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; save(); render(); },
   addSec: () => formSheet('New category', `<label class="f">Name</label><input type="text" name="name" required>`, fd => { const n = fd.name.trim(); if (!n) return false;
     S.lib.sections.push({ id: slug(n) + '-' + uid(), name: n, ex: [] }); save(); }),
   editSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec);
@@ -2229,9 +2254,13 @@ const A = {
     formSheet('New exercise in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Up & down – 8ths">${keysetFields(null)}`,
       fd => { const n = fd.name.trim(); const keys = keysFrom(fd); if (!n || !keys.length) return false; sec.ex.push({ id: slug(sec.name + ' ' + n) + '-' + uid(), name: n, keys }); openSecs.add(sec.id); save(); }); },
   editEx: el => { const { sec, ex } = findEx(el.dataset.id);
-    formSheet('Edit exercise', `<label class="f">Name</label><input type="text" name="name" value="${esc(ex.name)}" required>${keysetFields(ex.keys)}
+    formSheet('Edit exercise', `<label class="f">Name</label><input type="text" name="name" value="${esc(ex.name)}" required>
+      <label class="f">Category</label><select name="sec">${S.lib.sections.map(x => `<option value="${esc(x.id)}" ${x === sec ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>${keysetFields(ex.keys)}
       <p class="muted" style="font-size:.85rem">Tempos for keys you remove stay in backups but won't show.</p>`,
-      fd => { ex.name = fd.name.trim() || ex.name; const k = keysFrom(fd); if (k.length) ex.keys = k; save(); },
+      fd => { ex.name = fd.name.trim() || ex.name; const k = keysFrom(fd); if (k.length) ex.keys = k;
+        const to = S.lib.sections.find(x => x.id === fd.sec);
+        if (to && to !== sec) { sec.ex = sec.ex.filter(x => x !== ex); to.ex.push(ex); openSecs.add(to.id); toast('Moved to ' + to.name); }
+        save(); },
       `<button type="button" class="btn ghost danger" data-act="delEx" data-id="${esc(ex.id)}">Delete exercise</button>`); },
   delEx: el => { const { sec, ex } = findEx(el.dataset.id); if (!confirm(`Delete "${ex.name}"?`)) return; sec.ex = sec.ex.filter(x => x !== ex); save(); closeSheet(); },
   addLick: () => formSheet('New lick', `<label class="f">Name</label><input type="text" name="name" required value="Lick ${S.lib.licks.length + 1}">
@@ -2283,7 +2312,7 @@ const A = {
     if (M.taps.length >= 2) { const iv = (M.taps[M.taps.length - 1] - M.taps[0]) / (M.taps.length - 1); mSet(60000 / iv); } },
 };
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; if (sheetOpen) closeSheet(); render(); window.scrollTo(0, 0); return; }
+  const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; reorderMode = false; if (sheetOpen) closeSheet(); render(); window.scrollTo(0, 0); return; }
   const a = e.target.closest('[data-act]'); if (!a || !A[a.dataset.act]) return;
   A[a.dataset.act](a, e);
 });

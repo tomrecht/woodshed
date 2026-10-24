@@ -18,7 +18,7 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 
 ## Data – never lose the owner's data
 - All state lives in `localStorage` key `woodshed.v1` (object `S`), optionally synced to a private GitHub gist.
-  Lick photos the user adds live in IndexedDB.
+  Lick photos the user adds live in IndexedDB and sync to the gist as a separate file (`woodshed-images.json`).
 - `S.lib` = shared library (sections → exercises, licks, tunes); `S.prog[instrumentId]` = per-instrument progress
   (`bpm`, `hist`, `sessions`, `tunes`, `touched`, `badges`, …).
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).
