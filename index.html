@@ -1100,6 +1100,133 @@ function heatColor(b) {
   return `hsl(${28 + t * 14},${70 + t * 15}%,${22 + t * 40}%)`;
 }
 
+/* ---------- scheduled practice ----------
+   S.sched: [{ id, inst, time: 'HH:MM', len (minutes, 0 = just a start time), date: 'YYYY-MM-DD' (once) or days: [0–6, Mon = 0] (repeating every `every` weeks, counted from the week of `from`), note }]
+   S.schedSkip: { 'id|YYYY-MM-DD': 1 } for single skipped occurrences. A slot is "kept" if a session starts from 1 h before to 3 h after it. */
+const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const schedList = () => S.sched || (S.sched = []);
+function slotsBetween(from, to) {
+  const out = []; let d = new Date(from); d.setHours(0, 0, 0, 0);
+  for (; d <= to; d = addDays(d, 1)) { const k = dayKey(d), wd = (d.getDay() + 6) % 7;
+    for (const s of schedList()) { if (s.date ? s.date !== k : !(s.days || []).includes(wd) || !weekOn(s, d)) continue;
+      const [h, m] = s.time.split(':').map(Number), at = new Date(d); at.setHours(h, m, 0, 0);
+      if (at >= from && at <= to) out.push({ s, at: +at, key: s.id + '|' + k, skipped: !!(S.schedSkip || {})[s.id + '|' + k] }); } }
+  return out.sort((a, b) => a.at - b.at);
+}
+// repeating schedules: does this week count (every 1–4 weeks)?
+const weekOn = (s, d) => { const n = s.every || 1; if (n === 1) return true; const w = Math.round((monday(d) - monday(s.from ? s.from + 'T12:00' : s.created || Date.now())) / (7 * DAY)); return w >= 0 && w % n === 0; };
+const slotInst = sl => S.prog[sl.s.inst] ? sl.s.inst : S.cur;
+const slotKept = sl => [...(S.prog[slotInst(sl)].sessions || []), ...(S.session && S.cur === slotInst(sl) ? [S.session] : [])].some(x => x.start >= sl.at - 3600e3 && x.start <= sl.at + 3 * 3600e3);
+const slotEnd = sl => sl.at + (sl.s.len || 60) * 60e3;
+// the slot happening now (from 15 min before), or the next one in the coming 2 weeks
+function nextSlot() {
+  const now = Date.now();
+  return slotsBetween(new Date(now - 4 * 3600e3), new Date(now + 14 * DAY)).find(sl => !sl.skipped && slotEnd(sl) > now && !slotKept(sl));
+}
+function keptRecord() {   // past scheduled slots in the last 4 weeks
+  const past = slotsBetween(new Date(Date.now() - 28 * DAY), new Date(Date.now() - 3 * 3600e3)).filter(sl => !sl.skipped && sl.at >= (sl.s.created || 0));
+  return { n: past.length, kept: past.filter(slotKept).length };
+}
+const fmtTime = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+function fmtWhen(t) {
+  const d = Math.round((monday(t) - monday(Date.now())) / DAY), k = dayKey(t);
+  const day = k === dayKey(Date.now()) ? 'Today' : k === dayKey(addDays(Date.now(), 1)) ? 'Tomorrow' : new Date(t).toLocaleDateString([], d < 7 ? { weekday: 'long' } : { weekday: 'short', month: 'short', day: 'numeric' });
+  return day + ' ' + fmtTime(t);
+}
+const slotRange = sl => fmtWhen(sl.at) + (sl.s.len ? '–' + fmtTime(sl.at + sl.s.len * 60e3) : '');
+const instName = id => (S.inst.find(i => i.id === id) || curInst()).name;
+function schedDesc(s) {
+  const when = s.date ? new Date(s.date + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+    : (s.days.length === 7 ? 'Every day' : 'Every ' + s.days.map(i => WD[i]).join(', ')) + ((s.every || 1) > 1 ? `, every ${s.every} weeks` : '');
+  const [h, m] = s.time.split(':').map(Number), t = new Date(); t.setHours(h, m, 0, 0);
+  return when + ' · ' + fmtTime(t) + (s.len ? ' · ' + fmtMin(s.len) : '') + (S.inst.length > 1 ? ' · ' + instName(s.inst) : '');
+}
+// Encouraging lines for an upcoming slot: what's at stake this week, what's close, what to play. No guilt trips.
+function nudges(sl) {
+  const id = slotInst(sl), p = S.prog[id], out = [], goal = S.settings.goal, wh = weekHistory(p), w = wh.weeks.find(x => x.current) || { days: 0, met: false };
+  const sameWeek = +monday(sl.at) === +monday(Date.now()), dm = goalDayMins(p), newDay = !dm[dayKey(sl.at)];
+  if (sameWeek && !w.met && newDay) { const d = w.days + 1;
+    out.push(d >= goal ? `🔥 This one hits your weekly goal${wh.cur ? ' and keeps your ' + wh.cur + '-week streak going' : ' and starts a streak'}.` : `🔥 Day ${d} of ${goal} this week.`); }
+  const open = (p.rewards || []).filter(r => !r.unlocked).map(r => ({ r, pr: rewardProgress(r, p) })).sort((a, b) => b.pr.pct - a.pr.pct)[0];
+  if (open && open.pr.pct >= 50) out.push(`🎁 ${open.pr.pct}% of the way to “${open.r.name}”.`);
+  if (sl.s.note) out.unshift('🎯 ' + sl.s.note);
+  else if (id === S.cur) { const due = allVersions().filter(reviewDue).length; if (due) out.push(`🎵 ${due} tune${due > 1 ? 's' : ''} due for review.`); }
+  const kr = keptRecord(); if (kr.n >= 3 && kr.kept / kr.n >= 0.6) out.push(`📅 You've kept ${kr.kept} of your last ${kr.n} practice dates.`);
+  if (!out.length) out.push(sl.s.len && sl.s.len <= 20 ? 'Short and sweet – it all counts.' : 'Even 10 minutes counts.');
+  return out.slice(0, 2);
+}
+function schedCard() {
+  if (S.session) return '';
+  const sl = nextSlot();
+  if (!sl) return schedList().length ? '' : `<button class="btn ghost" style="width:100%;margin-bottom:12px" data-act="schedSheet">📅 Schedule your next practice</button>`;
+  const now = sl.at - 15 * 60e3 <= Date.now(), mine = slotInst(sl) === S.cur;
+  return `<section class="card ${now ? 'chdone' : ''}"><div class="row"><span style="font-size:1.5rem">${now ? '⏰' : '📅'}</span><div class="grow">
+    <small class="muted">${now ? "It's practice time" : 'Next practice'}${S.inst.length > 1 ? ' · ' + esc(instName(slotInst(sl))) : ''}</small><br><b>${esc(slotRange(sl))}</b></div>
+    <button class="iconbtn" data-act="schedSheet" title="Schedule" aria-label="Schedule">⚙︎</button></div>
+    <div style="margin-top:6px">${nudges(sl).map(x => `<div style="font-size:.92rem">${esc(x)}</div>`).join('')}</div>
+    ${now ? `<div class="row" style="margin-top:10px">${mine ? '<button class="btn primary grow" data-act="startSession">Start now</button>' : `<button class="btn primary grow" data-act="schedSwitch" data-inst="${esc(slotInst(sl))}">Switch to ${esc(instName(slotInst(sl)))}</button>`}<button class="btn" data-act="schedSkip" data-key="${esc(sl.key)}">Not today</button></div>` : ''}</section>`;
+}
+function schedSheet() {
+  const up = slotsBetween(new Date(Date.now() - 3600e3), new Date(Date.now() + 14 * DAY)).filter(sl => slotEnd(sl) > Date.now()).slice(0, 10), kr = keptRecord();
+  openSheet(`${head('Practice schedule', kr.n ? `kept ${kr.kept} of ${kr.n} in the last 4 weeks` : 'plan when you’ll play')}
+    <ul class="list">${schedList().map(s => `<li><span class="grow">${esc(schedDesc(s))}${s.note ? `<br><small>${esc(s.note)}</small>` : ''}</span><button class="btn sm" data-act="schedCal" data-id="${s.id}">📆</button><button class="btn sm" data-act="schedEdit" data-id="${s.id}">Edit</button></li>`).join('') || '<li class="muted">Nothing scheduled yet.</li>'}</ul>
+    <button class="btn primary" style="width:100%;margin-top:10px" data-act="schedEdit">+ Schedule practice</button>
+    ${up.length ? `<h3 style="margin:16px 0 6px">Coming up</h3><ul class="list">${up.map(sl => `<li><span class="grow" style="${sl.skipped ? 'text-decoration:line-through;opacity:.5' : ''}">${esc(slotRange(sl))}${S.inst.length > 1 ? ` <small>· ${esc(instName(slotInst(sl)))}</small>` : ''}</span>
+      <button class="btn sm" data-act="schedSkip" data-key="${esc(sl.key)}" data-sheet="1">${sl.skipped ? 'Undo skip' : 'Skip'}</button></li>`).join('')}</ul>` : ''}
+    <p class="muted" style="font-size:.85rem;margin-top:14px">For a reminder on your phone, tap 📆 to add a schedule to your calendar – your calendar app does the nudging, even when Woodshed is closed.</p>`);
+}
+function schedForm(id) {
+  const s = schedList().find(x => x.id === id) || { time: '19:00', len: 30, days: null, date: dayKey(addDays(Date.now(), 1)), inst: S.cur, note: '' };
+  const weekly = !s.date;
+  formSheet(id ? 'Edit schedule' : 'Schedule practice', `
+    <label class="f">Repeat</label><select name="rep" onchange="document.getElementById('schOnce').classList.toggle('hide', this.value!=='once');document.getElementById('schWeekly').classList.toggle('hide', this.value==='once')">
+      <option value="once" ${weekly ? '' : 'selected'}>Once</option>${[1, 2, 3, 4].map(n => `<option value="${n}" ${weekly && (s.every || 1) === n ? 'selected' : ''}>${n === 1 ? 'Every week' : 'Every ' + n + ' weeks'}</option>`).join('')}</select>
+    <div id="schOnce" class="${weekly ? 'hide' : ''}"><label class="f">Date</label><input type="date" name="date" value="${esc(s.date || dayKey(addDays(Date.now(), 1)))}"></div>
+    <div id="schWeekly" class="${weekly ? '' : 'hide'}"><label class="f">Days <small class="muted">(starting this week)</small></label><div class="chips" style="flex-wrap:wrap">${WD.map((d, i) => `<label class="chip"><input type="checkbox" name="d" value="${i}" ${(s.days || []).includes(i) ? 'checked' : ''} style="width:auto;margin:0 4px 0 0">${d}</label>`).join('')}</div></div>
+    <label class="f">Start time</label><input type="time" name="time" value="${esc(s.time)}" required>
+    <label class="f">Length</label><select name="len"><option value="0" ${!s.len ? 'selected' : ''}>Just a start time</option>${[15, 20, 30, 45, 60, 90, 120, 180].map(m => `<option value="${m}" ${s.len === m ? 'selected' : ''}>${fmtMin(m)}</option>`).join('')}</select>
+    ${S.inst.length > 1 ? `<label class="f">Instrument</label><select name="inst">${S.inst.map(i => `<option value="${i.id}" ${i.id === s.inst ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select>` : ''}
+    <label class="f">Focus <small class="muted">(optional)</small></label><input type="text" name="note" value="${esc(s.note || '')}" placeholder="e.g. Donna Lee up to 200">`,
+    fd => {
+      const days = $$('#fm [name=d]:checked').map(x => +x.value);
+      if (fd.rep !== 'once' && !days.length) { toast('Pick at least one day'); return false; }
+      if (fd.rep === 'once' && !fd.date) { toast('Pick a date'); return false; }
+      const o = { id: id || 'sch-' + uid(), created: s.created || Date.now(), inst: fd.inst || S.cur, time: fd.time, len: +fd.len, note: fd.note.trim(),
+        ...(fd.rep === 'once' ? { date: fd.date } : { days, every: +fd.rep, from: s.days && s.every === +fd.rep && s.from ? s.from : dayKey(monday(Date.now())) }) };
+      const L = schedList(), i = L.findIndex(x => x.id === o.id); if (i >= 0) L[i] = o; else L.push(o);
+      save(); render(); setTimeout(() => calSheet(o.id, !id), 0); return false;
+    },
+    id ? `<button type="button" class="btn ghost danger" data-act="schedDel" data-id="${esc(id)}">Delete</button>` : '');
+}
+// Calendar export: Google Calendar link, or an .ics file (Apple Calendar, Outlook…) with a reminder 15 min before.
+function calInfo(s) {
+  const first = s.date ? new Date(s.date + 'T' + s.time) : (() => { let d = new Date(); d.setHours(0, 0, 0, 0);
+    while (!s.days.includes((d.getDay() + 6) % 7) || !weekOn(s, d)) d = addDays(d, 1); const [h, m] = s.time.split(':').map(Number); d.setHours(h, m, 0, 0); return d; })();
+  const end = new Date(+first + (s.len || 15) * 60e3), stamp = d => dayKey(d).replace(/-/g, '') + 'T' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + '00';
+  const rrule = s.date ? '' : 'RRULE:FREQ=WEEKLY;' + ((s.every || 1) > 1 ? 'INTERVAL=' + s.every + ';' : '') + 'BYDAY=' + s.days.map(i => ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'][i]).join(',');
+  const title = '🎷 Practice' + (S.inst.length > 1 ? ' – ' + instName(s.inst) : '');
+  const details = [s.note, 'Open Woodshed: ' + location.href.split('#')[0]].filter(Boolean).join('\n');
+  return { first, end, stamp, rrule, title, details };
+}
+function calSheet(id, fresh) {
+  const s = schedList().find(x => x.id === id); if (!s) return; const c = calInfo(s);
+  const g = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(c.title) + '&dates=' + c.stamp(c.first) + '/' + c.stamp(c.end)
+    + '&ctz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone) + '&details=' + encodeURIComponent(c.details) + (c.rrule ? '&recur=' + encodeURIComponent(c.rrule) : '');
+  openSheet(`${head(fresh ? 'Scheduled ✓' : 'Add to calendar', schedDesc(s))}
+    <p class="muted" style="margin-top:0">Add it to your calendar to get a reminder before it starts, even when the app is closed.</p>
+    <a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="${esc(g)}" target="_blank" rel="noopener">Google Calendar</a>
+    <button class="btn" style="width:100%;margin-top:8px" data-act="schedIcs" data-id="${esc(id)}">Apple / other calendar (.ics file)</button>
+    <button class="btn ghost" style="width:100%;margin-top:8px" data-act="schedSheet">Done</button>`);
+}
+function schedIcs(id) {
+  const s = schedList().find(x => x.id === id), c = calInfo(s), esc2 = t => t.replace(/[\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Woodshed//EN', 'BEGIN:VEVENT', 'UID:' + s.id + '@woodshed', 'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z',
+    'DTSTART:' + c.stamp(c.first), 'DTEND:' + c.stamp(c.end), ...(c.rrule ? [c.rrule] : []), 'SUMMARY:' + esc2(c.title), 'DESCRIPTION:' + esc2(c.details),
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + esc2(c.title), 'TRIGGER:-PT15M', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' })); a.download = 'woodshed-practice.ics'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
 function vHome() {
   const p = P(), xp = xpCalc(p), lv = level(xp), pct = Math.round(100 * (xp - lv.base) / (lv.next - lv.base));
   const dm = goalDayMins(p), mon = monday(Date.now()), today = dayKey(Date.now());
@@ -1127,7 +1254,7 @@ function vHome() {
     cells += `<i class="${l}" title="${k}: ${m}m"></i>`; }
   const recent = p.hist.filter(h => h.prev != null && h.bpm > h.prev).slice(-5).reverse().map(h => `<li><span class="grow">${esc(itemLabel(h.k))}</span><small>${dv(h.k, h.prev)} → </small><b style="color:var(--accent)">${Tk(h.k, h.bpm)}</b></li>`).join('');
   const backupDue = !Sync.on && p.sessions.length > 3 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * DAY);
-  return `
+  return `${schedCard()}
   <section class="card"><div class="lvl"><div class="lvbadge">Lv ${lv.n}</div><div class="grow">
     <div class="row"><b class="grow">${esc(rankOf(lv.n))}</b><small>${xp.toLocaleString()} XP</small></div>
     <div class="bar"><i style="width:${pct}%"></i></div><small class="muted">${(lv.next - xp).toLocaleString()} XP to Lv ${lv.n + 1}${rankOf(lv.n + 1) !== rankOf(lv.n) ? ' – ' + esc(rankOf(lv.n + 1)) : ''}</small></div></div>
@@ -1138,6 +1265,7 @@ function vHome() {
     <div class="bar" style="margin-top:8px" title="Weekly time goal"><i style="width:${Math.min(100, Math.round(100 * weekMin / mg))}%"></i></div>
     ${S.session ? '' : `<button class="btn primary big" data-act="startSession">Start practice session</button>`}
     <button class="btn" style="width:100%;margin-top:8px" data-act="logPast">+ Log practice time (practiced without the app)</button>
+    ${schedList().length ? `<button class="btn ghost" style="width:100%;margin-top:8px" data-act="schedSheet">📅 Practice schedule</button>` : ''}
   </section>
   ${(() => { const open = (p.rewards || []).filter(r => !r.unlocked).map(r => ({ r, pr: rewardProgress(r, p) })).sort((a, b) => b.pr.pct - a.pr.pct);
     const ready = (p.rewards || []).filter(r => r.unlocked && !r.claimed);
@@ -2228,6 +2356,13 @@ const A = {
   tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
   practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id); }); P().touched['x:' + o.ex.id] = Date.now(); save(); toast('Marked practiced'); },
   practicedItem: el => { touch(el.dataset.k); save(); toast('Marked practiced'); },
+  schedSheet: () => schedSheet(),
+  schedEdit: el => schedForm(el.dataset.id),
+  schedCal: el => calSheet(el.dataset.id),
+  schedIcs: el => schedIcs(el.dataset.id),
+  schedDel: el => { if (!confirm('Delete this schedule?')) return; S.sched = schedList().filter(x => x.id !== el.dataset.id); save(); render(); schedSheet(); },
+  schedSkip: el => { const k = el.dataset.key, sk = S.schedSkip = S.schedSkip || {}; if (sk[k]) delete sk[k]; else sk[k] = 1; save(); render(); if (el.dataset.sheet) schedSheet(); },
+  schedSwitch: el => { S.cur = el.dataset.inst; S.plan = null; save(); render(); toast('Now tracking ' + curInst().name); },
   startSession: () => { S.session = { acc: 0, runSince: Date.now(), start: Date.now(), items: [] }; save(); keepAwake(); tickSession(); render(); toast('Session started – have fun!'); },
   pauseSession: () => { const s = S.session; if (s.runSince) { s.acc += Date.now() - s.runSince; s.runSince = null; if (wakeLock) wakeLock.release().catch(() => {}); } else { s.runSince = Date.now(); keepAwake(); } save(); tickSession(); },
   finishSession: () => {

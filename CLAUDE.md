@@ -21,6 +21,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   Lick photos the user adds live in IndexedDB and sync to the gist as a separate file (`woodshed-images.json`).
 - `S.lib` = shared library (sections → exercises, licks, tunes); `S.prog[instrumentId]` = per-instrument progress
   (`bpm`, `hist`, `sessions`, `tunes`, `touched`, `badges`, …).
+- `S.sched` = scheduled practice (once or every 1–4 weeks on chosen days; optional length); `S.ear` = shared ear-training stats;
+  `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).
 - Tunes have versions (keys): version id = `tuneId` or `tuneId@Key`. Progress per version: checkpoints `cp`, review `rv`, quiz `qz`.
 - Changing data shape? Add a one-time migration in `migrate()` guarded by a flag/revision, and keep old data working.
