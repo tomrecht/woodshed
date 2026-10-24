@@ -1159,10 +1159,13 @@ function consDue(items) {
 // keep today's plan topped up with due consolidation keys (they can become due mid-day, when a session starts or ends)
 function consTopUp() {
   if (!S.plan || planSize().ex <= 0) return;
-  const n = S.plan.items.filter(i => i.cons).length, add = consDue(S.plan.items).slice(0, Math.max(0, CONS_MAX - n));
+  const n = S.plan.items.filter(i => i.cons && !planItemDone(i)).length, due = consDue(S.plan.items), add = due.slice(0, Math.max(0, consCap(n + due.length) - n));
   if (add.length) { S.plan.items.unshift(...add); save(true); }
 }
-const CONS_MAX = 2;   // consolidation takes at most this many exercise slots
+// Consolidation keys open on the plan at once: 2, or a third of the backlog when it is bigger (at most 6).
+// Ticking one off makes room for the next.
+const CONS_MAX = 2, CONS_CAP = 6;
+const consCap = backlog => Math.min(CONS_CAP, Math.max(CONS_MAX, Math.ceil(backlog / 3)));
 // The floor (slowest key) of a completed exercise – the most neglected one – so finished exercises keep moving up.
 function pickFloor(items) {
   const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex').map(i => i.id));
@@ -1191,7 +1194,7 @@ function planRecord(k) {
 }
 function makePlan(keep = []) {
   const today = dayKey(Date.now()), cr = S.planCarry, items = [...keep], sz = planSize(), cnt = t => items.filter(i => i.t === t).length;
-  items.push(...consDue(items).slice(0, Math.max(0, Math.min(CONS_MAX, sz.ex - cnt('ex')))));
+  if (sz.ex > 0) { const due = consDue(items), n = items.filter(i => i.cons && !planItemDone(i)).length; items.push(...due.slice(0, Math.max(0, consCap(n + due.length) - n))); }
   if (cr && cr.inst === S.cur && cr.date !== today) {   // unplayed items kept from the last session's plan
     for (const it of cr.items) if (dayKey(P().touched[planKeyOf(it)] || 0) <= cr.date && !items.some(x => x.t === it.t && x.id === it.id && x.key === it.key)
       && (it.t === 'ex' ? findEx(it.id) : it.t === 'lick' ? S.lib.licks.some(l => l.id === it.id) : tuneOf(it.id))) items.push(it);
