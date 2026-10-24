@@ -864,24 +864,29 @@ const priorFields = h => { const m = Math.round((h || 0) * 60);
 const priorFrom = (h, m) => Math.max(0, (+h || 0) + (+m || 0) / 60);
 const totalHours = (p = P()) => (p.priorHours || 0) + totalMinutes(p) / 60;
 function dayMins(p = P()) { const m = {}; for (const s of p.sessions) { const k = dayKey(s.start); m[k] = (m[k] || 0) + s.min; } return m; }
+// Weekly goals and streaks count practice on all instruments unless the "separate streaks" setting is on.
+const sharedStreak = () => !S.settings.streakPerInst && S.inst.length > 1;
+const goalSessions = p => sharedStreak() ? S.inst.flatMap(i => S.prog[i.id]?.sessions || []) : p.sessions;
+function goalDayMins(p = P()) { const m = {}; for (const s of goalSessions(p)) { const k = dayKey(s.start); m[k] = (m[k] || 0) + s.min; } return m; }
 function weekDaysCount(mon, dm) { let c = 0; for (let i = 0; i < 7; i++) if (dm[dayKey(addDays(mon, i))]) c++; return c; }
 /* ---------- weeks: goals, streak (with freezes), XP multiplier and bonuses ----------
    A week counts toward the streak when you practise on at least `goal` days. Every 4 streak weeks earns a freeze (max 2),
    used automatically on a missed week. Practice XP is multiplied by 1 + 0.1 × the streak going into the week (max ×2). */
 const weekMinGoal = () => S.settings.minGoal ?? 300;
 function weekHistory(p = P()) {
-  const dm = dayMins(p), goal = S.settings.goal, minGoal = weekMinGoal(), now = monday(Date.now());
-  if (!p.sessions.length) return { weeks: [], cur: 0, best: 0, freezes: 0 };
-  let m = monday(Math.min(...p.sessions.map(x => x.start))), streak = 0, best = 0, freezes = 0; const weeks = [];
+  // days/min: what the weekly goals are judged on (all instruments when shared); own: this instrument's minutes, for XP
+  const dm = goalDayMins(p), odm = dayMins(p), goal = S.settings.goal, minGoal = weekMinGoal(), now = monday(Date.now()), all = goalSessions(p);
+  if (!all.length) return { weeks: [], cur: 0, best: 0, freezes: 0 };
+  let m = monday(Math.min(...all.map(x => x.start))), streak = 0, best = 0, freezes = 0; const weeks = [];
   while (m <= now) {
-    let days = 0, min = 0; for (let i = 0; i < 7; i++) { const v = dm[dayKey(addDays(m, i))] || 0; if (v) days++; min += v; }
+    let days = 0, min = 0, own = 0; for (let i = 0; i < 7; i++) { const k = dayKey(addDays(m, i)), v = dm[k] || 0; if (v) days++; min += v; own += odm[k] || 0; }
     const current = +m === +now, met = days >= goal, minMet = min >= minGoal, before = streak; let frozen = false;
     if (met) { streak++; if (streak % 4 === 0 && freezes < 2) freezes++; }
     else if (!current) { if (freezes > 0 && streak > 0) { freezes--; frozen = true; } else streak = 0; }
     best = Math.max(best, streak);
     const mult = 1 + 0.1 * Math.min(10, before);
     const bonus = (met ? 50 + 10 * Math.min(10, before) : 0) + (minMet ? 50 : 0);
-    weeks.push({ mon: new Date(m), key: dayKey(m), days, min, met, minMet, frozen, before, streak, mult, bonus, current });
+    weeks.push({ mon: new Date(m), key: dayKey(m), days, min, own, met, minMet, frozen, before, streak, mult, bonus, current });
     m = addDays(m, 7);
   }
   return { weeks, cur: streak, best, freezes };
@@ -890,7 +895,7 @@ function streaks(p = P()) { const w = weekHistory(p); return { cur: w.cur, best:
 const BADGE_XP = 50;
 function xpCalc(p = P()) {
   let xp = 0;
-  for (const w of weekHistory(p).weeks) xp += Math.round(w.min * w.mult) + w.bonus;   // practice time × streak multiplier, weekly bonuses
+  for (const w of weekHistory(p).weeks) xp += Math.round(w.own * w.mult) + w.bonus;   // practice time × streak multiplier, weekly bonuses
   xp += CHALLENGE_XP * Object.values(p.challenges || {}).filter(c => c.done).length;
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
   for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0); }
@@ -952,7 +957,7 @@ function rewardProgText(r, pr) {
 function personalBests(p = P()) {
   const wh = weekHistory(p), months = {};
   for (const x of p.sessions) { const d = new Date(x.start), k = d.getFullYear() + '-' + (d.getMonth() + 1); months[k] = (months[k] || 0) + x.min; }
-  return { week: Math.max(0, ...wh.weeks.map(w => w.min)), month: Math.max(0, ...Object.values(months)), session: Math.max(0, ...p.sessions.map(x => x.min)), streak: wh.best };
+  return { week: Math.max(0, ...wh.weeks.map(w => w.own)), month: Math.max(0, ...Object.values(months)), session: Math.max(0, ...p.sessions.map(x => x.min)), streak: wh.best };
 }
 const PB_NAMES = { week: 'Best week', month: 'Best month', session: 'Longest session', streak: 'Longest streak' };
 const pbFmt = (k, v) => k === 'streak' ? v + ' week' + (v === 1 ? '' : 's') : fmtMin(v);
@@ -1097,7 +1102,7 @@ function heatColor(b) {
 
 function vHome() {
   const p = P(), xp = xpCalc(p), lv = level(xp), pct = Math.round(100 * (xp - lv.base) / (lv.next - lv.base));
-  const dm = dayMins(p), mon = monday(Date.now()), today = dayKey(Date.now());
+  const dm = goalDayMins(p), mon = monday(Date.now()), today = dayKey(Date.now());
   const days = weekDaysCount(mon, dm), goal = S.settings.goal, wh = weekHistory(p), st = { cur: wh.cur }, curW = wh.weeks[wh.weeks.length - 1];
   const mg = weekMinGoal(), mult = 1 + 0.1 * Math.min(10, curW && curW.current ? curW.before : wh.cur), ms = nextMilestone(totalHours(p)), ch = weekChallenge(p);
   const weekMin = [0, 1, 2, 3, 4, 5, 6].reduce((a, i) => a + (dm[dayKey(addDays(mon, i))] || 0), 0);
@@ -1303,6 +1308,7 @@ function vMore() {
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}<br><small>${fmtHM(totalHours(S.prog[i.id]))}</small></span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
+    ${S.inst.length > 1 ? `<div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="streakPerInstChk" ${S.settings.streakPerInst ? 'checked' : ''}><span class="grow">Separate streaks per instrument<br><small class="muted">Off: practice on any instrument counts toward your weekly goals and streak.</small></span></label></div>` : ''}
     <button class="btn ghost" data-act="addInst">+ Add instrument</button></section>
   <section class="card"><h3>Sync &amp; backup</h3>
     ${Sync.on ? `<p class="muted" style="margin-top:0" id="syncStatus">${esc(Sync.describe())}</p>
@@ -1340,6 +1346,7 @@ function render() {
     $('#minGoalSel').onchange = e => { S.settings.minGoal = +e.target.value; save(); checkAchievements({ silent: true }); render(); };
     $('#celeChk').onchange = e => { S.settings.celeSound = e.target.checked; save(); };
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
+    const spi = $('#streakPerInstChk'); if (spi) spi.onchange = e => { S.settings.streakPerInst = e.target.checked; save(); checkAchievements({ silent: true }); render(); };
   }
 }
 let exFilterVal = '';
