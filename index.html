@@ -2633,18 +2633,35 @@ function notesToAbc(q, chordBars, k, bars) {
 function recStop() {
   REC.on = false; clearInterval(REC.timer); earStop();
   if (REC.out) { try { REC.out.disconnect(); } catch (e) {} REC.out = null; }
-  if (REC.node) { try { REC.node.disconnect(); REC.node.port.onmessage = null; } catch (e) {} REC.node = null; }
+  if (REC.node) { try { REC.node.disconnect(); if (REC.node.port) REC.node.port.onmessage = null; else REC.node.onaudioprocess = null; } catch (e) {} REC.node = null; }
   if (REC.src) { try { REC.src.disconnect(); } catch (e) {} REC.src = null; }
   if (REC.stream) { REC.stream.getTracks().forEach(t => t.stop()); REC.stream = null; }
 }
 // Record one take: count-in bar, then `bars` bars over the backing ('band' | 'click' | 'off'). Resolves with the ABC.
 async function recordPhrase({ key, chordText, bpm, mode, swing, onStatus }) {
   recStop(); const ctx = audioCtx(), beat = 60 / bpm, chordBars = parseChordText(chordText), bars = Math.max(1, chordBars.length);
-  const stream = REC.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-  if (!REC.workletReady) { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([REC_WORKLET], { type: 'application/javascript' }))); REC.workletReady = true; }
-  const src = REC.src = ctx.createMediaStreamSource(stream), node = REC.node = new AudioWorkletNode(ctx, 'ws-rec'), mute = ctx.createGain(); mute.gain.value = 0;
-  REC.chunks = []; node.port.onmessage = e => REC.chunks.push(e.data); src.connect(node).connect(mute).connect(ctx.destination);
-  REC.on = true; let t0;
+  const say = msg => onStatus && onStatus({ msg });
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('this browser gives no microphone access here');
+  say('Asking for the microphone…'); REC.on = true;
+  const stream = REC.stream = await Promise.race([
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('no answer from the microphone – check the browser\'s microphone permission for this site')), 15000))]);
+  if (!REC.on) { recStop(); return null; }
+  if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
+  if (ctx.state !== 'running') throw new Error('audio is paused by the browser – tap Record again');
+  say('Microphone on…');
+  const src = REC.src = ctx.createMediaStreamSource(stream), mute = ctx.createGain(); mute.gain.value = 0; REC.chunks = [];
+  let node = null;
+  try {   // AudioWorklet where it works; the older ScriptProcessor otherwise
+    if (!ctx.audioWorklet) throw new Error('no worklet');
+    if (!REC.workletReady) { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([REC_WORKLET], { type: 'application/javascript' }))); REC.workletReady = true; }
+    node = new AudioWorkletNode(ctx, 'ws-rec'); node.port.onmessage = e => REC.chunks.push(e.data);
+  } catch (e) {
+    const N = 2048; node = ctx.createScriptProcessor(N, 1, 1);
+    node.onaudioprocess = e => REC.chunks.push({ t: ctx.currentTime - N / ctx.sampleRate, d: new Float32Array(e.inputBuffer.getChannelData(0)) });
+  }
+  REC.node = node; src.connect(node).connect(mute).connect(ctx.destination);
+  let t0;
   const tr = instTr();
   if (mode === 'band') {
     const list = [{ sym: '', beats: 4 }]; chordBars.forEach(cs => cs.forEach(c => list.push({ sym: transposeSym(c, TO_CONCERT[tr], false), beats: 4 / cs.length })));
@@ -2660,7 +2677,7 @@ async function recordPhrase({ key, chordText, bpm, mode, swing, onStatus }) {
     if (!REC.on) { res(); return; }
     const b = Math.floor((now - t0) / beat); onStatus && onStatus(now < start ? { count: 4 - Math.max(0, Math.min(3, b)) , beat: b % 4 } : { bar: Math.floor((now - start) / (4 * beat)) + 1, bars, beat: b % 4 });
     if (now > end + 0.4) res(); }, 40); });
-  const was = REC.on, chunks = REC.chunks, sr = ctx.sampleRate;
+  const was = REC.on, chunks = REC.chunks, sr = ctx.sampleRate; REC.heard = chunks.length;
   const lat = (ctx.outputLatency || ctx.baseLatency || 0) + ((stream.getAudioTracks()[0].getSettings() || {}).latency || 0.01);
   recStop(); if (!was || !chunks.length) return null;
   const x = new Float32Array(chunks.reduce((a, c) => a + c.d.length, 0)); let o = 0; for (const c of chunks) { x.set(c.d, o); o += c.d.length; }
@@ -2719,12 +2736,13 @@ function phraseEditor(sec, ex) {
     const btn = $('#recBtn'), st = $('#recSt'), dot = $('#recBeat'); btn.textContent = '■ Stop';
     try {
       const r = await recordPhrase({ key: wk.value, chordText: ch.value, bpm, mode, swing, onStatus: x => {
+        if (x.msg) { st.textContent = x.msg; return; }
         st.textContent = x.count ? 'Count-in… ' + x.count : 'Recording – bar ' + Math.min(x.bar, x.bars) + ' of ' + x.bars;
         dot.className = 'recbeat on' + (x.beat === 0 ? ' one' : ''); clearTimeout(dot._t); dot._t = setTimeout(() => { dot.className = 'recbeat'; }, 120); } });
-      if (!r) st.textContent = 'Stopped.';
+      if (!r) st.textContent = REC.heard === 0 ? 'The microphone sent no sound – check the microphone permission.' : 'Stopped.';
       else if (!r.n) st.textContent = 'No notes heard – play a little louder or closer to the phone.';
       else { ta.value = r.abc; prev(); st.textContent = r.n + ' notes – check them above.'; }
-    } catch (err) { recStop(); st.textContent = err.name === 'NotAllowedError' ? 'Microphone access was refused.' : 'Could not record: ' + err.message; }
+    } catch (err) { recStop(); st.textContent = err.name === 'NotAllowedError' ? 'Microphone access was refused – allow it for this site in the browser settings.' : 'Could not record: ' + err.message; }
     btn.textContent = '● Record';
   };
 }
