@@ -347,6 +347,11 @@ const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
 // ii–V–I phrases (ABC notation, written part; see the phrase section further down)
 const PHRASES = [   // built-in phrases: none for now (the owner adds their own)
 ].map(([id, name, key, abc]) => ({ id, name, key, abc }));
+const PHRASE_LEN_SECS = [['phrases-2', 'ii–V–I phrases · 2 bars', 2], ['phrases-4', 'ii–V–I phrases · 4 bars', 4]];
+// bars in a phrase's notation (bar lines; a closing |] counts once)
+const abcBarCount = abc => (abc || '').split(/\|\]|\||::|:\|/).filter(b => /[A-Ga-gz]/.test(b.replace(/"[^"]*"/g, ''))).length;
+const phraseLenOf = ex => abcBarCount(ex.abc || ((PHRASES.find(p => p.id === ex.phrase) || {}).abc));
+const phraseSecFor = n => S.lib.sections.find(x => x.phrases && x.len === (n > 2 ? 4 : 2));
 const PHRASE_SECS = [['ii-v-i-phrases', 'ii–V–I phrases', null, p => p.key === 'C'], ['ii-v-i-phrases-minor', 'ii–V–i phrases (minor)', null, p => p.key === 'Cm']];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
@@ -487,6 +492,14 @@ function migrate() {
     }
     if (S.plan) S.plan.items = S.plan.items.filter(i => !(i.t === 'ex' && gone.has(i.id)));
     S.libRev = 10;
+  }
+  if (S.libRev < 11) {   // phrase categories by length (2 / 4 bars) instead of major / minor
+    const old = S.lib.sections.filter(x => x.phrases && !x.len), at = old.length ? S.lib.sections.indexOf(old[0]) : S.lib.sections.length;
+    const made = PHRASE_LEN_SECS.map(([id, name, len]) => S.lib.sections.find(x => x.id === id) || { id, name, ex: [], phrases: 1, len });
+    for (const x of old) for (const e of x.ex) made[phraseLenOf(e) > 2 ? 1 : 0].ex.push(e);
+    S.lib.sections = S.lib.sections.filter(x => !old.includes(x) && !made.includes(x));
+    S.lib.sections.splice(Math.min(at, S.lib.sections.length), 0, ...made);
+    S.libRev = 11;
   }
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -1641,7 +1654,7 @@ function vLicks() {
     <section class="card">${L.map((l, i) => `<div class="rorow"><span class="grow">${esc(l.name)}</span>${mvBtns('lick', l.id, i, L.length)}</div>`).join('')}</section>`;
   // ii–V–I phrases live with the exercises (tempo, plan) but are licks in spirit, so they're listed here too
   const phSecs = S.lib.sections.filter(isPhraseSec);
-  const phCard = phSecs.length ? `<section class="card"><h3>ii–V–I phrases</h3>${phSecs.map(sec => `<div class="row" style="margin:8px 0 4px"><small class="muted grow">${/minor/i.test(sec.name) ? "Minor" : "Major"}</small><button class="btn sm" data-act="addPhrase" data-sec="${esc(sec.id)}">+ Phrase</button></div>
+  const phCard = phSecs.length ? `<section class="card"><h3>ii–V–I phrases</h3>${phSecs.map(sec => `<div class="row" style="margin:8px 0 4px"><small class="muted grow">${sec.len ? sec.len + ' bars' : esc(sec.name)}</small><button class="btn sm" data-act="addPhrase" data-sec="${esc(sec.id)}">+ Phrase</button></div>
     ${sec.ex.length ? sec.ex.map(exRow).join('') : '<p class="muted" style="margin:0;font-size:.85rem">None yet.</p>'}`).join('')}</section>` : '';
   return `<div class="row" style="margin-bottom:12px;justify-content:flex-end">${reorderBtn()}</div>${phCard}<div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
     return `<button class="lcard" data-act="openLick" data-id="${esc(l.id)}"><div class="im">${l.img ? `<img data-img="${esc(l.img)}" alt="">` : 'no image'}</div>
@@ -2539,7 +2552,7 @@ function phraseBlock(ex, k) {
 const REC = { on: false, stream: null, node: null, chunks: [], timer: null, out: null };
 const REC_WORKLET = `class R extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage({t:currentTime,d:c.slice(0)});return true}}registerProcessor('ws-rec',R)`;
 // the ii–V–I for the key a phrase is written in, as chord text, a bar per |: 2 bars (ii–V | I) or 4 (ii | V | I | I)
-function defaultChordText(k, bars = S.settings.recBars || 2) {
+function defaultChordText(k, bars = 2) {
   const minor = /m$/.test(k), semis = PCS[keyRoot(k)], sh = sharpKey(k);
   // two bars: ii–V in the first, I in the second
   const [ii, v, i] = (minor ? ['Dm7b5', 'G7b9', 'Cm6'] : ['Dm7', 'G7', 'Cmaj7']).map(c => transposeSym(c, semis, sh));
@@ -2711,16 +2724,17 @@ const nextPhraseNum = () => Math.max(0, ...phraseExs().map(phraseNum)) + 1;
 // The phrase editor: name, the key it's written in, which keys to practise, and the ABC with a live preview.
 function phraseEditor(sec, ex) {
   const ph = ex ? phraseOf(ex) : { abc: '', key: 'C' };
+  let recLen = ex ? (phraseLenOf(ex) > 2 ? 4 : 2) : (sec.len || 2);   // the take's length; a saved phrase goes to the category for its bar count
   const keyOpts = [...MAJOR_KEYS, ...MINOR_KEYS].map(x => `<option ${x === ph.key ? 'selected' : ''}>${x}</option>`).join('');
-  formSheet(ex ? 'Edit phrase' : 'New phrase in ' + sec.name, `<label class="f">Description <small class="muted">(optional – it's numbered: Phrase ${(ex && phraseNum(ex)) || nextPhraseNum()})</small></label><input type="text" name="desc" value="${esc(ex ? phraseDesc(ex) : '')}" placeholder="e.g. altered">
+  formSheet(ex ? 'Edit phrase' : 'New phrase', `<label class="f">Description <small class="muted">(optional – it's numbered: Phrase ${(ex && phraseNum(ex)) || nextPhraseNum()})</small></label><input type="text" name="desc" value="${esc(ex ? phraseDesc(ex) : '')}" placeholder="e.g. altered">
     <label class="f">Written in</label><select name="wkey">${keyOpts}</select>
     <label class="f">Notes <small class="muted">(ABC notation, written part)</small></label>
     <textarea name="abc" id="phAbc" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:.9rem" spellcheck="false" autocapitalize="off" placeholder='e.g. "Dm7"DFAc edcA | "G7"Bdfa gfed | "Cmaj7"e4 z4 |]'>${esc(ph.abc)}</textarea>
     <div id="phPrev" class="phnotes" style="margin-top:6px"></div><small id="phErr" class="muted"></small>
     <div class="row" style="margin-top:6px"><button type="button" class="btn sm" id="phEdPlay">▶ Play</button><small class="muted grow">in the key it's written in, at the tempo under Record</small></div>
     <details class="card" style="background:var(--surface2);margin-top:10px;padding:10px" ${navigator.mediaDevices ? '' : 'hidden'}><summary><b>● Record by playing</b></summary>
-      <div class="row" style="margin-top:4px"><small class="muted grow">Length</small><div class="seg" id="recBars">${[2, 4].map(n => `<button type="button" class="btn sm ${(S.settings.recBars || 2) === n ? 'primary' : ''}" data-n="${n}">${n} bars</button>`).join(' ')}</div></div>
-      <label class="f">Chords <small class="muted">(written key, a bar per |)</small></label><input type="text" id="recCh" autocapitalize="off" spellcheck="false" value="${esc(defaultChordText(ph.key))}">
+      <div class="row" style="margin-top:4px"><small class="muted grow">Length</small><div class="seg" id="recBars">${[2, 4].map(n => `<button type="button" class="btn sm ${recLen === n ? 'primary' : ''}" data-n="${n}">${n} bars</button>`).join(' ')}</div></div>
+      <label class="f">Chords <small class="muted">(written key, a bar per |)</small></label><input type="text" id="recCh" autocapitalize="off" spellcheck="false" value="${esc(defaultChordText(ph.key, recLen))}">
       <div class="row wrap" style="margin-top:8px"><input type="number" inputmode="numeric" id="recBpm" min="40" max="300" value="${S.settings.recBpm || 100}" style="width:5em"><small class="muted">bpm</small>
         <select id="recMode">${[['band', 'Band'], ['click', 'Click only'], ['off', 'Silent (watch the beats)']].map(([v, n]) => `<option value="${v}" ${(S.settings.recMode || 'click') === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
         <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="recSwing" ${S.settings.recSwing !== false ? 'checked' : ''}><small>Swing</small></label>
@@ -2735,8 +2749,10 @@ function phraseEditor(sec, ex) {
       Chords in quotes before a note: <b>"Dm7" D</b>. Use b and # in chord names (G7b9, F#m7).</p></details>`,
     fd => { const desc = fd.desc.trim(), num = (ex && phraseNum(ex)) || nextPhraseNum(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!abc) { toast('Add some notes'); return false; }
       const name = 'Phrase ' + num + (desc ? ' – ' + desc : '');
-      if (ex) { Object.assign(ex, { name, num, keys, abc, abcKey: fd.wkey }); }
-      else { ex = { id: 'phrase-' + num + '-' + uid(), name, num, keys, abc, abcKey: fd.wkey }; sec.ex.push(ex); openSecs.add(sec.id); }
+      const to = phraseSecFor(abcBarCount(abc)) || sec;
+      if (ex) { Object.assign(ex, { name, num, keys, abc, abcKey: fd.wkey }); if (to !== sec) { sec.ex = sec.ex.filter(x => x !== ex); to.ex.push(ex); } }
+      else { ex = { id: 'phrase-' + num + '-' + uid(), name, num, keys, abc, abcKey: fd.wkey }; to.ex.push(ex); }
+      openSecs.add(to.id); if (to !== sec) toast('Saved under ' + to.name);
       save(); setTimeout(() => sheetEx(ex.id), 50); });
   const ta = $('#phAbc'), wk = $('#fm [name=wkey]'); let tm;
   const prev = () => { clearTimeout(tm); tm = setTimeout(async () => {
@@ -2746,8 +2762,8 @@ function phraseEditor(sec, ex) {
     catch (e) { const er = $('#phErr'); if (er) er.textContent = e.message; } }, 250); };
   ta.addEventListener('input', prev); wk.addEventListener('change', prev); prev();
   const ch = $('#recCh'); let chEdited = false; ch.addEventListener('input', () => { chEdited = true; });
-  wk.addEventListener('change', () => { if (!chEdited) ch.value = defaultChordText(wk.value); });
-  $$('#recBars button').forEach(bt => bt.onclick = () => { S.settings.recBars = +bt.dataset.n; save(true); chEdited = false; ch.value = defaultChordText(wk.value);
+  wk.addEventListener('change', () => { if (!chEdited) ch.value = defaultChordText(wk.value, recLen); });
+  $$('#recBars button').forEach(bt => bt.onclick = () => { recLen = +bt.dataset.n; chEdited = false; ch.value = defaultChordText(wk.value, recLen);
     $$('#recBars button').forEach(x => x.classList.toggle('primary', x === bt)); });
   $('#phEdPlay').onclick = e => { if (PH.on) { phraseStop(); e.target.textContent = '▶ Play'; return; } e.target.textContent = '■ Stop';
     phrasePlay({ abc: ta.value, key: wk.value }, wk.value, Math.max(40, Math.min(300, +$('#recBpm').value || 100))).catch(err => toast(err.message)).finally(() => { const t = setInterval(() => { if (!PH.on) { e.target.textContent = '▶ Play'; clearInterval(t); } }, 300); }); };
