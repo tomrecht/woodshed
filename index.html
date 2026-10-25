@@ -343,29 +343,7 @@ const NONE = ['—'];
 const NEFF = 'Bebop dom. Neff ex. 1-12';
 const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
 // ii–V–I phrases (ABC notation, written part; see the phrase section further down)
-const PHRASES = [
-  ['p-arp-up', 'Arpeggio up, scale down', 'C', '"Dm7"DFAc edcA | "G7"Bdfa gfed | "Cmaj7"e4 z4 |]'],
-  ['p-dorian-down', 'Dorian down, ♭9 passing', 'C', '"Dm7"dcBA GFED | "G7"B,DFA _AGFD | "Cmaj7"E4 z4 |]'],
-  ['p-enclose-3', 'Enclosure into the 3rd', 'C', '"Dm7"zAce dcBA | "G7"G^F=FD B,DFA | "Cmaj7"F^DEG B2z2 |]'],
-  ['p-chrom-approach', 'Chromatic approach', 'C', '"Dm7"A2FA cBAG | "G7"FDB,D ^CDFA | "Cmaj7"GEC2 z4 |]'],
-  ['p-altered', 'Altered dominant', 'C', '"Dm7"Aceg fedc | "G7alt"_e2_dB _B_AGF | "Cmaj7"EGBd c4 |]'],
-  ['p-triplet', 'Triplet turn', 'C', '"Dm7"(3efe dc AFDF | "G7"B,DGB _AGFD | "Cmaj7"E2C2 z4 |]'],
-  ['p-short-b9', 'Short ii–V with ♭9', 'C', '"Dm7"afdc "G7"Bdf_a | "Cmaj7"gecB c4 |]'],
-  ['p-1235', '1-2-3-5', 'C', '"Dm7"DEFA "G7"GABd | "Cmaj7"cdeg e2c2 |]'],
-  ['p-bebop-dom', 'Bebop dominant down', 'C', '"Dm7"DFAc defa | "G7"g^f=fe dcBA | "Cmaj7"G2E4z2 |]'],
-  ['p-guide', 'Guide tones (3rds & 7ths)', 'C', '"Dm7"F4 c4 | "G7"B4 F4 | "Cmaj7"E4 B4 |]'],
-  ['p-cycle-enc', 'Enclosures through the cycle', 'C', '"Dm7"z2ed ^cdfa | "G7"gfdB ^cdBG | "Cmaj7"AGE2 z4 |]'],
-  ['p-dim', 'Diminished over the V', 'C', '"Dm7"AFDF Aceg | "G7b9"fdB_A Bdf_a | "Cmaj7"gec4z2 |]'],
-  ['p-one-bar', 'ii–V in one bar', 'C', '"Dm7"FEDC "G7"B,DFA | "Cmaj7"GECD E4 |]'],
-  ['p-tritone', 'Tritone substitute', 'C', '"Dm7"FAce dcAF | "Db7"_AF_DF _AB_d_e | "Cmaj7"e4 z4 |]'],
-  ['p-m-arp', 'Minor: arpeggios', 'Cm', '"Dm7b5"DFAc BAFD | "G7b9"=B,DFA GFED | "Cm6"C2E2 G4 |]'],
-  ['p-m-down', 'Minor: down to the leading tone', 'Cm', '"Dm7b5"cBAF DFAc | "G7b9"=BAGF EDC=B, | "Cm6"CEG=A G2z2 |]'],
-  ['p-m-dim', 'Minor: diminished over the V', 'Cm', '"Dm7b5"DFAc edcA | "G7b9"=Bdfa fd=BA | "Cm6"G4 z4 |]'],
-  ['p-m-short', 'Minor: short ii–V', 'Cm', '"Dm7b5"FAce "G7b9"d=BAF | "Cm6"EG=Ac G2z2 |]'],
-  ['p-m-harm', 'Minor: harmonic minor up', 'Cm', '"Dm7b5"dcBA GFED | "G7b9"=B,CDE FGA=B | "Cm6"c4 z4 |]'],
-  ['p-m-triplet', 'Minor: triplet turns', 'Cm', '"Dm7b5"(3ded cA FDFA | "G7b9"=B,DFA (3GAG FD | "Cm6"E2C2 z4 |]'],
-  ['p-m-altered', 'Minor: altered dominant', 'Cm', '"Dm7b5"DFAc defg | "G7alt"afe_d =BAGF | "Cm6"E4 z4 |]'],
-  ['p-m-guide', 'Minor: guide tones', 'Cm', '"Dm7b5"F4 c4 | "G7b9"=B4 F4 | "Cm6"E4 G4 |]'],
+const PHRASES = [   // built-in phrases: none for now (the owner adds their own)
 ].map(([id, name, key, abc]) => ({ id, name, key, abc }));
 const PHRASE_SECS = [['ii-v-i-phrases', 'ii–V–I phrases', null, p => p.key === 'C'], ['ii-v-i-phrases-minor', 'ii–V–i phrases (minor)', null, p => p.key === 'Cm']];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
@@ -497,6 +475,16 @@ function migrate() {
       for (const p of PHRASES.filter(pick)) if (!sec.ex.some(e => e.phrase === p.id)) sec.ex.push({ id: p.id, name: p.name, keys: [...NONE], phrase: p.id });   // one tempo through all 12 keys
     }
     S.libRev = 9;
+  }
+  if (S.libRev < 10) {   // the built-in phrases are withdrawn; edited copies (ex.abc) are the user's and stay
+    const gone = new Set();
+    for (const sec of S.lib.sections) sec.ex = sec.ex.filter(e => { if (e.phrase && !e.abc) { gone.add(e.id); return false; } return true; });
+    for (const p of Object.values(S.prog)) {
+      for (const m of [p.bpm, p.touched, p.cons || {}, p.units || {}]) for (const k of Object.keys(m)) { const id = k.replace(/^[ex]:/, '').split('|')[0]; if (gone.has(id)) delete m[k]; }
+      p.hist = p.hist.filter(h => !gone.has(h.k.replace(/^e:/, '').split('|')[0]));
+    }
+    if (S.plan) S.plan.items = S.plan.items.filter(i => !(i.t === 'ex' && gone.has(i.id)));
+    S.libRev = 10;
   }
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -2653,12 +2641,12 @@ async function recordPhrase({ key, chordText, bpm, mode, swing, onStatus }) {
 }
 // The phrase editor: name, the key it's written in, which keys to practise, and the ABC with a live preview.
 function phraseEditor(sec, ex) {
-  const ph = ex ? phraseOf(ex) : { abc: '"Dm7" D F A c e d c A | "G7" B d f a g f e d | "Cmaj7" e4 z4 |]', key: 'C' };
+  const ph = ex ? phraseOf(ex) : { abc: '', key: 'C' };
   const keyOpts = [...MAJOR_KEYS, ...MINOR_KEYS].map(x => `<option ${x === ph.key ? 'selected' : ''}>${x}</option>`).join('');
   formSheet(ex ? 'Edit phrase' : 'New phrase in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required value="${esc(ex ? ex.name : '')}" placeholder="e.g. Parker ii–V">
     <label class="f">Written in</label><select name="wkey">${keyOpts}</select>
     <label class="f">Notes <small class="muted">(ABC notation, written part)</small></label>
-    <textarea name="abc" id="phAbc" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:.9rem" spellcheck="false" autocapitalize="off">${esc(ph.abc)}</textarea>
+    <textarea name="abc" id="phAbc" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:.9rem" spellcheck="false" autocapitalize="off" placeholder='e.g. "Dm7"DFAc edcA | "G7"Bdfa gfed | "Cmaj7"e4 z4 |]'>${esc(ph.abc)}</textarea>
     <div id="phPrev" class="phnotes" style="margin-top:6px"></div><small id="phErr" class="muted"></small>
     <div class="row" style="margin-top:6px"><button type="button" class="btn sm" id="phEdPlay">▶ Play</button><small class="muted grow">in the key it's written in, at the tempo under Record</small></div>
     <details class="card" style="background:var(--surface2);margin-top:10px;padding:10px" ${navigator.mediaDevices ? '' : 'hidden'}><summary><b>● Record by playing</b></summary>
