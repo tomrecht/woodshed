@@ -15,7 +15,10 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - `vendor/abcjs-basic-min.js` – abcjs 6.4.4 (MIT, licence beside it), loaded only when a phrase is shown. ii–V–I phrases are
   exercises with notation: built-in ones reference `PHRASES` (`ex.phrase`), the user's own carry `ex.abc` + `ex.abcKey`
   (ABC body, L:1/8, 4/4, chords in quotes). One tempo for all 12 keys (`keys: ['—']`); shown in any key, octave chosen to
-  stay in the sax range, played with melody over `playChords`.
+  stay in the sax range, played with melody over `playChords`. The phrase editor can record a take from the mic
+  (`recordPhrase`: AudioWorklet capture → YIN pitch → eighth-note grid, swung or straight → ABC in the written key);
+  test the analysis with synthetic audio (`detectNotes`/`quantizeNotes`/`notesToAbc`) and Chrome's fake mic
+  (`--use-file-for-fake-audio-capture=file.wav`).
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`
   (converts concert → alto). Forum: https://forums.irealpro.com (XenForo; search with `/search/search?keywords=...`).
