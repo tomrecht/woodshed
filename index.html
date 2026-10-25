@@ -2655,11 +2655,16 @@ async function recordPhrase({ key, chordText, bpm, mode, swing, onStatus }) {
   const q = quantizeNotes(notes, beat, bars, swing);
   return { abc: notesToAbc(q, chordBars, key, bars), n: q.length };
 }
+// Phrases are numbered (one sequence across major and minor); the name is "Phrase N – description".
+const phraseExs = () => S.lib.sections.filter(isPhraseSec).flatMap(s => s.ex);
+const phraseNum = ex => ex.num || +((/^Phrase (\d+)/.exec(ex.name) || [])[1]) || 0;
+const phraseDesc = ex => ex.num || /^Phrase \d+/.test(ex.name) ? ex.name.replace(/^Phrase \d+( – )?/, '') : ex.name;
+const nextPhraseNum = () => Math.max(0, ...phraseExs().map(phraseNum)) + 1;
 // The phrase editor: name, the key it's written in, which keys to practise, and the ABC with a live preview.
 function phraseEditor(sec, ex) {
   const ph = ex ? phraseOf(ex) : { abc: '', key: 'C' };
   const keyOpts = [...MAJOR_KEYS, ...MINOR_KEYS].map(x => `<option ${x === ph.key ? 'selected' : ''}>${x}</option>`).join('');
-  formSheet(ex ? 'Edit phrase' : 'New phrase in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required value="${esc(ex ? ex.name : '')}" placeholder="e.g. Parker ii–V">
+  formSheet(ex ? 'Edit phrase' : 'New phrase in ' + sec.name, `<label class="f">Description <small class="muted">(optional – it's numbered: Phrase ${(ex && phraseNum(ex)) || nextPhraseNum()})</small></label><input type="text" name="desc" value="${esc(ex ? phraseDesc(ex) : '')}" placeholder="e.g. altered">
     <label class="f">Written in</label><select name="wkey">${keyOpts}</select>
     <label class="f">Notes <small class="muted">(ABC notation, written part)</small></label>
     <textarea name="abc" id="phAbc" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:.9rem" spellcheck="false" autocapitalize="off" placeholder='e.g. "Dm7"DFAc edcA | "G7"Bdfa gfed | "Cmaj7"e4 z4 |]'>${esc(ph.abc)}</textarea>
@@ -2678,15 +2683,17 @@ function phraseEditor(sec, ex) {
       Lengths: <b>A</b> = 8th, <b>A2</b> = quarter, <b>A4</b> = half, <b>A/</b> = 16th, <b>A3</b> = dotted quarter.
       <b>(3ABc</b> = triplet, <b>z</b> = rest, notes written together (<b>DFAc</b>) are beamed, <b>|</b> bar line, <b>|]</b> end, <b>A-A</b> tie.
       Chords in quotes before a note: <b>"Dm7" D</b>. Use b and # in chord names (G7b9, F#m7).</p></details>`,
-    fd => { const n = fd.name.trim(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!n || !abc) return false;
-      if (ex) { Object.assign(ex, { name: n, keys, abc, abcKey: fd.wkey }); }
-      else { ex = { id: slug(sec.name + ' ' + n) + '-' + uid(), name: n, keys, abc, abcKey: fd.wkey }; sec.ex.push(ex); openSecs.add(sec.id); }
+    fd => { const desc = fd.desc.trim(), num = (ex && phraseNum(ex)) || nextPhraseNum(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!abc) { toast('Add some notes'); return false; }
+      const name = 'Phrase ' + num + (desc ? ' – ' + desc : '');
+      if (ex) { Object.assign(ex, { name, num, keys, abc, abcKey: fd.wkey }); }
+      else { ex = { id: 'phrase-' + num + '-' + uid(), name, num, keys, abc, abcKey: fd.wkey }; sec.ex.push(ex); openSecs.add(sec.id); }
       save(); setTimeout(() => sheetEx(ex.id), 50); });
   const ta = $('#phAbc'), wk = $('#fm [name=wkey]'); let tm;
   const prev = () => { clearTimeout(tm); tm = setTimeout(async () => {
-    try { await loadAbc(); const r = ABCJS.renderAbc('phPrev', abcDoc({ abc: ta.value, key: wk.value }), { responsive: 'resize' })[0];
+    if (!$('#phPrev')) return;   // the editor has closed
+    try { await loadAbc(); if (!$('#phPrev')) return; const r = ABCJS.renderAbc('phPrev', abcDoc({ abc: ta.value, key: wk.value }), { responsive: 'resize' })[0];
       const w = (r && r.warnings) || []; $('#phErr').textContent = w.length ? '⚠ ' + w[0].replace(/<[^>]+>/g, '') : ''; }
-    catch (e) { $('#phErr').textContent = e.message; } }, 250); };
+    catch (e) { const er = $('#phErr'); if (er) er.textContent = e.message; } }, 250); };
   ta.addEventListener('input', prev); wk.addEventListener('change', prev); prev();
   const ch = $('#recCh'); let chEdited = false; ch.addEventListener('input', () => { chEdited = true; });
   wk.addEventListener('change', () => { if (!chEdited) ch.value = defaultChordText(wk.value); });
