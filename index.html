@@ -2538,10 +2538,12 @@ function phraseBlock(ex, k) {
    afterwards. Timing allows for the output and input latency the browser reports. */
 const REC = { on: false, stream: null, node: null, chunks: [], timer: null, out: null };
 const REC_WORKLET = `class R extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage({t:currentTime,d:c.slice(0)});return true}}registerProcessor('ws-rec',R)`;
-// the ii–V–I for the key a phrase is written in, as chord text, a bar per |
+// the ii–V–I for the key a phrase is written in, as chord text, a bar per | (2 bars: most phrases are)
 function defaultChordText(k) {
   const minor = /m$/.test(k), semis = PCS[keyRoot(k)], sh = sharpKey(k);
-  return (minor ? ['Dm7b5', 'G7b9', 'Cm6', 'Cm6'] : ['Dm7', 'G7', 'Cmaj7', 'Cmaj7']).map(c => transposeSym(c, semis, sh)).join(' | ');
+  // two bars: ii–V in the first, I in the second
+  const [ii, v, i] = (minor ? ['Dm7b5', 'G7b9', 'Cm6'] : ['Dm7', 'G7', 'Cmaj7']).map(c => transposeSym(c, semis, sh));
+  return ii + ' ' + v + ' | ' + i;
 }
 const parseChordText = txt => txt.split('|').map(b => b.trim().split(/\s+/).filter(Boolean)).filter(b => b.length);
 // YIN pitch of one frame: {f (Hz), q (0–1 clarity)} or null
