@@ -1258,8 +1258,9 @@ function planTopUp() {
 const planSize = () => Object.assign({ ex: 3, lick: 1, tune: 2 }, S.settings.plan || {});
 function addToPlan(it) {
   if (!S.plan) makePlan();
-  if (S.plan.items.some(x => x.t === it.t && x.id === it.id && x.key === it.key)) { toast('Already in today\'s plan'); return; }
-  S.plan.items.push(it); save(); toast('Added to today\'s plan');
+  const have = S.plan.items.find(x => x.t === it.t && x.id === it.id && x.key === it.key);
+  if (have) { have.mine = 1; save(); toast('Already in today\'s plan'); return; }
+  S.plan.items.push({ ...it, mine: 1 }); save(); toast('Added to today\'s plan');   // mine = you added it (the session summary only nags about these)
 }
 
 /* ---------- views ---------- */
@@ -2143,10 +2144,10 @@ function sessionRecap(sess, xpBefore, got) {
     if (recs.length) body += H('🏆 Records') + `<ul class="list">${recs.map(r => `<li><span class="grow">${esc(r.name)} <small class="muted">· ${esc(r.what)}</small></span><b style="color:var(--accent)">${r.m === 'min' ? fmtMin(r.v) : r.v}</b>${r.prev ? `<small class="muted">&nbsp;(was ${r.m === 'min' ? fmtMin(r.prev) : r.prev})</small>` : ''}</li>`).join('')}</ul>`;
     // plan
     const today = dayKey(now), plan = S.plan && S.plan.date === today && S.plan.inst === S.cur ? S.plan.items : null;
-    if (plan && plan.length) {
-      const open = plan.filter(it => !planItemDone(it)), nDone = plan.length - open.length;
-      body += H(`Plan · ${nDone} of ${plan.length} done`);
-      if (open.length) body += `<p class="muted" style="margin:0;font-size:.9rem">Not played: ${open.slice(0, 8).map(it => esc(itemLabel(planKeyOf(it)))).join(' · ')}${open.length > 8 ? ' …' : ''}</p>
+    if (plan && plan.length) {   // suggestions left unplayed aren't reported – only what you added yourself (or kept from last time)
+      const nDone = plan.filter(planItemDone).length, open = plan.filter(it => (it.mine || it.carry) && !planItemDone(it));
+      if (nDone || open.length) body += H(`Plan · ${nDone} done`);
+      if (open.length) body += `<p class="muted" style="margin:0;font-size:.9rem">You added but didn't play: ${open.slice(0, 8).map(it => esc(itemLabel(planKeyOf(it)))).join(' · ')}${open.length > 8 ? ' …' : ''}</p>
         <button class="btn sm" id="carryBtn" data-act="planCarry" style="margin-top:6px">${S.planCarry && S.planCarry.inst === S.cur && S.planCarry.date === today ? '✓ Kept for next time' : 'Keep these for next time'}</button>`;
     }
     // tempo changes, per key: first → last this session
@@ -3230,7 +3231,7 @@ const A = {
   },
   planCarry: el => { const today = dayKey(Date.now());
     if (S.planCarry && S.planCarry.inst === S.cur && S.planCarry.date === today) { S.planCarry = null; el.textContent = 'Keep these for next time'; }
-    else { S.planCarry = { inst: S.cur, date: today, items: S.plan.items.filter(it => !planItemDone(it)).map(it => ({ ...it, carry: 1 })) }; el.textContent = '✓ Kept for next time'; }
+    else { S.planCarry = { inst: S.cur, date: today, items: S.plan.items.filter(it => (it.mine || it.carry) && !planItemDone(it)).map(it => ({ ...it, carry: 1 })) }; el.textContent = '✓ Kept for next time'; }
     save(); },
   discardSession: () => { if (confirm('Discard this session without saving?')) { S.session = null; save(); tickSession(); closeSheet(); } },
   logPast: () => formSheet('Log past session', `<label class="f">Date</label><input type="date" name="d" value="${dayKey(Date.now())}" max="${dayKey(Date.now())}">
