@@ -2538,12 +2538,12 @@ function phraseBlock(ex, k) {
    afterwards. Timing allows for the output and input latency the browser reports. */
 const REC = { on: false, stream: null, node: null, chunks: [], timer: null, out: null };
 const REC_WORKLET = `class R extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage({t:currentTime,d:c.slice(0)});return true}}registerProcessor('ws-rec',R)`;
-// the ii–V–I for the key a phrase is written in, as chord text, a bar per | (2 bars: most phrases are)
-function defaultChordText(k) {
+// the ii–V–I for the key a phrase is written in, as chord text, a bar per |: 2 bars (ii–V | I) or 4 (ii | V | I | I)
+function defaultChordText(k, bars = S.settings.recBars || 2) {
   const minor = /m$/.test(k), semis = PCS[keyRoot(k)], sh = sharpKey(k);
   // two bars: ii–V in the first, I in the second
   const [ii, v, i] = (minor ? ['Dm7b5', 'G7b9', 'Cm6'] : ['Dm7', 'G7', 'Cmaj7']).map(c => transposeSym(c, semis, sh));
-  return ii + ' ' + v + ' | ' + i;
+  return bars === 4 ? [ii, v, i, i].join(' | ') : ii + ' ' + v + ' | ' + i;
 }
 const parseChordText = txt => txt.split('|').map(b => b.trim().split(/\s+/).filter(Boolean)).filter(b => b.length);
 // YIN pitch of one frame: {f (Hz), q (0–1 clarity)} or null
@@ -2719,6 +2719,7 @@ function phraseEditor(sec, ex) {
     <div id="phPrev" class="phnotes" style="margin-top:6px"></div><small id="phErr" class="muted"></small>
     <div class="row" style="margin-top:6px"><button type="button" class="btn sm" id="phEdPlay">▶ Play</button><small class="muted grow">in the key it's written in, at the tempo under Record</small></div>
     <details class="card" style="background:var(--surface2);margin-top:10px;padding:10px" ${navigator.mediaDevices ? '' : 'hidden'}><summary><b>● Record by playing</b></summary>
+      <div class="row" style="margin-top:4px"><small class="muted grow">Length</small><div class="seg" id="recBars">${[2, 4].map(n => `<button type="button" class="btn sm ${(S.settings.recBars || 2) === n ? 'primary' : ''}" data-n="${n}">${n} bars</button>`).join(' ')}</div></div>
       <label class="f">Chords <small class="muted">(written key, a bar per |)</small></label><input type="text" id="recCh" autocapitalize="off" spellcheck="false" value="${esc(defaultChordText(ph.key))}">
       <div class="row wrap" style="margin-top:8px"><input type="number" inputmode="numeric" id="recBpm" min="40" max="300" value="${S.settings.recBpm || 100}" style="width:5em"><small class="muted">bpm</small>
         <select id="recMode">${[['band', 'Band'], ['click', 'Click only'], ['off', 'Silent (watch the beats)']].map(([v, n]) => `<option value="${v}" ${(S.settings.recMode || 'click') === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
@@ -2746,6 +2747,8 @@ function phraseEditor(sec, ex) {
   ta.addEventListener('input', prev); wk.addEventListener('change', prev); prev();
   const ch = $('#recCh'); let chEdited = false; ch.addEventListener('input', () => { chEdited = true; });
   wk.addEventListener('change', () => { if (!chEdited) ch.value = defaultChordText(wk.value); });
+  $$('#recBars button').forEach(bt => bt.onclick = () => { S.settings.recBars = +bt.dataset.n; save(true); chEdited = false; ch.value = defaultChordText(wk.value);
+    $$('#recBars button').forEach(x => x.classList.toggle('primary', x === bt)); });
   $('#phEdPlay').onclick = e => { if (PH.on) { phraseStop(); e.target.textContent = '▶ Play'; return; } e.target.textContent = '■ Stop';
     phrasePlay({ abc: ta.value, key: wk.value }, wk.value, Math.max(40, Math.min(300, +$('#recBpm').value || 100))).catch(err => toast(err.message)).finally(() => { const t = setInterval(() => { if (!PH.on) { e.target.textContent = '▶ Play'; clearInterval(t); } }, 300); }); };
   $('#recBtn').onclick = async () => {
