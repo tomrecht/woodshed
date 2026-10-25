@@ -1539,7 +1539,7 @@ function vHome() {
     <div class="row wrap" style="margin-top:8px"><small class="grow">Add:</small><button class="btn sm" data-act="planAdd" data-t="ex">+ Exercise</button><button class="btn sm" data-act="planAdd" data-t="lick">+ Lick</button><button class="btn sm" data-act="planAdd" data-t="tune">+ Tune</button></div></section>
   <section class="card"><h3>Last 20 weeks</h3><div class="heat">${cells}</div>
     <div class="row" style="margin-top:8px"><small class="grow">${fmtHM(totalHours(p))} total</small><small>${p.sessions.length} sessions</small></div></section>
-  ${recent ? `<section class="card"><h3>Recent tempo records</h3><ul class="list">${recent}</ul></section>` : ''}`;
+  ${recent || p.hist.length ? `<section class="card"><h3><span class="grow">Recent tempo records</span><button class="btn sm" data-act="tempoLog">All changes</button></h3>${recent ? `<ul class="list">${recent}</ul>` : ''}</section>` : ''}`;
 }
 function itemLabel(k) {
   if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'); const o = findEx(id); return o ? `${o.sec.name} · ${o.ex.name}${key !== '—' ? ' · ' + key : ''}` : k; }
@@ -1774,6 +1774,15 @@ function tempoChart(series, u = 1) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="margin-top:6px"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>
     ${series.map(x => `<circle cx="${X(x.t).toFixed(1)}" cy="${Y(x.bpm).toFixed(1)}" r="3" fill="var(--accent)"/>`).join('')}
     <text x="4" y="${H - 2}" fill="var(--muted)" font-size="10">${new Date(t0).toLocaleDateString()}</text><text x="${W - 4}" y="${H - 2}" fill="var(--muted)" font-size="10" text-anchor="end">${Math.round(series[series.length - 1].bpm / u)}${u === 2 ? ' (half notes)' : ' bpm'}</text></svg>`;
+}
+// Every tempo change, newest first, with when it happened. A change that is still the current value can be undone
+// (back to what it replaced); lowered tempos are marked, since an accidental overwrite usually lowers one.
+function sheetTempoLog() {
+  const p = P(), rows = p.hist.map((h, i) => ({ h, i })).slice(-60).reverse();
+  openSheet(`${head('Tempo changes', 'newest first')}<ul class="list">${rows.map(({ h, i }) => { const cur = p.bpm[h.k], live = cur === h.bpm && h.prev != null, down = h.prev != null && h.bpm < h.prev;
+    return `<li><span class="grow">${esc(itemLabel(h.k))}<br><small class="muted">${new Date(h.t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${fmtTime(h.t)}${h.undo ? ' · undo' : ''}</small></span>
+      <b style="color:${down ? '#e0675f' : h.prev != null && h.bpm > h.prev ? 'var(--accent)' : 'var(--text)'}">${h.prev != null ? `<small>${dv(h.k, h.prev)}→</small>` : '<small>new </small>'}${Tk(h.k, h.bpm)}</b>
+      ${live ? `<button class="iconbtn" data-act="tempoUndo" data-i="${i}" title="Put back ${dv(h.k, h.prev)}" aria-label="Undo">↶</button>` : ''}</li>`; }).join('') || '<li class="muted">No tempo changes yet.</li>'}</ul>`);
 }
 function histList(prefix, labelFn) {
   const all = P().hist.filter(x => x.k.startsWith(prefix));
@@ -3159,6 +3168,10 @@ const A = {
       `<button type="button" class="btn ghost danger" data-act="delSec" data-sec="${esc(sec.id)}">Delete category</button>`); },
   delSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec); if (!confirm(`Delete "${sec.name}" and its ${sec.ex.length} exercises? Logged tempos are kept in backups but hidden.`)) return;
     S.lib.sections = S.lib.sections.filter(s => s !== sec); save(); closeSheet(); },
+  tempoLog: () => sheetTempoLog(),
+  tempoUndo: el => { const p = P(), h = p.hist[+el.dataset.i]; if (!h || p.bpm[h.k] !== h.bpm || h.prev == null) return;
+    if (!confirm(`Put ${itemLabel(h.k)} back to ${dv(h.k, h.prev)}?`)) return;
+    p.bpm[h.k] = h.prev; p.hist.push({ t: Date.now(), k: h.k, bpm: h.prev, prev: h.bpm, undo: 1 }); save(); toast('Restored ' + TtxtK(h.k, h.prev)); sheetTempoLog(); },
   addPhrase: el => phraseEditor(S.lib.sections.find(s => s.id === el.dataset.sec)),
   editPhrase: el => { const { sec, ex } = findEx(el.dataset.id); phraseEditor(sec, ex); },
   phToggle: () => { if (PH.on) { phraseStop(); return; } const o = findEx(PH.ex); if (!o) return;
