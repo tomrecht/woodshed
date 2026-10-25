@@ -144,7 +144,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .lcard .im img{width:100%;height:100%;object-fit:cover;object-position:left center}
 .lcard .t{padding:8px 10px;display:flex;justify-content:space-between;gap:6px}
 .lickimg{background:#fff;border-radius:10px;width:100%;display:block;margin:8px 0}
-.sheetmusic{margin:10px 0}.cbar.playing{outline:2px solid var(--accent);outline-offset:-2px;background:rgba(240,168,60,.15)}.smpage{position:relative}.smdel{position:absolute;top:14px;right:6px;background:var(--surface2)}
+.sheetmusic{margin:10px 0}.phnotes{background:#fff;color:#111;border-radius:8px;padding:6px;margin-top:8px;min-height:40px}.phnotes svg{display:block}.cbar.playing{outline:2px solid var(--accent);outline-offset:-2px;background:rgba(240,168,60,.15)}.smpage{position:relative}.smdel{position:absolute;top:14px;right:6px;background:var(--surface2)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:6px 12px;white-space:nowrap;font-size:.9rem}
 .chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
@@ -342,6 +342,32 @@ const WT = ['Eb-F','E-F#'];
 const NONE = ['—'];
 const NEFF = 'Bebop dom. Neff ex. 1-12';
 const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
+// ii–V–I phrases (ABC notation, written part; see the phrase section further down)
+const PHRASES = [
+  ['p-arp-up', 'Arpeggio up, scale down', 'C', '"Dm7"DFAc edcA | "G7"Bdfa gfed | "Cmaj7"e4 z4 |]'],
+  ['p-dorian-down', 'Dorian down, ♭9 passing', 'C', '"Dm7"dcBA GFED | "G7"B,DFA _AGFD | "Cmaj7"E4 z4 |]'],
+  ['p-enclose-3', 'Enclosure into the 3rd', 'C', '"Dm7"zAce dcBA | "G7"G^F=FD B,DFA | "Cmaj7"F^DEG B2z2 |]'],
+  ['p-chrom-approach', 'Chromatic approach', 'C', '"Dm7"A2FA cBAG | "G7"FDB,D ^CDFA | "Cmaj7"GEC2 z4 |]'],
+  ['p-altered', 'Altered dominant', 'C', '"Dm7"Aceg fedc | "G7alt"_e2_dB _B_AGF | "Cmaj7"EGBd c4 |]'],
+  ['p-triplet', 'Triplet turn', 'C', '"Dm7"(3efe dc AFDF | "G7"B,DGB _AGFD | "Cmaj7"E2C2 z4 |]'],
+  ['p-short-b9', 'Short ii–V with ♭9', 'C', '"Dm7"afdc "G7"Bdf_a | "Cmaj7"gecB c4 |]'],
+  ['p-1235', '1-2-3-5', 'C', '"Dm7"DEFA "G7"GABd | "Cmaj7"cdeg e2c2 |]'],
+  ['p-bebop-dom', 'Bebop dominant down', 'C', '"Dm7"DFAc defa | "G7"g^f=fe dcBA | "Cmaj7"G2E4z2 |]'],
+  ['p-guide', 'Guide tones (3rds & 7ths)', 'C', '"Dm7"F4 c4 | "G7"B4 F4 | "Cmaj7"E4 B4 |]'],
+  ['p-cycle-enc', 'Enclosures through the cycle', 'C', '"Dm7"z2ed ^cdfa | "G7"gfdB ^cdBG | "Cmaj7"AGE2 z4 |]'],
+  ['p-dim', 'Diminished over the V', 'C', '"Dm7"AFDF Aceg | "G7b9"fdB_A Bdf_a | "Cmaj7"gec4z2 |]'],
+  ['p-one-bar', 'ii–V in one bar', 'C', '"Dm7"FEDC "G7"B,DFA | "Cmaj7"GECD E4 |]'],
+  ['p-tritone', 'Tritone substitute', 'C', '"Dm7"FAce dcAF | "Db7"_AF_DF _AB_d_e | "Cmaj7"e4 z4 |]'],
+  ['p-m-arp', 'Minor: arpeggios', 'Cm', '"Dm7b5"DFAc BAFD | "G7b9"=B,DFA GFED | "Cm6"C2E2 G4 |]'],
+  ['p-m-down', 'Minor: down to the leading tone', 'Cm', '"Dm7b5"cBAF DFAc | "G7b9"=BAGF EDC=B, | "Cm6"CEG=A G2z2 |]'],
+  ['p-m-dim', 'Minor: diminished over the V', 'Cm', '"Dm7b5"DFAc edcA | "G7b9"=Bdfa fd=BA | "Cm6"G4 z4 |]'],
+  ['p-m-short', 'Minor: short ii–V', 'Cm', '"Dm7b5"FAce "G7b9"d=BAF | "Cm6"EG=Ac G2z2 |]'],
+  ['p-m-harm', 'Minor: harmonic minor up', 'Cm', '"Dm7b5"dcBA GFED | "G7b9"=B,CDE FGA=B | "Cm6"c4 z4 |]'],
+  ['p-m-triplet', 'Minor: triplet turns', 'Cm', '"Dm7b5"(3ded cA FDFA | "G7b9"=B,DFA (3GAG FD | "Cm6"E2C2 z4 |]'],
+  ['p-m-altered', 'Minor: altered dominant', 'Cm', '"Dm7b5"DFAc defg | "G7alt"afe_d =BAGF | "Cm6"E4 z4 |]'],
+  ['p-m-guide', 'Minor: guide tones', 'Cm', '"Dm7b5"F4 c4 | "G7b9"=B4 F4 | "Cm6"E4 G4 |]'],
+].map(([id, name, key, abc]) => ({ id, name, key, abc }));
+const PHRASE_SECS = [['ii-v-i-phrases', 'ii–V–I phrases', null, p => p.key === 'C'], ['ii-v-i-phrases-minor', 'ii–V–i phrases (minor)', null, p => p.key === 'Cm']];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
 
@@ -464,6 +490,13 @@ function migrate() {
     const id = slug('Bebop scales ' + NEFF);
     if (!sec.ex.some(e => e.id === id || e.name === NEFF)) sec.ex.push({ id, name: NEFF, keys: [...MAJ] });
     S.libRev = 8;
+  }
+  if (S.libRev < 9) {   // ii–V–I phrase library
+    for (const [id, name, keys, pick] of PHRASE_SECS) {
+      let sec = S.lib.sections.find(x => x.id === id); if (!sec) { sec = { id, name, ex: [], phrases: 1 }; S.lib.sections.push(sec); }
+      for (const p of PHRASES.filter(pick)) if (!sec.ex.some(e => e.phrase === p.id)) sec.ex.push({ id: p.id, name: p.name, keys: [...NONE], phrase: p.id });   // one tempo through all 12 keys
+    }
+    S.libRev = 9;
   }
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -1553,7 +1586,7 @@ function vEx() {
       const full = sec.ex.filter(ex => exInfo(ex).full).length;
       return `<details class="sec" data-sec="${esc(sec.id)}" ${openSecs.has(sec.id) ? 'open' : ''}><summary><span class="grow"><b>${esc(sec.name)}</b>${secDone(sec) ? '<span class="donebadge">✓ complete</span>' : ''}</span><small>${full}/${sec.ex.length}</small></summary>
       <div class="body">${sec.ex.map(exRow).join('')}
-      <div class="row"><button class="btn ghost" data-act="addEx" data-sec="${esc(sec.id)}">+ Exercise</button><button class="btn ghost" data-act="editSec" data-sec="${esc(sec.id)}">Edit category</button></div></div></details>`;
+      <div class="row"><button class="btn ghost" data-act="${isPhraseSec(sec) ? 'addPhrase' : 'addEx'}" data-sec="${esc(sec.id)}">${isPhraseSec(sec) ? '+ Phrase' : '+ Exercise'}</button><button class="btn ghost" data-act="editSec" data-sec="${esc(sec.id)}">Edit category</button></div></div></details>`;
     }).join('') + `<button class="btn ghost" data-act="addSec">+ Add category</button>`;
 }
 /* Table entry: built for typing in existing tempos on a computer */
@@ -1731,6 +1764,7 @@ function applyExFilter() {
 let sheetOpen = false, sheetOnClose = null;
 function openSheet(html, onClose) {
   M.loadedFor = null; if (sheetOnClose === chartStop && onClose !== chartStop) chartStop();   // leaving a tune sheet stops its chart
+  if (PH.on && onClose !== phraseStop) phraseStop();
   $('#panel').innerHTML = html; $('#sheet').classList.add('on'); $('#panel').scrollTop = 0;
   if (!sheetOpen) history.pushState({ sheet: 1 }, ''); sheetOpen = true; sheetOnClose = onClose || null;
   hydrateImgs($('#panel'));
@@ -1764,7 +1798,7 @@ function histList(prefix, labelFn) {
 function sheetEx(id, planKey) {
   const o = findEx(id); if (!o) return; const { sec, ex } = o; const p = P(), wasLoaded = M.loadedFor === id;
   const list = allEx(); const idx = list.findIndex(x => x.ex.id === id);
-  const info = exInfo(ex);
+  const info = exInfo(ex), ph = phraseOf(ex), phK = ph && phraseKeyDefault(ex, ph); if (ph) { phraseStop(); PH.ex = id; }
   const floorHtml = () => { const i = exInfo(ex);
     if (!i.floor) return '';
     return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? Tk(exKey(ex, i.mk), i.min) : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
@@ -1777,8 +1811,9 @@ function sheetEx(id, planKey) {
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
       <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" data-u="${uk(key)}" data-k="${esc(key)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
   openSheet(`${head(ex.name, sec.name)}
+    ${ph ? phraseBlock(ex, phK) : ''}
     <div class="floorbox" id="floorbox">${floorHtml()}</div>
-    <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">Type your best clean tempo for each key. Tap a key's note to switch just that key between quarter and half notes.</p>${unitBtn('ex', ex, true)}</div>
+    <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">${ph ? 'Your best clean tempo through all 12 keys.' : `Type your best clean tempo for each key. Tap a key's note to switch just that key between quarter and half notes.`}</p>${unitBtn('ex', ex, true)}</div>
     <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
     <div class="sp"></div>
     <div class="row"><button class="btn grow" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
@@ -1786,7 +1821,14 @@ function sheetEx(id, planKey) {
     <div class="row" style="margin-top:14px">
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx + 1) % list.length].ex.id)}">Next →</button></div>
-    <div class="row" style="margin-top:8px"><button class="btn sm" data-act="editEx" data-id="${esc(ex.id)}">Edit exercise</button></div>`);
+    <div class="row" style="margin-top:8px"><button class="btn sm" data-act="editEx" data-id="${esc(ex.id)}">Edit exercise</button>${ph ? `<button class="btn sm" data-act="editPhrase" data-id="${esc(ex.id)}">Edit notes</button>` : ''}</div>`, phraseStop);
+  if (ph) {
+    const draw = () => phraseRender($('#phNotes'), ph, $('#phKey').value).catch(e => { $('#phNotes').innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
+    $('#phKey').addEventListener('change', () => { phraseStop(); draw(); });
+    $('#phMel').addEventListener('change', e => { S.settings.phMel = e.target.checked; save(true); });
+    $('#phLoop').addEventListener('change', e => { S.settings.phLoop = e.target.checked; save(true); });
+    draw();
+  }
   const inputs = $$('#panel input[data-key]');
   inputs.forEach((inp, j) => {
     inp.addEventListener('change', () => {
@@ -2391,6 +2433,116 @@ function chartPlayerHtml(bpm) {
     <label class="grow" style="display:flex;align-items:center;gap:6px;justify-content:flex-end"><input type="checkbox" id="cpLoop" ${S.settings.cpLoop ? 'checked' : ''}><small>Loop</small></label></div>`;
 }
 
+/* ---------- ii–V–I phrases: notation (abcjs), any key, played over a backing ----------
+   A phrase is an exercise with notation: built-in ones point at PHRASES (ex.phrase), your own carry ex.abc and
+   ex.abcKey (the key it is written in). The body is ABC notation with chord symbols in quotes; L:1/8, 4/4.
+   Shown in the exercise's key, moved by octaves to stay in the sax range; tempos are tracked per key as usual. */
+// the notation of an exercise, or null: { abc body, key it is written in }
+function phraseOf(ex) {
+  if (ex.abc) return { abc: ex.abc, key: ex.abcKey || 'C' };
+  const p = ex.phrase && PHRASES.find(x => x.id === ex.phrase); return p ? { abc: p.abc, key: p.key } : null;
+}
+const isPhraseSec = sec => !!sec.phrases;
+let abcLoading = null;
+function loadAbc() {
+  if (window.ABCJS) return Promise.resolve(window.ABCJS);
+  return abcLoading = abcLoading || new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/abcjs-basic-min.js';
+    s.onload = () => res(window.ABCJS); s.onerror = () => { abcLoading = null; rej(new Error('Could not load the notation library')); }; document.head.appendChild(s); });
+}
+const abcDoc = (ph, title) => `X:1\n${title ? 'T:' + title.replace(/\n/g, ' ') + '\n' : ''}M:4/4\nL:1/8\nK:${ph.key}\n${ph.abc}`;
+const SAX_LO = 58, SAX_HI = 89;                                   // written B♭3 – F6
+const SOUND = { Eb: -9, Bb: -14, C: 0 };                            // written → sounding, in semitones
+// Semitones to move a phrase into key k: the octave that best keeps it inside the sax range.
+function phraseShift(ph, k, lo, hi) {
+  const s0 = mod12(PCS[keyRoot(k)] - PCS[keyRoot(ph.key.replace(/m$/, ''))]); let best = null;
+  for (const s of [s0 - 24, s0 - 12, s0, s0 + 12]) { const out = Math.max(0, SAX_LO - (lo + s)) + Math.max(0, hi + s - SAX_HI);
+    const sc = out * 100 + Math.abs(s); if (!best || sc < best.sc) best = { s, sc }; }
+  return best.s;
+}
+// Notes and chords of a parsed tune, in beats from the start, at written pitch as notated.
+function phraseEvents(tune) {
+  const a = tune.setUpAudio({ chordsOff: true }), mel = (a.tracks[0] || []).filter(e => e.cmd === 'note'), byChar = new Map(mel.map(e => [e.startChar, e]));
+  const chords = []; let t = 0;
+  for (const l of tune.lines) for (const el of (l.staff && l.staff[0].voices[0]) || []) {
+    if (el.el_type !== 'note') continue; const ev = byChar.get(el.startChar); let start = t;
+    if (ev) { start = ev.start; t = ev.start + ev.duration; } else if (el.rest) t += el.duration * (el.tripletMultiplier || 1);
+    if (el.chord) for (const c of el.chord) if (c.name) chords.push({ sym: c.name.replace(/♭/g, 'b').replace(/♯/g, '#'), t: start * 4 });
+  }
+  const end = Math.max(t, ...mel.map(e => e.start + e.duration)) * 4, bars = Math.ceil(end / 4 - 1e-6) || 1;
+  return { notes: mel.map(e => ({ p: e.pitch, t: e.start * 4, d: e.duration * 4, v: e.volume / 127 })), chords, beats: bars * 4 };
+}
+const swingBeat = t => { const b = Math.floor(t + 1e-6), f = t - b; return Math.abs(f - 0.5) < 1e-3 ? b + 2 / 3 : t; };
+const PH = { on: false, timer: null };
+function phraseStop() { if (PH.on) earStop(); PH.on = false; clearTimeout(PH.timer); const b = $('#phBtn'); if (b) b.textContent = '▶ Play'; }
+// Play the phrase in key k: one bar of drums to count in, then the phrase over its chords (looped if asked).
+async function phrasePlay(ph, k, bpm, { melody = true, loop = false } = {}) {
+  phraseStop(); const A = await loadAbc(), tune = A.parseOnly(abcDoc(ph))[0], ev = phraseEvents(tune);
+  const ps = ev.notes.map(n => n.p), s = phraseShift(ph, k, Math.min(...ps), Math.max(...ps));
+  const tr = instTr(), snd = s + SOUND[tr], reps = loop ? 8 : 1, list = [{ sym: '', beats: 4 }];
+  for (let r = 0; r < reps; r++) {
+    const cs = ev.chords.length && ev.chords[0].t > 0 ? [{ sym: '', t: 0 }, ...ev.chords] : ev.chords;
+    cs.forEach((c, i) => list.push({ sym: c.sym && transposeSym(c.sym, s + TO_CONCERT[tr], false), beats: (i + 1 < cs.length ? cs[i + 1].t : ev.beats) - c.t }));
+  }
+  PH.on = true; const btn = $('#phBtn'); if (btn) btn.textContent = '■ Stop';
+  const beat = 60 / bpm, swing = S.settings.phSwing !== false;
+  const dur = await playChords(list, bpm, { onStart: t0 => {
+    if (!melody) return; const ctx = M.ctx, out = EAR.out, note = Object.keys(PIANO.buf).length ? playSample : playSynth;
+    for (let r = 0; r < reps; r++) for (const n of ev.notes) {
+      const a = 4 + r * ev.beats + (swing ? swingBeat(n.t) : n.t), b = 4 + r * ev.beats + (swing ? swingBeat(n.t + n.d) : n.t + n.d);
+      note(ctx, out, n.p + snd, t0 + a * beat, Math.max(0.08, (b - a) * beat * 0.92), 0.55 + 0.35 * n.v);
+    }
+  } });
+  if (PH.on) PH.timer = setTimeout(() => { if (PH.on) phraseStop(); }, (dur + 0.3) * 1000);
+}
+// Draw the phrase in key k into el. Returns the semitone shift used.
+async function phraseRender(el, ph, k) {
+  const A = await loadAbc(), tune = A.parseOnly(abcDoc(ph))[0], ps = phraseEvents(tune).notes.map(n => n.p);
+  const s = ps.length ? phraseShift(ph, k, Math.min(...ps), Math.max(...ps)) : 0;
+  A.renderAbc(el, abcDoc(ph), { visualTranspose: s, responsive: 'resize', add_classes: true, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: 520, wrap: { minSpacing: 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } });
+  return s;
+}
+// Which key to show first: the plan's key, else the weakest/unlogged key.
+// Keys to show it in: the 12 major or minor keys (named like the exercise keys), starting from the one it's written in.
+const phraseKeys = ph => /m$/.test(ph.key) ? MINOR_KEYS : MAJOR_KEYS;
+const phraseKeyDefault = (ex, ph) => ph.key;
+function phraseBlock(ex, k) {
+  const p = P(), b = p.bpm[exKey(ex, ex.keys[0])];
+  return `<div class="phrase card" style="background:var(--surface2);padding:10px">
+    <div class="row"><label class="grow" style="display:flex;align-items:center;gap:8px"><small class="muted">Key</small><select id="phKey">${phraseKeys(phraseOf(ex)).map(x => `<option ${x === k ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <small class="muted">one tempo, all keys</small></div>
+    <div id="phNotes" class="phnotes"><small class="muted">Loading notation…</small></div>
+    <div class="row wrap" style="margin-top:6px"><button class="btn primary" id="phBtn" data-act="phToggle">${PH.on ? '■ Stop' : '▶ Play'}</button>
+      <input type="number" inputmode="numeric" id="phBpm" min="40" max="360" value="${b ? Math.round(b) : 120}" style="width:5em" aria-label="Tempo"><small class="muted">bpm</small>
+      <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phMel" ${S.settings.phMel !== false ? 'checked' : ''}><small>Melody</small></label>
+      <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phLoop" ${S.settings.phLoop ? 'checked' : ''}><small>Loop</small></label></div></div>`;
+}
+// The phrase editor: name, the key it's written in, which keys to practise, and the ABC with a live preview.
+function phraseEditor(sec, ex) {
+  const ph = ex ? phraseOf(ex) : { abc: '"Dm7" D F A c e d c A | "G7" B d f a g f e d | "Cmaj7" e4 z4 |]', key: 'C' };
+  const keyOpts = [...MAJOR_KEYS, ...MINOR_KEYS].map(x => `<option ${x === ph.key ? 'selected' : ''}>${x}</option>`).join('');
+  formSheet(ex ? 'Edit phrase' : 'New phrase in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required value="${esc(ex ? ex.name : '')}" placeholder="e.g. Parker ii–V">
+    <label class="f">Written in</label><select name="wkey">${keyOpts}</select>
+    <label class="f">Notes <small class="muted">(ABC notation, written part)</small></label>
+    <textarea name="abc" id="phAbc" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:.9rem" spellcheck="false" autocapitalize="off">${esc(ph.abc)}</textarea>
+    <div id="phPrev" class="phnotes" style="margin-top:6px"></div><small id="phErr" class="muted"></small>
+    <details style="margin-top:8px"><summary><small>How to write ABC</small></summary><p class="muted" style="font-size:.85rem;margin:6px 0">
+      <b>C D E F G A B</b> = middle octave, <b>c d … b</b> = octave up, <b>c'</b> higher, <b>B,</b> lower.
+      <b>^F</b> sharp, <b>_B</b> flat, <b>=B</b> natural (they last to the end of the bar).
+      Lengths: <b>A</b> = 8th, <b>A2</b> = quarter, <b>A4</b> = half, <b>A/</b> = 16th, <b>A3</b> = dotted quarter.
+      <b>(3ABc</b> = triplet, <b>z</b> = rest, notes written together (<b>DFAc</b>) are beamed, <b>|</b> bar line, <b>|]</b> end, <b>A-A</b> tie.
+      Chords in quotes before a note: <b>"Dm7" D</b>. Use b and # in chord names (G7b9, F#m7).</p></details>`,
+    fd => { const n = fd.name.trim(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!n || !abc) return false;
+      if (ex) { Object.assign(ex, { name: n, keys, abc, abcKey: fd.wkey }); }
+      else { ex = { id: slug(sec.name + ' ' + n) + '-' + uid(), name: n, keys, abc, abcKey: fd.wkey }; sec.ex.push(ex); openSecs.add(sec.id); }
+      save(); setTimeout(() => sheetEx(ex.id), 50); });
+  const ta = $('#phAbc'), wk = $('#fm [name=wkey]'); let tm;
+  const prev = () => { clearTimeout(tm); tm = setTimeout(async () => {
+    try { await loadAbc(); const r = ABCJS.renderAbc('phPrev', abcDoc({ abc: ta.value, key: wk.value }), { responsive: 'resize' })[0];
+      const w = (r && r.warnings) || []; $('#phErr').textContent = w.length ? '⚠ ' + w[0].replace(/<[^>]+>/g, '') : ''; }
+    catch (e) { $('#phErr').textContent = e.message; } }, 250); };
+  ta.addEventListener('input', prev); wk.addEventListener('change', prev); prev();
+}
+
 /* ---------- away-from-the-horn practice log ---------- */
 const TR = { start: null, kind: null };
 function startTrain(kind) { if (!TR.start) { TR.start = Date.now(); TR.kind = kind; } }
@@ -2855,6 +3007,11 @@ const A = {
       `<button type="button" class="btn ghost danger" data-act="delSec" data-sec="${esc(sec.id)}">Delete category</button>`); },
   delSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec); if (!confirm(`Delete "${sec.name}" and its ${sec.ex.length} exercises? Logged tempos are kept in backups but hidden.`)) return;
     S.lib.sections = S.lib.sections.filter(s => s !== sec); save(); closeSheet(); },
+  addPhrase: el => phraseEditor(S.lib.sections.find(s => s.id === el.dataset.sec)),
+  editPhrase: el => { const { sec, ex } = findEx(el.dataset.id); phraseEditor(sec, ex); },
+  phToggle: () => { if (PH.on) { phraseStop(); return; } const o = findEx(PH.ex); if (!o) return;
+    const bpm = Math.max(40, Math.min(360, +$('#phBpm').value || 120));
+    phrasePlay(phraseOf(o.ex), $('#phKey').value, bpm, { melody: $('#phMel').checked, loop: $('#phLoop').checked }).catch(e => { phraseStop(); toast(e.message); }); },
   addEx: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec);
     formSheet('New exercise in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Up & down – 8ths">${keysetFields(null)}`,
       fd => { const n = fd.name.trim(); const keys = keysFrom(fd); if (!n || !keys.length) return false; sec.ex.push({ id: slug(sec.name + ' ' + n) + '-' + uid(), name: n, keys }); openSecs.add(sec.id); save(); }); },
