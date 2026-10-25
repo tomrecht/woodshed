@@ -1637,7 +1637,11 @@ function vLicks() {
   const p = P(), L = S.lib.licks;
   if (reorderMode) return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Move licks with the arrows.</span>${reorderBtn()}</div>
     <section class="card">${L.map((l, i) => `<div class="rorow"><span class="grow">${esc(l.name)}</span>${mvBtns('lick', l.id, i, L.length)}</div>`).join('')}</section>`;
-  return `<div class="row" style="margin-bottom:12px;justify-content:flex-end">${reorderBtn()}</div><div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
+  // ii–V–I phrases live with the exercises (tempo, plan) but are licks in spirit, so they're listed here too
+  const phSecs = S.lib.sections.filter(isPhraseSec);
+  const phCard = phSecs.length ? `<section class="card"><h3>ii–V–I phrases</h3>${phSecs.map(sec => `<div class="row" style="margin:8px 0 4px"><small class="muted grow">${/minor/i.test(sec.name) ? "Minor" : "Major"}</small><button class="btn sm" data-act="addPhrase" data-sec="${esc(sec.id)}">+ Phrase</button></div>
+    ${sec.ex.length ? sec.ex.map(exRow).join('') : '<p class="muted" style="margin:0;font-size:.85rem">None yet.</p>'}`).join('')}</section>` : '';
+  return `<div class="row" style="margin-bottom:12px;justify-content:flex-end">${reorderBtn()}</div>${phCard}<div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
     return `<button class="lcard" data-act="openLick" data-id="${esc(l.id)}"><div class="im">${l.img ? `<img data-img="${esc(l.img)}" alt="">` : 'no image'}</div>
       <div class="t"><span>${esc(l.name)}</span><b style="color:${b ? 'var(--accent)' : 'var(--muted)'}">${T(l, b)}</b></div></button>`; }).join('')}</div>
     <button class="btn ghost" data-act="addLick">+ Add lick</button>`;
