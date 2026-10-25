@@ -299,8 +299,10 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
     <button id="mGoal" data-act="mGoal" class="hide" title="Jump to your logged tempo"></button>
     <button id="mSave" data-act="mSave" class="hide">Save</button>
     <button data-act="mTap">Tap</button>
+    <button id="mVolBtn" data-act="mVolToggle" aria-label="Metronome volume">🔊</button>
     <button data-act="metroToggle" aria-label="Close metronome">✕</button>
   </div>
+  <div class="mrow hide" id="mVolRow"><small class="muted">Volume</small><input type="range" id="mVol" min="0" max="100" step="1" class="grow" aria-label="Metronome volume" style="width:auto;padding:0"><small id="mVolV" class="muted" style="min-width:3em;text-align:right"></small></div>
 </div>
 <nav id="tabs">
   <button data-tab="home" class="on"><span>⌂</span>Home</button>
@@ -2211,23 +2213,32 @@ function metroLoad(k) {
 }
 // Clicks are short pre-built sound buffers, scheduled ahead on the audio clock.
 function mBuf(freq) {
-  // a saturated tone with its octave, ringing ~20 ms: much louder on phone speakers than a bare 8 ms sine blip
-  const sr = M.ctx.sampleRate, n = Math.floor(sr * 0.08), b = M.ctx.createBuffer(1, n, sr), d = b.getChannelData(0), k = Math.tanh(3);
-  for (let i = 0; i < n; i++) { const t = i / sr, x = (Math.sin(2 * Math.PI * freq * t) + 0.5 * Math.sin(4 * Math.PI * freq * t)) * Math.exp(-t / 0.02);
-    d[i] = 0.95 * Math.tanh(3 * x) / k * Math.min(1, t / 0.0005); }
+  // a hard, saturated tone with overtones ringing ~45 ms, pitched where phone speakers are loudest (2–3 kHz)
+  const sr = M.ctx.sampleRate, n = Math.floor(sr * 0.15), b = M.ctx.createBuffer(1, n, sr), d = b.getChannelData(0), k = Math.tanh(5);
+  for (let i = 0; i < n; i++) { const t = i / sr, w = 2 * Math.PI * freq * t, x = (Math.sin(w) + 0.6 * Math.sin(2 * w) + 0.3 * Math.sin(3 * w)) * Math.exp(-t / 0.045);
+    d[i] = 0.98 * Math.tanh(5 * x) / k * Math.min(1, t / 0.0005); }
   return b;
 }
 function mClick(t, i) {
-  const src = M.ctx.createBufferSource(); src.buffer = i === 0 && M.bpb > 1 ? M.hi : M.lo; src.connect(M.ctx.destination); src.start(t);
+  const src = M.ctx.createBufferSource(); src.buffer = i === 0 && M.bpb > 1 ? M.hi : M.lo; src.connect(mOut()); src.start(t);
   const delay = Math.max(0, (t - M.ctx.currentTime) * 1000);
   setTimeout(() => { const b = $$('#beats .beat')[i]; if (!b) return; b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90); }, delay);
+}
+// Volume: a gain (×0.25 … ×4, slider 0–100, 50 = ×1) into a fast limiter, so the top of the range is louder, not distorted.
+const mVolGain = v => 0.25 * Math.pow(16, v / 100);
+const mVolVal = () => S.settings.mVol ?? 75;
+function mOut() {
+  if (!M.vol) { const ctx = M.ctx, lim = ctx.createDynamicsCompressor(); M.vol = ctx.createGain();
+    lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.0005; lim.release.value = 0.05;
+    M.vol.connect(lim).connect(ctx.destination); }
+  M.vol.gain.value = mVolGain(mVolVal()); return M.vol;
 }
 function mSched() { if (M.ctx.state !== 'running') return; if (M.next < M.ctx.currentTime) M.next = M.ctx.currentTime + 0.03;
   while (M.next < M.ctx.currentTime + 0.12) { mClick(M.next, M.beat % M.bpb); M.next += 60 / M.bpm; M.beat++; } }
 async function mStart() {
   try {
     M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)();
-    if (!M.hi) { M.hi = mBuf(1760); M.lo = mBuf(1175); }
+    if (!M.hi) { M.hi = mBuf(2640); M.lo = mBuf(1980); }
     M.on = true; $('#mPlay').textContent = '■';
     if (M.ctx.state !== 'running') await M.ctx.resume();
     M.beat = 0; M.next = M.ctx.currentTime + 0.05; clearInterval(M.timer); M.timer = setInterval(mSched, 25); mSched();
@@ -2238,6 +2249,8 @@ async function mStart() {
 function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent = '▶'; }
 function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) { mStop(); M.auto = false; } else mPaint(); }
 $('#mBpm').addEventListener('change', e => mSet(e.target.value));
+$('#mVol').addEventListener('input', e => { S.settings.mVol = +e.target.value; $('#mVolV').textContent = e.target.value + '%'; if (M.vol) M.vol.gain.value = mVolGain(+e.target.value); });
+$('#mVol').addEventListener('change', () => save(true));
 
 /* ---------- chord playback: sampled piano, jazz voicings, comping ----------
    Piano samples: Salamander Grand Piano by Alexander Holm (CC BY 3.0). */
@@ -3184,6 +3197,7 @@ const A = {
   tempoUndo: el => { const p = P(), h = p.hist[+el.dataset.i]; if (!h || p.bpm[h.k] !== h.bpm || h.prev == null) return;
     if (!confirm(`Put ${itemLabel(h.k)} back to ${dv(h.k, h.prev)}?`)) return;
     p.bpm[h.k] = h.prev; p.hist.push({ t: Date.now(), k: h.k, bpm: h.prev, prev: h.bpm, undo: 1 }); save(); toast('Restored ' + TtxtK(h.k, h.prev)); sheetTempoLog(); },
+  mVolToggle: () => { const r = $('#mVolRow'), v = $('#mVol'); r.classList.toggle('hide'); v.value = mVolVal(); $('#mVolV').textContent = v.value + '%'; },
   addPhrase: el => phraseEditor(S.lib.sections.find(s => s.id === el.dataset.sec)),
   editPhrase: el => { const { sec, ex } = findEx(el.dataset.id); phraseEditor(sec, ex); },
   phToggle: () => { if (PH.on) { phraseStop(); return; } const o = findEx(PH.ex); if (!o) return;
