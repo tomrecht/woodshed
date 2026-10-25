@@ -2197,8 +2197,10 @@ function metroLoad(k) {
 }
 // Clicks are short pre-built sound buffers, scheduled ahead on the audio clock.
 function mBuf(freq) {
-  const sr = M.ctx.sampleRate, n = Math.floor(sr * 0.05), b = M.ctx.createBuffer(1, n, sr), d = b.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = Math.sin(2 * Math.PI * freq * i / sr) * Math.exp(-i / (sr * 0.008));
+  // a saturated tone with its octave, ringing ~20 ms: much louder on phone speakers than a bare 8 ms sine blip
+  const sr = M.ctx.sampleRate, n = Math.floor(sr * 0.08), b = M.ctx.createBuffer(1, n, sr), d = b.getChannelData(0), k = Math.tanh(3);
+  for (let i = 0; i < n; i++) { const t = i / sr, x = (Math.sin(2 * Math.PI * freq * t) + 0.5 * Math.sin(4 * Math.PI * freq * t)) * Math.exp(-t / 0.02);
+    d[i] = 0.95 * Math.tanh(3 * x) / k * Math.min(1, t / 0.0005); }
   return b;
 }
 function mClick(t, i) {
