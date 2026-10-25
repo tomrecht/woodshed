@@ -1748,6 +1748,7 @@ function applyExFilter() {
     const secName = d.querySelector('summary b').textContent.toLowerCase();
     let any = false;
     $$('.exrow', d).forEach(r => { const hit = !q || r.dataset.name.includes(q) || secName.includes(q); r.classList.toggle('hide', !hit); any = any || hit; });
+    if (!q || secName.includes(q)) any = true;   // empty categories show too (e.g. a new phrase category)
     d.classList.toggle('hide', !any); if (q && any) d.open = true;
   });
 }
