@@ -1222,13 +1222,20 @@ function consTopUp() {
 const CONS_MAX = 2, CONS_CAP = 6;
 const consCap = backlog => Math.min(CONS_CAP, Math.max(CONS_MAX, Math.ceil(backlog / 3)));
 // The floor (slowest key) of a completed exercise – the most neglected one – so finished exercises keep moving up.
+// Skips exercises open on the plan or taken off it today, and a floor key already on the plan (played today).
 function pickFloor(items) {
-  const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex').map(i => i.id));
-  const c = allEx().filter(o => !inPlan.has(o.ex.id)).map(o => ({ o, i: exInfo(o.ex) })).filter(x => x.i.floor && x.i.full)
+  const p = P(), today = dayKey(Date.now()), inPlan = new Set(items.filter(i => i.t === 'ex' && !planItemDone(i)).map(i => i.id)),
+    had = new Set(items.filter(i => i.t === 'ex').map(i => i.id + '|' + i.key)), out = new Set(S.plan && S.plan.date === today && S.plan.inst === S.cur ? S.plan.floorOut || [] : []);
+  const c = allEx().filter(o => !inPlan.has(o.ex.id) && !out.has(o.ex.id)).map(o => ({ o, i: exInfo(o.ex) })).filter(x => x.i.floor && x.i.full && !had.has(x.o.ex.id + '|' + x.i.mk))
     .map(x => ({ ...x, s: staleScore(p.touched['x:' + x.o.ex.id]) })).sort((a, b) => b.s - a.s)[0];
   return c && { t: 'ex', id: c.o.ex.id, key: c.i.mk, floor: true };
 }
 const hasFloor = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); if (!o) return false; const i = exInfo(o.ex); return i.floor && i.full && it.key === i.mk; });
+// keep an unplayed floor key on today's plan whenever there is one to offer
+function floorTopUp() {
+  if (!S.plan || planSize().ex <= 0 || hasFloor(S.plan.items.filter(i => !planItemDone(i)))) return;
+  const f = pickFloor(S.plan.items); if (f) { S.plan.items.unshift(f); save(true); }
+}
 // Practised today = the plan item's own key / lick / tune version was touched today.
 const planKeyOf = it => it.t === 'ex' ? 'e:' + it.id + '|' + it.key : (it.t === 'lick' ? 'l:' : 't:') + it.id;
 const planItemDone = it => dayKey(P().touched[planKeyOf(it)] || 0) === dayKey(Date.now());
@@ -1528,8 +1535,7 @@ function vHome() {
   const wk = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => { const k = dayKey(addDays(mon, i));
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
   if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
-  else if (!S.plan.fc) { S.plan.fc = 1; if (planSize().ex > 0 && !hasFloor(S.plan.items)) { const f = pickFloor(S.plan.items); if (f) S.plan.items.unshift(f); } save(true); }
-  consTopUp(); planTopUp();
+  consTopUp(); floorTopUp(); planTopUp();
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
     if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : it.carry ? ' · from last time' : '');
@@ -3147,9 +3153,10 @@ const A = {
   openTune: el => openTuneSheet(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id, el.dataset.k) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
   replan: () => { makePlan(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan.items.filter(planItemDone) : []); save(); render(); },
-  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
+  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.floor) S.plan.floorOut = [...(S.plan.floorOut || []), it.id]; if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
     if (cur.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + cur.id + '|' + cur.key];
+    if (cur.floor) S.plan.floorOut = [...(S.plan.floorOut || []), cur.id];
     const it = (cur.cons && (consDue(S.plan.items)[0] || consEarly(S.plan.items))) || (cur.floor && pickFloor(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
     S.plan.items[i] = it; save(); render(); },
   planAddDirect: el => { const it = { t: el.dataset.t, id: el.dataset.id };
