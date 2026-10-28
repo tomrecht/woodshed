@@ -32,6 +32,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   (`bpm`, `hist`, `sessions`, `tunes`, `touched`, `badges`, …).
 - Each instrument in `S.inst` has a colour scheme `theme` (key of `THEMES`: accent + tinted dark surfaces, applied as CSS
   variables by `applyTheme()` on every render); new instruments get an unused one, picked in Progress → Instruments.
+- Consolidation (`P().cons`, see the comment above `CONS_GAP`): when none is open on today's plan and none is due, `consEarly`
+  offers the backlog key that falls due soonest; practising a key that is on the plan as a consolidation item counts even if early.
 - `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
   `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).

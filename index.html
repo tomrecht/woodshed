@@ -1184,8 +1184,10 @@ const consMap = () => P().cons || (P().cons = {});
 const sessNo = () => P().sessions.length + (S.session ? 1 : 0);           // the session we're in, or the last one
 const consIsDue = c => P().sessions.length + 1 >= c.s + CONS_GAP[c.step];   // running or upcoming session
 function consStart(k) { consMap()[k] = { step: 1, s: sessNo(), t: Date.now() }; }
+// on today's plan as a consolidation item (offered early from the backlog counts as due)
+const consOnPlan = k => S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur && S.plan.items.some(i => i.cons && 'e:' + i.id + '|' + i.key === k);
 function consPracticed(k) {
-  const c = (P().cons || {})[k]; if (!c || !consIsDue(c) || Date.now() - c.t < 30 * 60e3) return;
+  const c = (P().cons || {})[k]; if (!c || !(consIsDue(c) || consOnPlan(k)) || Date.now() - c.t < 30 * 60e3) return;
   if (c.step === 1) Object.assign(c, { step: 2, s: sessNo(), t: Date.now() }); else delete P().cons[k];
 }
 // due consolidation keys as plan items, longest-waiting first
@@ -1195,10 +1197,24 @@ function consDue(items) {
     .sort((a, b) => a[1].t - b[1].t).map(([k, c]) => { const [id, key] = k.slice(2).split('|'); return { t: 'ex', id, key, cons: c.step }; })
     .filter(it => !have.has(it.id + '|' + it.key));
 }
+// Nothing due but a backlog waiting: the one that falls due soonest (not one played today), so one is always on offer.
+function consEarly(items) {
+  const have = new Set(items.filter(i => i.t === 'ex').map(i => i.id + '|' + i.key)), today = dayKey(Date.now()), out = new Set(S.plan && S.plan.date === today && S.plan.inst === S.cur ? S.plan.consOut || [] : []);
+  const c = Object.entries(P().cons || {}).filter(([k, c]) => !consIsDue(c) && !out.has(k) && findEx(k.slice(2).split('|')[0]) && dayKey(P().touched[k] || c.t) !== today)
+    .map(([k, c]) => { const [id, key] = k.slice(2).split('|'); return { it: { t: 'ex', id, key, cons: c.step }, d: c.s + CONS_GAP[c.step], t: c.t }; })
+    .filter(x => !have.has(x.it.id + '|' + x.it.key)).sort((a, b) => a.d - b.d || a.t - b.t)[0];
+  return c && c.it;
+}
+// due keys up to the cap; if none is open and none is due, one from the backlog
+function consFill(items) {
+  const due = consDue(items), n = items.filter(i => i.cons && !planItemDone(i)).length, add = due.slice(0, Math.max(0, consCap(n + due.length) - n));
+  if (!n && !add.length) { const e = consEarly(items); if (e) add.push(e); }
+  return add;
+}
 // keep today's plan topped up with due consolidation keys (they can become due mid-day, when a session starts or ends)
 function consTopUp() {
   if (!S.plan || planSize().ex <= 0) return;
-  const n = S.plan.items.filter(i => i.cons && !planItemDone(i)).length, due = consDue(S.plan.items), add = due.slice(0, Math.max(0, consCap(n + due.length) - n));
+  const add = consFill(S.plan.items);
   if (add.length) { S.plan.items.unshift(...add); save(true); }
 }
 // Consolidation keys open on the plan at once: 2, or a third of the backlog when it is bigger (at most 6).
@@ -1233,7 +1249,7 @@ function planRecord(k) {
 }
 function makePlan(keep = []) {
   const today = dayKey(Date.now()), cr = S.planCarry, items = [...keep], sz = planSize(), cnt = t => items.filter(i => i.t === t).length;
-  if (sz.ex > 0) { const due = consDue(items), n = items.filter(i => i.cons && !planItemDone(i)).length; items.push(...due.slice(0, Math.max(0, consCap(n + due.length) - n))); }
+  if (sz.ex > 0) items.push(...consFill(items));
   if (cr && cr.inst === S.cur && cr.date !== today) {   // unplayed items kept from the last session's plan
     for (const it of cr.items) if (dayKey(P().touched[planKeyOf(it)] || 0) <= cr.date && !items.some(x => x.t === it.t && x.id === it.id && x.key === it.key)
       && (it.t === 'ex' ? findEx(it.id) : it.t === 'lick' ? S.lib.licks.some(l => l.id === it.id) : tuneOf(it.id))) items.push(it);
@@ -3134,7 +3150,7 @@ const A = {
   planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
     if (cur.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + cur.id + '|' + cur.key];
-    const it = (cur.cons && consDue(S.plan.items)[0]) || (cur.floor && pickFloor(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
+    const it = (cur.cons && (consDue(S.plan.items)[0] || consEarly(S.plan.items))) || (cur.floor && pickFloor(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
     S.plan.items[i] = it; save(); render(); },
   planAddDirect: el => { const it = { t: el.dataset.t, id: el.dataset.id };
     if (it.t === 'ex') { const o = findEx(it.id); return pickKeySheet(o.ex); } addToPlan(it); },
