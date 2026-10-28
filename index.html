@@ -2638,7 +2638,7 @@ function phraseBlock(ex, k) {
       <small class="muted">one tempo, all keys</small></div>
     <div id="phNotes" class="phnotes"><small class="muted">Loading notation…</small></div>
     <div class="row wrap" style="margin-top:6px"><button class="btn primary" id="phBtn" data-act="phToggle">${PH.on ? '■ Stop' : '▶ Play'}</button>
-      <input type="number" inputmode="numeric" id="phBpm" min="40" max="360" value="${b ? Math.round(b) : 120}" style="width:5em" aria-label="Tempo"><small class="muted">bpm</small>
+      <input type="number" inputmode="numeric" id="phBpm" min="40" max="360" value="${b ? Math.round(b) : 120}" style="width:5em" aria-label="Tempo"><small class="muted">bpm</small><button type="button" class="btn sm" data-act="phSave" title="Save this as your tempo for the phrase">Save tempo</button>
       <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phMel" ${S.settings.phMel !== false ? 'checked' : ''}><small>Melody</small></label>
       <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phAll" ${S.settings.phAll !== false ? 'checked' : ''}><small>All 12 keys</small></label>
       <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phLoop" ${S.settings.phLoop ? 'checked' : ''}><small>Loop</small></label></div>
@@ -3356,6 +3356,12 @@ const A = {
   mVolToggle: () => { const r = $('#mVolRow'), v = $('#mVol'); r.classList.toggle('hide'); v.value = mVolVal(); $('#mVolV').textContent = v.value + '%'; },
   addPhrase: el => phraseEditor(S.lib.sections.find(s => s.id === el.dataset.sec)),
   editPhrase: el => { const { sec, ex } = findEx(el.dataset.id); phraseEditor(sec, ex); },
+  // the playback tempo becomes the phrase's logged tempo (through the tempo field, so it counts like typing it)
+  phSave: () => { const inp = $('#panel .krow input'); if (!inp) return; const k = inp.dataset.key, bpm = Math.max(40, Math.min(360, +$('#phBpm').value || 0)), cur = P().bpm[k];
+    if (!bpm) return; if (cur === bpm) { toast('Already saved: ' + TtxtK(k, bpm)); return; }
+    if (cur != null && bpm < cur && !confirm(`That's slower than your saved ${TtxtK(k, cur)}. Save ${TtxtK(k, bpm)} instead?`)) return;
+    const was = cur; inp.value = Math.round(bpm / uk(k)); inp.dispatchEvent(new Event('change'));
+    if (!(was != null && bpm > was)) toast('Tempo saved: ' + TtxtK(k, P().bpm[k])); },
   phToggle: () => { if (PH.on) { phraseStop(); return; } const o = findEx(PH.ex); if (!o) return;
     const bpm = Math.max(40, Math.min(360, +$('#phBpm').value || 120));
     const ph = phraseOf(o.ex), sel = $('#phKey'), all = $('#phAll').checked, keys = all ? cycleKeys(sel.value, phraseKeys(ph)) : null;
