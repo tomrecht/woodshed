@@ -225,6 +225,7 @@ nav#tabs button.on{color:var(--accent)}
 .crow{display:grid;grid-template-columns:repeat(4,1fr);border-left:2px solid var(--line)}
 .cbar{position:relative;border-right:2px solid var(--line);border-bottom:1px solid var(--line);padding:15px 4px 6px;min-height:48px}
 .cbar.off{border-right:0;border-bottom:0}
+.cplayer~.chart .cbar[data-bi],.cplayer+div .cbar[data-bi]{cursor:pointer}
 .cn{position:absolute;top:1px;right:3px;font-size:.6rem;color:var(--muted)}
 .csec{position:absolute;top:2px;left:3px;font-size:.62rem;background:var(--accent);color:var(--accent-ink);border-radius:3px;padding:0 3px;font-weight:700}
 .cend{position:absolute;top:1px;left:22px;font-size:.65rem;color:var(--accent);font-weight:700}
@@ -2527,10 +2528,11 @@ function formOrder(bars) {
 const CP = { on: false, timer: null, t0: 0, plan: [], key: null };
 function chartStop() { if (CP.on) earStop(); CP.on = false; clearInterval(CP.timer); CP.timer = null; $$('.cbar.playing').forEach(x => x.classList.remove('playing')); const b = $('#cpBtn'); if (b) b.textContent = '▶ Play'; }
 // ch = a chart from chartFor (bars in the player's written key, toConcert to sound right).
-function chartPlay(ch, bpm, loop) {
+// from = where in the form order the first chorus starts (a tapped bar); later choruses play the whole form.
+function chartPlay(ch, bpm, loop, from = 0) {
   chartStop(); const bpb = parseInt((ch.ts || '4/4').split('/')[0]) || 4, order = formOrder(ch.bars), choruses = loop ? 8 : 1;
   const list = [{ sym: '', beats: bpb }], plan = [];   // one bar of drums to count in
-  for (let k = 0; k < choruses; k++) for (const bi of order) { const b = ch.bars[bi]; plan.push(bi);
+  for (let k = 0; k < choruses; k++) for (const bi of k ? order : order.slice(from)) { const b = ch.bars[bi]; plan.push(bi);
     b.c.forEach(x => list.push({ sym: transposeSym(x, ch.toConcert, false), beats: bpb / b.c.length })); }
   CP.on = true; CP.plan = plan; CP.t0 = 0; const btn = $('#cpBtn'); if (btn) btn.textContent = '■ Stop';
   const barSec = bpb * 60 / bpm;
@@ -2547,7 +2549,8 @@ function chartPlay(ch, bpm, loop) {
 function chartPlayerHtml(bpm) {
   return `<div class="row cplayer" style="margin:8px 0"><button class="btn primary" id="cpBtn" data-act="cpToggle">${CP.on ? '■ Stop' : '▶ Play'}</button>
     <input type="number" inputmode="numeric" id="cpBpm" min="40" max="360" value="${bpm}" style="width:5.5em" aria-label="Tempo"><small class="muted">bpm</small>
-    <label class="grow" style="display:flex;align-items:center;gap:6px;justify-content:flex-end"><input type="checkbox" id="cpLoop" ${S.settings.cpLoop ? 'checked' : ''}><small>Loop</small></label></div>`;
+    <label class="grow" style="display:flex;align-items:center;gap:6px;justify-content:flex-end"><input type="checkbox" id="cpLoop" ${S.settings.cpLoop ? 'checked' : ''}><small>Loop</small></label></div>
+    <small class="muted" style="display:block;margin:-4px 0 6px">Tap a bar to start from there.</small>`;
 }
 
 /* ---------- ii–V–I phrases: notation (abcjs), any key, played over a backing ----------
@@ -3223,6 +3226,11 @@ const A = {
   tuneStart: el => { tuneRec(el.dataset.id).started = true; save(); toast('Added to your learning list'); sheetTune.refresh(); },
   review: el => { const ivl = applyReview(el.dataset.id, +el.dataset.r); toast(['Shaky', 'OK', 'Solid'][+el.dataset.r] + ' – next review in ' + ivl + ' day' + (ivl === 1 ? '' : 's') + '  +' + REVIEW_XP + ' XP'); sheetTune.refresh(); },
   cpQuick: el => { setCheckpoint(el.dataset.id, el.dataset.c, true); el.remove(); },
+  // tap a bar of the playing chart (or before playing) to start from there, after the count-in
+  cpFrom: el => { if (!CP.chart || el.closest('#qfree')) return; const bi = +el.dataset.bi, order = formOrder(CP.chart.bars);
+    let from = order.indexOf(bi); if (from < 0) return;
+    const bpm = Math.max(40, Math.min(360, +($('#cpBpm')?.value) || 120)), loop = !!$('#cpLoop')?.checked;
+    chartPlay(CP.chart, bpm, loop, from); },
   cpToggle: () => { if (CP.on) { chartStop(); return; } if (!CP.chart) return;
     const bpm = Math.max(40, Math.min(360, +($('#cpBpm')?.value) || 120)), loop = !!$('#cpLoop')?.checked;
     if (S.settings.cpLoop !== loop) { S.settings.cpLoop = loop; save(true); } chartPlay(CP.chart, bpm, loop); },
@@ -3453,6 +3461,8 @@ const A = {
 };
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; reorderMode = false; if (!M.on) mShow(false); if (sheetOpen) closeSheet(); render(); window.scrollTo(0, 0); return; }
+  const cb = e.target.closest('.chart .cbar[data-bi]');
+  if (cb && CP.chart && $('#cpBtn') && !cb.closest('#qfree') && !e.target.closest('[data-act]')) { A.cpFrom(cb); return; }
   const a = e.target.closest('[data-act]'); if (!a || !A[a.dataset.act]) return;
   A[a.dataset.act](a, e);
 });
