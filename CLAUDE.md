@@ -21,6 +21,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   (`recordPhrase`: AudioWorklet capture → YIN pitch → grid of 6 units per beat (eighths, swung or straight, or a triplet beat) → ABC in the written key);
   test the analysis with synthetic audio (`detectNotes`/`quantizeNotes`/`notesToAbc`) and Chrome's fake mic
   (`--use-file-for-fake-audio-capture=file.wav`).
+- Audio: notes, drums and phrase melody are created ~3 s before they sound (`soon()` queue, cleared by `earStop`), not all up
+  front – hundreds of scheduled sources made phones crackle. New playback code should go through `soon()` too.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`
   (converts concert → alto). Forum: https://forums.irealpro.com (XenForo; search with `/search/search?keywords=...`).

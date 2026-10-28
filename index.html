@@ -2359,7 +2359,21 @@ function masterBus(ctx) {
   comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 8; comp.attack.value = 0.003; comp.release.value = 0.2;
   trim.gain.value = 0.8; trim.connect(comp).connect(ctx.destination); return EAR.bus = trim;
 }
+// Notes are created shortly before they sound, not all at once: hundreds of scheduled-but-silent sources make
+// phones fall behind and crackle. soon(ctx, t, fn) runs fn now if t is within LOOKAHEAD, otherwise queues it.
+const LOOKAHEAD = 3, AQ = { q: [], timer: null };
+function soon(ctx, t, fn) {
+  if (ctx !== M.ctx || t < ctx.currentTime + LOOKAHEAD) { fn(); return; }
+  AQ.q.push({ t, fn }); if (!AQ.timer) AQ.timer = setInterval(aqDrain, 200);
+}
+function aqDrain() {
+  const lim = M.ctx.currentTime + LOOKAHEAD, due = AQ.q.filter(x => x.t < lim); AQ.q = AQ.q.filter(x => x.t >= lim);
+  due.forEach(x => { try { x.fn(); } catch (e) {} });
+  if (!AQ.q.length) { clearInterval(AQ.timer); AQ.timer = null; }
+}
+function aqClear() { AQ.q = []; clearInterval(AQ.timer); AQ.timer = null; }
 function earStop() {
+  aqClear();
   if (EAR.drumOut) { const d = EAR.drumOut; try { d.gain.setTargetAtTime(0, M.ctx.currentTime, 0.03); setTimeout(() => d.disconnect(), 300); } catch (e) {} EAR.drumOut = null; } if (EAR.out) { try { EAR.out.gain.cancelScheduledValues(M.ctx.currentTime); EAR.out.gain.setTargetAtTime(0, M.ctx.currentTime, 0.04); const o = EAR.out; setTimeout(() => o.disconnect(), 400); } catch (e) {} EAR.out = null; } clearTimeout(EAR.timer); }
 // Rootless jazz voicings (semitones above the root), chosen by chord type.
 function voicing(q) {
@@ -2416,13 +2430,13 @@ function playDrums(ctx, out, t0, beats, bpm, bpb = 4) {
   if (!DRUMS.buf.ride1) return;
   const beat = 60 / bpm, swing = beat * 2 / 3, g = ctx.createGain(), lp = ctx.createBiquadFilter();
   g.gain.value = 0.14; lp.type = 'lowpass'; lp.frequency.value = 6500; g.connect(lp).connect(out);
-  for (let b = 0; b < beats; b++) {
+  for (let b = 0; b < beats; b++) soon(ctx, t0 + b * beat, () => {
     const t = t0 + b * beat + (Math.random() - 0.5) * 0.008, two4 = bpb === 3 ? b % 3 !== 0 : b % 2 === 1;   // waltz: 2 and 3
     drumHit(ctx, g, two4 ? 'ride2' : 'ride1', t, two4 ? 0.75 : 0.6, 0.35);                 // ride on every beat, 2 and 4 a bit stronger
     if (two4) { drumHit(ctx, g, 'ride1', t + swing, 0.35, 0.15);                          // skip note
       drumHit(ctx, g, Math.random() < 0.5 ? 'hat1' : 'hat2', t + 0.005, 0.5, 0.08); }      // hi-hat foot on 2 and 4
     drumHit(ctx, g, 'kick', t, 0.22, 0.12);                                                 // feathered bass drum
-  }
+  });
 }
 // Play chords: list of {sym, beats}. Symbols are in concert pitch. Swung comping with a bass note under each chord.
 async function playChords(list, bpm = 132, opts = {}) {
@@ -2443,11 +2457,14 @@ async function playChords(list, bpm = 132, opts = {}) {
     const bass = 36 + mod12(c.bass != null ? c.bass : c.root);   // C2..B2 – audible on phone speakers
     const len = beats * beat, hum = () => (Math.random() - 0.5) * 0.012;
     // bass: half notes (or one note for short chords)
-    note(ctx, out, bass, t, Math.min(len, 2 * beat) * 0.95, 0.75);
-    if (beats >= 4) note(ctx, out, Math.random() < 0.5 ? bass : (bass + 7 > 47 ? bass - 5 : bass + 7), t + 2 * beat, 2 * beat * 0.95, 0.6);
-    // comping: Charleston (1, and-of-2) for a full bar, a single hit otherwise
-    const hits = beats >= 4 ? [[0, 1.4 * beat, 0.42], [beat + swing, len - beat - swing - 0.05, 0.34]] : [[0, len - 0.05, 0.42]];
-    for (const [off, dur, vel] of hits) v.v.forEach((m, i) => note(ctx, out, m, t + off + i * 0.008 + hum(), Math.max(0.2, dur), vel * (i === v.v.length - 1 ? 1.1 : 0.9)));
+    const tc = t;
+    soon(ctx, tc, () => {
+      note(ctx, out, bass, tc, Math.min(len, 2 * beat) * 0.95, 0.75);
+      if (beats >= 4) note(ctx, out, Math.random() < 0.5 ? bass : (bass + 7 > 47 ? bass - 5 : bass + 7), tc + 2 * beat, 2 * beat * 0.95, 0.6);
+      // comping: Charleston (1, and-of-2) for a full bar, a single hit otherwise
+      const hits = beats >= 4 ? [[0, 1.4 * beat, 0.42], [beat + swing, len - beat - swing - 0.05, 0.34]] : [[0, len - 0.05, 0.42]];
+      for (const [off, dur, vel] of hits) v.v.forEach((m, i) => note(ctx, out, m, tc + off + i * 0.008 + hum(), Math.max(0.2, dur), vel * (i === v.v.length - 1 ? 1.1 : 0.9)));
+    });
     t += len;
   }
   return t - ctx.currentTime;
@@ -2598,7 +2615,7 @@ async function phrasePlay(ph, k, bpm, { melody = true, loop = false, keys = null
     out.gain.value = melody ? 1 : 0; out.connect(EAR.out);
     plan.forEach((pl, n) => { for (const nt of ev.notes) {
       const a = 4 + n * ev.beats + (swing ? swingBeat(nt.t) : nt.t), b = 4 + n * ev.beats + (swing ? swingBeat(nt.t + nt.d) : nt.t + nt.d);
-      note(ctx, out, nt.p + pl.s + SOUND[tr], t0 + a * beat, Math.max(0.08, (b - a) * beat * 0.92), 0.55 + 0.35 * nt.v);
+      soon(ctx, t0 + a * beat, () => note(ctx, out, nt.p + pl.s + SOUND[tr], t0 + a * beat, Math.max(0.08, (b - a) * beat * 0.92), 0.55 + 0.35 * nt.v));
     } });
   } });
   if (PH.on) PH.timer = setTimeout(() => { if (PH.on) phraseStop(); }, (dur + 0.3) * 1000);
