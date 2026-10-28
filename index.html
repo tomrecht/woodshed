@@ -540,6 +540,11 @@ function migrate() {
     for (const t of S.lib.tunes) fix('t:', t, 1);
     S.unitsPI = 1;
   }
+  if (!S.exDoneRev) {   // exercises already complete when the completion bonus arrived: recorded, without XP
+    for (const i of S.inst) { const p = S.prog[i.id]; if (!p) continue; p.exDone = p.exDone || {};
+      for (const sec of S.lib.sections) for (const ex of sec.ex) if (p.exDone[ex.id] == null && ex.keys.length && ex.keys.every(k => p.bpm[exKey(ex, k)] != null)) p.exDone[ex.id] = 0; }
+    S.exDoneRev = 1;
+  }
   // Each instrument gets its own colour scheme; existing ones take them in order (the first keeps amber).
   S.inst.forEach((i, n) => { if (!THEMES[i.theme]) i.theme = THEME_IDS[n % THEME_IDS.length]; });
 }
@@ -742,7 +747,15 @@ function setBpm(k, v, exId, bulk) {
   if (v != null) v *= uk(k);
   const prev = p.bpm[k] ?? null; if (v === prev) return false;
   if (v == null) delete p.bpm[k]; else { p.bpm[k] = v; p.hist.push({ t: Date.now(), k, bpm: v, prev }); }
-  touch(k, exId, bulk, v == null); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k); save(); checkBadges(); return v != null && prev != null && v > prev;
+  touch(k, exId, bulk, v == null); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k);
+  if (prev == null && v != null && k.startsWith('e:')) exDoneCheck(k.slice(2).split('|')[0], bulk);
+  save(); checkBadges(); return v != null && prev != null && v > prev;
+}
+// First time every key of an exercise has a tempo: +EXDONE_XP. p.exDone = { exId: when } (0 = completed before this existed, no XP).
+const EXDONE_XP = 25;
+function exDoneCheck(id, quiet) {
+  const p = P(), o = findEx(id); if (!o || (p.exDone = p.exDone || {})[id] != null || !o.ex.keys.every(k => p.bpm[exKey(o.ex, k)] != null)) return;
+  p.exDone[id] = Date.now(); if (!quiet) toast('Exercise complete: ' + o.ex.name + '  +' + EXDONE_XP + ' XP');
 }
 const FLOOR_MIN = 2;   // every exercise with keys gets a floor (slowest key); keyless ones have a single tempo
 function exInfo(ex) {
@@ -973,6 +986,7 @@ const BADGE_XP = 50;
 function xpCalc(p = P()) {
   let xp = 0;
   for (const w of weekHistory(p).weeks) xp += Math.round(w.own * w.mult) + w.bonus;   // practice time × streak multiplier, weekly bonuses
+  xp += EXDONE_XP * Object.values(p.exDone || {}).filter(Boolean).length;
   xp += CHALLENGE_XP * Object.values(p.challenges || {}).filter(c => c.done).length;
   for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
   for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0); }
@@ -1736,7 +1750,7 @@ function vMore() {
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="drumsChk" ${S.settings.drums !== false ? 'checked' : ''}><span class="grow">Drums when playing chords (ride cymbal and hi-hat)</span></label></div>
     <label class="f">Weekly time goal</label><select id="minGoalSel">${[60, 120, 180, 240, 300, 360, 420, 480, 600, 720, 900].map(m => `<option value="${m}" ${m === weekMinGoal() ? 'selected' : ''}>${fmtMin(m)}</option>`).join('')}</select>
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="celeChk" ${S.settings.celeSound !== false ? 'checked' : ''}><span class="grow">Sound with celebrations</span></label></div>
-    <details style="margin-top:10px"><summary class="muted">How XP works</summary><p class="muted" style="font-size:.88rem">1 XP per practice minute, multiplied by your streak (+10% per streak week, up to ×2). Weekly goal met: +50, plus 10 per streak week (up to +150). Weekly time goal met: +50. Weekly challenge: +100. Tempo record +10 (first tempo +2), tune checkpoint +10, review +5, quiz +2 per correct chord, ear training +2 per right answer, rhythm passed +2, badge +50. Every 4 streak weeks earns a 🧊 freeze (max 2) that covers a missed week.</p></details>
+    <details style="margin-top:10px"><summary class="muted">How XP works</summary><p class="muted" style="font-size:.88rem">1 XP per practice minute, multiplied by your streak (+10% per streak week, up to ×2). Weekly goal met: +50, plus 10 per streak week (up to +150). Weekly time goal met: +50. Weekly challenge: +100. Tempo record +10 (first tempo +2), exercise complete (every key logged) +25, tune checkpoint +10, review +5, quiz +2 per correct chord, ear training +2 per right answer, rhythm passed +2, badge +50. Every 4 streak weeks earns a 🧊 freeze (max 2) that covers a missed week.</p></details>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}<br><small>${fmtHM(totalHours(S.prog[i.id]))}</small><span class="row" style="gap:6px;margin-top:6px">${THEME_IDS.map(id => `<button class="swatch ${themeOf(i) === THEMES[id] ? 'on' : ''}" style="background:${THEMES[id].accent}" title="${THEMES[id].name}" aria-label="${THEMES[id].name}" data-act="setTheme" data-id="${i.id}" data-theme="${id}"></button>`).join('')}</span></span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
