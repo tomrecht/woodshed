@@ -30,6 +30,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   Lick photos the user adds live in IndexedDB and sync to the gist as a separate file (`woodshed-images.json`).
 - `S.lib` = shared library (sections → exercises, licks, tunes); `S.prog[instrumentId]` = per-instrument progress
   (`bpm`, `hist`, `sessions`, `tunes`, `touched`, `badges`, …).
+- Each instrument in `S.inst` has a colour scheme `theme` (key of `THEMES`: accent + tinted dark surfaces, applied as CSS
+  variables by `applyTheme()` on every render); new instruments get an unused one, picked in Progress → Instruments.
 - `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
   `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).
