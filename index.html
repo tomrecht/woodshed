@@ -2451,6 +2451,7 @@ async function playChords(list, bpm = 132, opts = {}) {
   const beat = 60 / bpm, swing = beat * 2 / 3; let t = ctx.currentTime + 0.12, center = 64; const t0 = t; if (opts.onStart) opts.onStart(t0);
   const drumOut = EAR.drumOut = ctx.createGain(); drumOut.connect(bus);
   if (wantDrums) playDrums(ctx, drumOut, t0, Math.round(list.reduce((a, c) => a + c.beats, 0)), bpm, opts.bpb || 4);
+  else for (let i = 0; i < (opts.countIn || 0); i++) rhClick(ctx, drumOut, t0 + i * beat, i === 0);   // count-in clicks when the drums are off
   for (const { sym, beats } of list) {
     const c = parseChord(sym); if (!c) { t += beats * beat; continue; }
     const v = placeVoicing(c.root, voicing(c.q), center); center = v.c;
@@ -2528,12 +2529,12 @@ function chartStop() { if (CP.on) earStop(); CP.on = false; clearInterval(CP.tim
 // ch = a chart from chartFor (bars in the player's written key, toConcert to sound right).
 function chartPlay(ch, bpm, loop) {
   chartStop(); const bpb = parseInt((ch.ts || '4/4').split('/')[0]) || 4, order = formOrder(ch.bars), choruses = loop ? 8 : 1;
-  const list = [], plan = [];
+  const list = [{ sym: '', beats: bpb }], plan = [];   // one bar of drums to count in
   for (let k = 0; k < choruses; k++) for (const bi of order) { const b = ch.bars[bi]; plan.push(bi);
     b.c.forEach(x => list.push({ sym: transposeSym(x, ch.toConcert, false), beats: bpb / b.c.length })); }
   CP.on = true; CP.plan = plan; CP.t0 = 0; const btn = $('#cpBtn'); if (btn) btn.textContent = '■ Stop';
   const barSec = bpb * 60 / bpm;
-  playChords(list, bpm, { bpb, onStart: t0 => { CP.t0 = t0; } });
+  playChords(list, bpm, { bpb, countIn: bpb, onStart: t0 => { CP.t0 = t0 + barSec; } });   // bar 1 starts after the count-in
   CP.timer = setInterval(() => {
     if (!CP.on || !CP.t0 || !M.ctx) return;
     const k = Math.floor((M.ctx.currentTime - CP.t0) / barSec);
@@ -2606,7 +2607,7 @@ async function phrasePlay(ph, k, bpm, { melody = true, loop = false, keys = null
   });
   PH.on = true; const btn = $('#phBtn'); if (btn) btn.textContent = '■ Stop';
   const beat = 60 / bpm, swing = S.settings.phSwing !== false;
-  const dur = await playChords(list, bpm, { onStart: t0 => {
+  const dur = await playChords(list, bpm, { countIn: 4, onStart: t0 => {
     const ctx = M.ctx;
     if (onKey) plan.forEach((pl, n) => { const at = (t0 - ctx.currentTime + (4 + n * ev.beats - (n ? 1 : 4)) * beat) * 1000;
       PH.timers.push(setTimeout(() => { if (PH.on) onKey(pl.i, pl.key); }, Math.max(0, at))); });
