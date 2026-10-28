@@ -1268,6 +1268,13 @@ function planRecord(k) {
     if (!items.some(i => i.t === t && i.id === m[2])) items.push({ t, id: m[2] });
   }
 }
+// Every day's plan includes a ii–V–I phrase (the one practised longest ago), if there are any.
+const isPhrase = it => it.t === 'ex' && !!findEx(it.id)?.sec.phrases;
+function pickPhrase(items) {
+  if (items.some(isPhrase)) return null;
+  const p = P(), c = allEx().filter(o => o.sec.phrases && readyKeys(o.ex).length).map(o => ({ o, s: staleScore(p.touched['x:' + o.ex.id]) })).sort((a, b) => b.s - a.s)[0];
+  return c && { t: 'ex', id: c.o.ex.id, key: weakestKey(c.o.ex) };
+}
 function makePlan(keep = []) {
   const today = dayKey(Date.now()), cr = S.planCarry, items = [...keep], sz = planSize(), cnt = t => items.filter(i => i.t === t).length;
   if (sz.ex > 0) items.push(...consFill(items));
@@ -1277,9 +1284,10 @@ function makePlan(keep = []) {
     S.planCarry = null;
   }
   if (sz.ex > cnt('ex')) { const f = pickFloor(items); if (f) items.push(f); }
+  if (sz.ex > 0) { const ph = pickPhrase(items); if (ph) items.push(ph); }
   for (const [t, n] of [['ex', sz.ex - cnt('ex')], ['lick', sz.lick - cnt('lick')], ['tune', sz.tune - cnt('tune')]])
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
-  S.plan = { date: dayKey(Date.now()), inst: S.cur, items, fc: 1 }; save(true);   // automatic, not a user edit
+  S.plan = { date: dayKey(Date.now()), inst: S.cur, items, fc: 1, ph: 1 }; save(true);   // automatic, not a user edit
 }
 // The plan always offers at least PLAN_OPEN_MIN things still to do: when practising ticks items off, it tops up
 // with the type furthest below its share of the plan size (types set to 0 are left out).
@@ -1549,6 +1557,7 @@ function vHome() {
   const wk = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => { const k = dayKey(addDays(mon, i));
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
   if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
+  if (!S.plan.ph) { S.plan.ph = 1; const ph = planSize().ex > 0 && pickPhrase(S.plan.items); if (ph) S.plan.items.push(ph); save(true); }
   consTopUp(); floorTopUp(); planTopUp();
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
