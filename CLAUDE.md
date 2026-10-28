@@ -16,7 +16,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   exercises with notation. `PHRASES` (built-ins) is empty since 2026-10-25 (owner adds their own; rev 10 removed them); the user's carry `ex.abc` + `ex.abcKey`
   (ABC body, L:1/8, 4/4, chords in quotes). Categories by length since rev 11: `phrases-2` / `phrases-4` (`sec.len`);
   a saved phrase goes to the one matching its bar count (major/minor is just the written key). One tempo for all 12 keys (`keys: ['—']`); shown in any key, octave chosen to
-  stay in the sax range, played with melody over `playChords`. The phrase editor can record a take from the mic
+  stay in the sax range, played with melody over `playChords`; "All 12 keys" (`S.settings.phAll`, default on) plays it round the
+  cycle of fourths from the chosen key, re-rendering the notation a beat before each key (`phrasePlay` `keys`/`onKey`). The phrase editor can record a take from the mic
   (`recordPhrase`: AudioWorklet capture → YIN pitch → grid of 6 units per beat (eighths, swung or straight, or a triplet beat) → ABC in the written key);
   test the analysis with synthetic audio (`detectNotes`/`quantizeNotes`/`notesToAbc`) and Chrome's fake mic
   (`--use-file-for-fake-audio-capture=file.wav`).

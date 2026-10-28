@@ -1911,6 +1911,7 @@ function sheetEx(id, planKey) {
     $('#phKey').addEventListener('change', () => { phraseStop(); draw(); });
     $('#phMel').addEventListener('change', e => { S.settings.phMel = e.target.checked; save(true); });
     $('#phLoop').addEventListener('change', e => { S.settings.phLoop = e.target.checked; save(true); });
+    $('#phAll').addEventListener('change', e => { S.settings.phAll = e.target.checked; save(true); });
     draw();
   }
   const inputs = $$('#panel input[data-key]');
@@ -2569,25 +2570,33 @@ function phraseEvents(tune) {
   return { notes: mel.map(e => ({ p: e.pitch, t: e.start * 4, d: e.duration * 4, v: e.volume / 127 })), chords, beats: bars * 4 };
 }
 const swingBeat = t => { const b = Math.floor(t + 1e-6), f = t - b; return Math.abs(f - 0.5) < 1e-3 ? b + 2 / 3 : t; };
-const PH = { on: false, timer: null };
-function phraseStop() { if (PH.on) earStop(); PH.on = false; clearTimeout(PH.timer); const b = $('#phBtn'); if (b) b.textContent = '▶ Play'; }
-// Play the phrase in key k: one bar of drums to count in, then the phrase over its chords (looped if asked).
-async function phrasePlay(ph, k, bpm, { melody = true, loop = false } = {}) {
+const PH = { on: false, timer: null, timers: [] };
+function phraseStop() { if (PH.on) earStop(); PH.on = false; clearTimeout(PH.timer); PH.timers.forEach(clearTimeout); PH.timers = [];
+  const b = $('#phBtn'); if (b) b.textContent = '▶ Play'; const n = $('#phNow'); if (n) n.textContent = ''; }
+// The 12 keys round the cycle of fourths, starting from k (named as in keyList).
+const cycleKeys = (k, keyList) => { const i = Math.max(0, keyList.indexOf(k)); return keyList.map((_, j) => keyList[(i + 5 * j) % 12]); };
+// Play the phrase in key k – or in each of keys in turn – one bar of drums to count in, then the phrase over its chords
+// (looped if asked). onKey(i, key) is called as each key comes up (a beat early, so the notation can change in time).
+async function phrasePlay(ph, k, bpm, { melody = true, loop = false, keys = null, onKey = null } = {}) {
   phraseStop(); const A = await loadAbc(), tune = A.parseOnly(abcDoc(ph))[0], ev = phraseEvents(tune);
-  const ps = ev.notes.map(n => n.p), s = phraseShift(ph, k, Math.min(...ps), Math.max(...ps));
-  const tr = instTr(), snd = s + SOUND[tr], reps = loop ? 8 : 1, list = [{ sym: '', beats: 4 }];
-  for (let r = 0; r < reps; r++) {
+  const ps = ev.notes.map(n => n.p), seq = keys || [k], reps = loop ? (keys ? 3 : 8) : 1, tr = instTr();
+  const shifts = seq.map(x => phraseShift(ph, x, Math.min(...ps), Math.max(...ps))), list = [{ sym: '', beats: 4 }], plan = [];
+  for (let r = 0; r < reps; r++) seq.forEach((x, i) => {
+    plan.push({ key: x, i, s: shifts[i] });
     const cs = ev.chords.length && ev.chords[0].t > 0 ? [{ sym: '', t: 0 }, ...ev.chords] : ev.chords;
-    cs.forEach((c, i) => list.push({ sym: c.sym && transposeSym(c.sym, s + TO_CONCERT[tr], false), beats: (i + 1 < cs.length ? cs[i + 1].t : ev.beats) - c.t }));
-  }
+    cs.forEach((c, j) => list.push({ sym: c.sym && transposeSym(c.sym, shifts[i] + TO_CONCERT[tr], false), beats: (j + 1 < cs.length ? cs[j + 1].t : ev.beats) - c.t }));
+  });
   PH.on = true; const btn = $('#phBtn'); if (btn) btn.textContent = '■ Stop';
   const beat = 60 / bpm, swing = S.settings.phSwing !== false;
   const dur = await playChords(list, bpm, { onStart: t0 => {
-    if (!melody) return; const ctx = M.ctx, out = EAR.out, note = Object.keys(PIANO.buf).length ? playSample : playSynth;
-    for (let r = 0; r < reps; r++) for (const n of ev.notes) {
-      const a = 4 + r * ev.beats + (swing ? swingBeat(n.t) : n.t), b = 4 + r * ev.beats + (swing ? swingBeat(n.t + n.d) : n.t + n.d);
-      note(ctx, out, n.p + snd, t0 + a * beat, Math.max(0.08, (b - a) * beat * 0.92), 0.55 + 0.35 * n.v);
-    }
+    const ctx = M.ctx;
+    if (onKey) plan.forEach((pl, n) => { const at = (t0 - ctx.currentTime + (4 + n * ev.beats - (n ? 1 : 4)) * beat) * 1000;
+      PH.timers.push(setTimeout(() => { if (PH.on) onKey(pl.i, pl.key); }, Math.max(0, at))); });
+    if (!melody) return; const out = EAR.out, note = Object.keys(PIANO.buf).length ? playSample : playSynth;
+    plan.forEach((pl, n) => { for (const nt of ev.notes) {
+      const a = 4 + n * ev.beats + (swing ? swingBeat(nt.t) : nt.t), b = 4 + n * ev.beats + (swing ? swingBeat(nt.t + nt.d) : nt.t + nt.d);
+      note(ctx, out, nt.p + pl.s + SOUND[tr], t0 + a * beat, Math.max(0.08, (b - a) * beat * 0.92), 0.55 + 0.35 * nt.v);
+    } });
   } });
   if (PH.on) PH.timer = setTimeout(() => { if (PH.on) phraseStop(); }, (dur + 0.3) * 1000);
 }
@@ -2611,7 +2620,9 @@ function phraseBlock(ex, k) {
     <div class="row wrap" style="margin-top:6px"><button class="btn primary" id="phBtn" data-act="phToggle">${PH.on ? '■ Stop' : '▶ Play'}</button>
       <input type="number" inputmode="numeric" id="phBpm" min="40" max="360" value="${b ? Math.round(b) : 120}" style="width:5em" aria-label="Tempo"><small class="muted">bpm</small>
       <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phMel" ${S.settings.phMel !== false ? 'checked' : ''}><small>Melody</small></label>
-      <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phLoop" ${S.settings.phLoop ? 'checked' : ''}><small>Loop</small></label></div></div>`;
+      <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phAll" ${S.settings.phAll !== false ? 'checked' : ''}><small>All 12 keys</small></label>
+      <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="phLoop" ${S.settings.phLoop ? 'checked' : ''}><small>Loop</small></label></div>
+    <div id="phNow" class="muted" style="font-size:.85rem;margin-top:4px;min-height:1.2em"></div></div>`;
 }
 /* ---------- play a phrase in, get notation: mic → pitch (YIN) → notes on an eighth-note grid → ABC ----------
    Everything runs on the phone. You play over a count-in and (optionally) the backing; the takes are analysed
@@ -3327,7 +3338,10 @@ const A = {
   editPhrase: el => { const { sec, ex } = findEx(el.dataset.id); phraseEditor(sec, ex); },
   phToggle: () => { if (PH.on) { phraseStop(); return; } const o = findEx(PH.ex); if (!o) return;
     const bpm = Math.max(40, Math.min(360, +$('#phBpm').value || 120));
-    phrasePlay(phraseOf(o.ex), $('#phKey').value, bpm, { melody: $('#phMel').checked, loop: $('#phLoop').checked }).catch(e => { phraseStop(); toast(e.message); }); },
+    const ph = phraseOf(o.ex), sel = $('#phKey'), all = $('#phAll').checked, keys = all ? cycleKeys(sel.value, phraseKeys(ph)) : null;
+    const onKey = all ? (i, k) => { if (!$('#phKey')) return; sel.value = k; phraseRender($('#phNotes'), ph, k).catch(() => {});
+      $('#phNow').innerHTML = `Key <b>${esc(k)}</b> · ${i + 1} of 12${i < 11 ? ' · next ' + esc(keys[i + 1]) : ''}`; } : null;
+    phrasePlay(ph, sel.value, bpm, { melody: $('#phMel').checked, loop: $('#phLoop').checked, keys, onKey }).catch(e => { phraseStop(); toast(e.message); }); },
   addEx: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec);
     formSheet('New exercise in ' + sec.name, `<label class="f">Name</label><input type="text" name="name" required placeholder="e.g. Up & down – 8ths">${keysetFields(null)}`,
       fd => { const n = fd.name.trim(); const keys = keysFrom(fd); if (!n || !keys.length) return false; sec.ex.push({ id: slug(sec.name + ' ' + n) + '-' + uid(), name: n, keys }); openSecs.add(sec.id); save(); }); },
