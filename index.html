@@ -1909,7 +1909,8 @@ function sheetEx(id, planKey) {
   if (ph) {
     const draw = () => phraseRender($('#phNotes'), ph, $('#phKey').value).catch(e => { $('#phNotes').innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
     $('#phKey').addEventListener('change', () => { phraseStop(); draw(); });
-    $('#phMel').addEventListener('change', e => { S.settings.phMel = e.target.checked; save(true); });
+    $('#phMel').addEventListener('change', e => { S.settings.phMel = e.target.checked; save(true);
+      if (PH.on && PH.mel) PH.mel.gain.setTargetAtTime(e.target.checked ? 1 : 0, M.ctx.currentTime, 0.02); });
     $('#phLoop').addEventListener('change', e => { S.settings.phLoop = e.target.checked; save(true); });
     $('#phAll').addEventListener('change', e => { S.settings.phAll = e.target.checked; save(true); });
     draw();
@@ -2592,7 +2593,9 @@ async function phrasePlay(ph, k, bpm, { melody = true, loop = false, keys = null
     const ctx = M.ctx;
     if (onKey) plan.forEach((pl, n) => { const at = (t0 - ctx.currentTime + (4 + n * ev.beats - (n ? 1 : 4)) * beat) * 1000;
       PH.timers.push(setTimeout(() => { if (PH.on) onKey(pl.i, pl.key); }, Math.max(0, at))); });
-    if (!melody) return; const out = EAR.out, note = Object.keys(PIANO.buf).length ? playSample : playSynth;
+    // the melody goes through its own gain, so the Melody box can mute / unmute it while playing
+    const out = PH.mel = ctx.createGain(), note = Object.keys(PIANO.buf).length ? playSample : playSynth;
+    out.gain.value = melody ? 1 : 0; out.connect(EAR.out);
     plan.forEach((pl, n) => { for (const nt of ev.notes) {
       const a = 4 + n * ev.beats + (swing ? swingBeat(nt.t) : nt.t), b = 4 + n * ev.beats + (swing ? swingBeat(nt.t + nt.d) : nt.t + nt.d);
       note(ctx, out, nt.p + pl.s + SOUND[tr], t0 + a * beat, Math.max(0.08, (b - a) * beat * 0.92), 0.55 + 0.35 * nt.v);
