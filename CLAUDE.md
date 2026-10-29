@@ -41,7 +41,7 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   (one taken off the plan stays off that day: `S.plan.floorOut`).
 - `p.exDone` = exercises completed (every key logged) → +25 XP once (`exDoneCheck`); 0 = complete before the bonus existed (no XP).
 - Every day's plan gets one ii–V–I phrase (`pickPhrase`, the one practised longest ago; `S.plan.ph` marks it done for the day).
-- `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
+- `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; kept by a session on ANY instrument (`slotKept`); phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
   `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).
 - Tunes have versions (keys): version id = `tuneId` or `tuneId@Key`. Progress per version: checkpoints `cp`, review `rv`, quiz `qz`.

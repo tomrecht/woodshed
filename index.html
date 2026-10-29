@@ -1341,7 +1341,7 @@ function heatColor(b, ex) {
 /* ---------- scheduled practice ----------
    S.sched: [{ id, inst, time: 'HH:MM', len (minutes, 0 = just a start time), date: 'YYYY-MM-DD' (once) or days: [0–6, Mon = 0] (every week), note }]
    S.schedSkip: { 'id|YYYY-MM-DD': 1 } for single skipped occurrences.
-   A slot is "kept" by a session on its instrument that starts earlier that day or up to an hour after the slot. */
+   A slot is "kept" by a session (on any instrument) that starts earlier that day or up to an hour after the slot. */
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const schedList = () => S.sched || (S.sched = []);
 function slotsBetween(from, to) {
@@ -1354,7 +1354,7 @@ function slotsBetween(from, to) {
 }
 const slotInst = sl => S.prog[sl.s.inst] ? sl.s.inst : S.cur;
 const slotKept = sl => { const from = new Date(sl.at); from.setHours(0, 0, 0, 0);
-  return [...(S.prog[slotInst(sl)].sessions || []), ...(S.session && S.cur === slotInst(sl) ? [S.session] : [])].some(x => x.start >= +from && x.start <= sl.at + 3600e3); };
+  return [...S.inst.flatMap(i => S.prog[i.id]?.sessions || []), ...(S.session ? [S.session] : [])].some(x => x.start >= +from && x.start <= sl.at + 3600e3); };
 const slotEnd = sl => sl.at + (sl.s.len || 60) * 60e3;
 // the slot happening now (from 15 min before), or the next one in the coming 2 weeks
 function nextSlot() {
