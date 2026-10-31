@@ -39,7 +39,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   offers the backlog key that falls due soonest; practising a key that is on the plan as a consolidation item counts even if early.
 - Floor keys: `floorTopUp` keeps an unplayed floor key on today's plan whenever a completed exercise has one to offer
   (one taken off the plan stays off that day: `S.plan.floorOut`).
-- `p.exDone` = exercises completed (every key logged) → +25 XP once (`exDoneCheck`); 0 = complete before the bonus existed (no XP).
+- `p.exDone` = exercises completed (every key logged) → +25 XP once (`exDoneCheck`; `exDoneHeal` credits any missed, e.g. via sync);
+  0 = complete before the bonus existed (no XP). Shown in the celebration pop-up (`p.cel.ex` = already shown), not a toast.
 - New keys: `newTopUp`/`pickNew` keep an open plan item in a not-yet-logged key of an ordinary exercise (not a phrase section) on
   today's plan whenever one exists (tagged `nu`; one taken off stays off that day: `S.plan.newOut`).
 - Every day's plan gets one ii–V–I phrase (`pickPhrase`, the one practised longest ago; `S.plan.ph` marks it done for the day).

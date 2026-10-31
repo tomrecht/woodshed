@@ -756,7 +756,13 @@ function setBpm(k, v, exId, bulk) {
 const EXDONE_XP = 25;
 function exDoneCheck(id, quiet) {
   const p = P(), o = findEx(id); if (!o || (p.exDone = p.exDone || {})[id] != null || !o.ex.keys.every(k => p.bpm[exKey(o.ex, k)] != null)) return;
-  p.exDone[id] = Date.now(); if (!quiet) toast('Exercise complete: ' + o.ex.name + '  +' + EXDONE_XP + ' XP');
+  p.exDone[id] = Date.now(); if (quiet && p.cel) (p.cel.ex = p.cel.ex || {})[id] = 1;   // table catch-up: no pop-up (checkAchievements shows the rest)
+}
+// any exercise with every key logged that never got its bonus (e.g. the last key arrived by sync) gets it now
+function exDoneHeal(p) {
+  p.exDone = p.exDone || {};
+  for (const sec of S.lib.sections) for (const ex of sec.ex)
+    if (p.exDone[ex.id] == null && ex.keys.length && ex.keys.every(k => p.bpm[exKey(ex, k)] != null)) p.exDone[ex.id] = Date.now();
 }
 const FLOOR_MIN = 2;   // every exercise with keys gets a floor (slowest key); keyless ones have a single tempo
 function exInfo(ex) {
@@ -1105,7 +1111,7 @@ const SHARED_BADGES = { ear50: 'ear', ear250: 'ear', quiz1: 'quiz', quizP: 'quiz
 function checkBadges(silent) { return checkAchievements({ silent }); }
 // Compare against what has already been celebrated; return or show anything new.
 function checkAchievements(opts = {}) {
-  const p = P(), items = []; p.badges = p.badges || {}; p.badgesNoXp = p.badgesNoXp || {};
+  const p = P(), items = []; p.badges = p.badges || {}; p.badgesNoXp = p.badgesNoXp || {}; exDoneHeal(p);
   for (const b of badgeList()) if (b.ok && !p.badges[b.id]) {
     p.badges[b.id] = Date.now();
     // Badges built on shared data (ear training: all instruments; quizzes: same pitch) go to every instrument that shares it,
@@ -1117,6 +1123,11 @@ function checkAchievements(opts = {}) {
     else items.push({ ic: b.ic, title: b.id.startsWith('sec:') ? b.name + ' complete!' : b.name, sub: b.desc + ' · +' + BADGE_XP + ' XP' });
   }
   const first = !p.cel; const cel = p.cel = p.cel || { wk: {}, pb: {} };
+  // exercise completions are part of the celebration (a toast was hidden behind the badges it often unlocks);
+  // the first time this runs, ones older than 3 days count as already seen
+  if (!cel.ex) { cel.ex = {}; for (const id in p.exDone) if (!p.exDone[id] || Date.now() - p.exDone[id] > 3 * DAY) cel.ex[id] = 1; }
+  for (const id in p.exDone) if (p.exDone[id] && !cel.ex[id]) { cel.ex[id] = 1; const o = findEx(id);
+    if (o && !first) items.unshift({ ic: '✅', title: 'Exercise complete', sub: o.ex.name + ' · +' + EXDONE_XP + ' XP' }); }
   const lv = level(xpCalc(p)).n;
   if (!first && cel.lv && lv > cel.lv) items.push({ ic: '⬆️', title: 'Level ' + lv + (rankOf(lv) !== rankOf(cel.lv) ? ' – ' + rankOf(lv) : ''), sub: rankOf(lv) !== rankOf(cel.lv) ? 'New rank!' : 'Keep it up' });
   cel.lv = Math.max(cel.lv || 0, lv);
