@@ -123,7 +123,7 @@ details.sec .body{padding:0 10px 10px}
 .keys{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media(min-width:600px){.keys{grid-template-columns:1fr 1fr 1fr}}
 .krow{display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:10px;padding:6px 8px;border:1.5px solid transparent}
-.krow.fl{border-color:var(--accent)}
+.krow.sel{border-color:var(--accent)}
 .krow .kn{width:40px;font-weight:650;font-size:.95rem;flex:none}
 .krow .kn small{display:block;font-weight:400;font-size:.7rem}
 .krow input{padding:7px 2px;text-align:center;background:var(--bg);min-width:0;flex:1;font-size:1.05rem;font-weight:600}
@@ -1890,7 +1890,7 @@ function sheetEx(id, planKey) {
       ${(() => { if (!i.logged) return '<div><small>Fastest key</small><strong>—</strong></div>'; const mx = Math.max(...i.vals.filter(v => v != null)), fk = ex.keys[i.vals.indexOf(mx)];
         return `<div><small>Fastest key</small><strong>${Tk(exKey(ex, fk), mx)}</strong><small>${esc(fk)}</small></div>`; })()}`; };
   const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
-    return `<label class="krow ${info.floor && info.full && k === info.mk ? 'fl' : ''}" data-k="${esc(k)}"><span class="sw" style="background:${heatColor(v, ex)}"></span>
+    return `<label class="krow" data-k="${esc(k)}" data-key="${esc(key)}"><span class="sw" style="background:${heatColor(v, ex)}"></span>
       <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
       <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
@@ -1923,7 +1923,6 @@ function sheetEx(id, planKey) {
       const v = P().bpm[inp.dataset.key]; inp.closest('.krow').querySelector('.sw').style.background = heatColor(v, ex);
       inp.closest('.krow').querySelector('.kn small').textContent = 'today';
       $('#floorbox').innerHTML = floorHtml();
-      const i = exInfo(ex); $$('#panel .krow').forEach(r => r.classList.toggle('fl', i.floor && i.full && r.dataset.k === i.mk));
       if (pb) toast('New record: ' + TtxtK(inp.dataset.key, v) + '  +10 XP');
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
@@ -1932,8 +1931,11 @@ function sheetEx(id, planKey) {
   if (!wasLoaded) { const i = exInfo(ex);
     const k = planKey && ex.keys.includes(planKey) && p.bpm[exKey(ex, planKey)] ? planKey : i.mk || ex.keys[0];
     metroLoad(exKey(ex, k)); }
-  M.loadedFor = id;
+  M.loadedFor = id; markKey();
 }
+
+// the highlighted key row is the one the metronome is on (floor key on opening; ▶ on a row moves it)
+const markKey = () => $$('#panel label.krow').forEach(r => r.classList.toggle('sel', r.dataset.key === M.key));
 
 function sheetLick(id) {
   const l = S.lib.licks.find(x => x.id === id); if (!l) return; const key = 'l:' + l.id; const p = P();
@@ -3441,7 +3443,7 @@ const A = {
     } catch (e) { toast('That file is not a Woodshed backup'); } }; f.click(); },
   metroToggle: () => mShow(!$('#metro').classList.contains('on')),
   mOpen: (el, e) => { e.preventDefault(); const inp = el.closest('.krow, .row')?.querySelector('input'); const b = (inp && inp.value) || el.dataset.bpm;
-    if (el.dataset.u) mSetUnit(+el.dataset.u, false); if (b) { mSet(b); M.goal = null; } if (el.dataset.k) M.key = el.dataset.k; M.auto = false; mShow(true); if (!M.on) mStart(); },
+    if (el.dataset.u) mSetUnit(+el.dataset.u, false); if (b) { mSet(b); M.goal = null; } if (el.dataset.k) { M.key = el.dataset.k; markKey(); } M.auto = false; mShow(true); if (!M.on) mStart(); },
   mSave: () => { const k = M.key; if (!k || !itemOfKey(k)) return; const q = M.bpm * M.unit, old = P().bpm[k];   // q: quarter-note bpm
     if (old && q < old && !confirm(`That's slower than your logged ${TtxtK(k, old)}. Save anyway?`)) return;
     // keep the metronome's note value: a half-note tempo is saved (and shown) as half notes for this key / item
