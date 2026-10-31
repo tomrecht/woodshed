@@ -1287,8 +1287,12 @@ const exOutToday = f => new Set(S.plan && S.plan.date === dayKey(Date.now()) && 
 const unloggedReady = ex => readyKeys(ex).filter(k => P().bpm[exKey(ex, k)] == null);
 function pickNew(items) {
   const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex' && !planItemDone(i)).map(i => i.id)), out = exOutToday('newOut');
+  // categories you haven't worked on recently first (days since anything in the category, capped at 60, ±1 day of chance);
+  // within a category, the exercise left longest; a category already open on today's plan goes last
+  const days = t => Math.min(60, (Date.now() - (t || 0)) / DAY), secLast = new Map(), planSecs = new Set([...inPlan].map(id => findEx(id)?.sec.id));
+  for (const o of allEx()) secLast.set(o.sec.id, Math.max(secLast.get(o.sec.id) || 0, p.touched['x:' + o.ex.id] || 0));
   const c = allEx().filter(o => !o.sec.phrases && !inPlan.has(o.ex.id) && !out.has(o.ex.id) && unloggedReady(o.ex).length)
-    .map(o => ({ o, s: staleScore(p.touched['x:' + o.ex.id]) })).sort((a, b) => b.s - a.s)[0];
+    .map(o => ({ o, s: days(secLast.get(o.sec.id)) * 100 + days(p.touched['x:' + o.ex.id]) + Math.random() * 100 - (planSecs.has(o.sec.id) ? 1e5 : 0) })).sort((a, b) => b.s - a.s)[0];
   if (!c) return null; const ks = unloggedReady(c.o.ex);
   return { t: 'ex', id: c.o.ex.id, key: ks[Math.floor(Math.random() * ks.length)], nu: 1 };
 }

@@ -42,7 +42,7 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - A lick's first tempo ever (first hist entry for `l:id`) = first time practising it: `LICK_NEW_XP` (15) instead of 2.
 - `p.exDone` = exercises completed (every key logged) → +25 XP once (`exDoneCheck`; `exDoneHeal` credits any missed, e.g. via sync);
   0 = complete before the bonus existed (no XP). Shown in the celebration pop-up (`p.cel.ex` = already shown), not a toast.
-- New keys: `newTopUp`/`pickNew` keep an open plan item in a not-yet-logged key of an ordinary exercise (not a phrase section) on
+- New keys: `newTopUp`/`pickNew` (least recently worked category first) keep an open plan item in a not-yet-logged key of an ordinary exercise (not a phrase section) on
   today's plan whenever one exists (tagged `nu`; one taken off stays off that day: `S.plan.newOut`).
 - Every day's plan gets one ii–V–I phrase (`pickPhrase`, the one practised longest ago; `S.plan.ph` marks it done for the day).
 - `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; kept by a session on ANY instrument (`slotKept`); phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
