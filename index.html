@@ -149,6 +149,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:6px 12px;white-space:nowrap;font-size:.9rem}
 .swatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0;flex:none}.swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
 .chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
+.chsecs .chip{padding:3px 9px;font-size:.78rem}
 .trow{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;background:var(--surface);border-radius:12px;padding:12px;margin-bottom:8px}
 .pips{display:flex;gap:4px}
 .pips i{width:10px;height:10px;border-radius:50%;background:var(--empty)}
@@ -1015,10 +1016,13 @@ const CHALLENGES = [
   { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, prog: (p, ws) => QUIZ(p).log.filter(t => t >= ws).length },
   { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(EARS().trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
   { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
-  { id: 'sections', text: g => `Work on exercises from ${g} different categories`, goal: 5, goalFn: secGoal, prog: (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean)).size },
+  { id: 'sections', text: g => `Work on exercises from ${g} different categories`, goal: 5, goalFn: secGoal, prog: (p, ws) => secsThisWeek(p, ws).size,
+    detail: (p, ws) => { const done = secsThisWeek(p, ws); return S.lib.sections.filter(sec => sec.ex.length).sort((a, b) => done.has(b.id) - done.has(a.id))
+      .map(sec => `<span class="chip ${done.has(sec.id) ? 'on' : ''}">${done.has(sec.id) ? '✓ ' : ''}${esc(sec.name)}</span>`).join(''); } },
   { id: 'licks', text: 'Practise 4 different licks', goal: 4, prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
   { id: 'review', text: 'Do 2 tune reviews (or start learning a new tune)', goal: 2, prog: (p, ws) => Object.values(p.tunes).filter(r => (r.rv?.last || 0) >= ws).length },
 ];
+const secsThisWeek = (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean));
 // Categories goal: above your best week of the last 4 (from sessions and the tempo log), at least 8, at most all of them.
 function secGoal(p, ws) {
   const weeks = [0, 1, 2, 3].map(() => new Set());
@@ -1038,7 +1042,7 @@ function weekChallenge(p = P()) {
   if (c0.goalFn && rec.goal == null && !rec.done) rec.goal = c0.goalFn(p, ws);
   const goal = rec.goal ?? c0.goal, c = { ...c0, goal, text: typeof c0.text === 'function' ? c0.text(goal) : c0.text };
   const prog = c.prog(p, ws);
-  return { key, c, rec, prog: Math.min(prog, c.goal), done: !!rec.done };
+  return { key, c, rec, prog: Math.min(prog, c.goal), done: !!rec.done, detail: c.detail ? c.detail(p, ws) : '' };
 }
 
 /* ---------- rewards you promise yourself ---------- */
@@ -1638,7 +1642,8 @@ function vHome() {
     const { r, pr } = open[0];
     return `<section class="card"><div class="row"><span style="font-size:1.5rem">🎁</span><div class="grow"><small class="muted">Next reward · ${esc(rewardGoalText(r))}</small><br><b>${esc(r.name)}</b></div>${r.type === 'custom' ? `<button class="btn sm" data-act="didReward" data-id="${r.id}">I did it ✓</button>` : `<small>${rewardProgText(r, pr)}</small>`}</div>${r.type === 'custom' ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${pr.pct}%"></i></div>`}</section>`; })()}
   <section class="card ${ch.done ? 'chdone' : ''}"><div class="row"><span style="font-size:1.5rem">🎯</span><div class="grow"><small class="muted">This week's challenge · +${CHALLENGE_XP} XP</small><br><b>${esc(ch.c.text)}</b></div><b>${ch.done ? '✓' : ch.prog + '/' + ch.c.goal}</b></div>
-    ${ch.done ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${Math.round(100 * ch.prog / ch.c.goal)}%"></i></div>`}</section>
+    ${ch.done ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${Math.round(100 * ch.prog / ch.c.goal)}%"></i></div>`}
+    ${ch.detail ? `<div class="chipsw chsecs" style="margin-top:8px">${ch.detail}</div>` : ''}</section>
   ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
   <section class="card"><h3><span class="grow">Today's plan</span><button class="iconbtn" data-act="replan" title="Replace the whole plan">↻ all</button></h3><ul class="plan">${planHtml}</ul>
     <div class="row wrap" style="margin-top:8px"><small class="grow">Add:</small><button class="btn sm" data-act="planAdd" data-t="ex">+ Exercise</button><button class="btn sm" data-act="planAdd" data-t="lick">+ Lick</button><button class="btn sm" data-act="planAdd" data-t="tune">+ Tune</button></div></section>
