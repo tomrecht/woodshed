@@ -1251,6 +1251,22 @@ function floorTopUp() {
   if (!S.plan || planSize().ex <= 0 || hasFloor(S.plan.items.filter(i => !planItemDone(i)))) return;
   const f = pickFloor(S.plan.items); if (f) { S.plan.items.unshift(f); save(true); }
 }
+// A new key: an exercise from the ordinary sections (not ii–V–I phrases; licks are their own type) in a key not logged
+// yet, so new material is always on offer. Any open plan item with an unlogged key counts; one taken off stays off today.
+const exOutToday = f => new Set(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan[f] || [] : []);
+const unloggedReady = ex => readyKeys(ex).filter(k => P().bpm[exKey(ex, k)] == null);
+function pickNew(items) {
+  const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex' && !planItemDone(i)).map(i => i.id)), out = exOutToday('newOut');
+  const c = allEx().filter(o => !o.sec.phrases && !inPlan.has(o.ex.id) && !out.has(o.ex.id) && unloggedReady(o.ex).length)
+    .map(o => ({ o, s: staleScore(p.touched['x:' + o.ex.id]) })).sort((a, b) => b.s - a.s)[0];
+  if (!c) return null; const ks = unloggedReady(c.o.ex);
+  return { t: 'ex', id: c.o.ex.id, key: ks[Math.floor(Math.random() * ks.length)], nu: 1 };
+}
+const hasNew = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); return o && !o.sec.phrases && P().bpm[exKey(o.ex, it.key)] == null; });
+function newTopUp() {
+  if (!S.plan || planSize().ex <= 0 || hasNew(S.plan.items.filter(i => !planItemDone(i)))) return;
+  const n = pickNew(S.plan.items); if (n) { S.plan.items.push(n); save(true); }
+}
 // Practised today = the plan item's own key / lick / tune version was touched today.
 const planKeyOf = it => it.t === 'ex' ? 'e:' + it.id + '|' + it.key : (it.t === 'lick' ? 'l:' : 't:') + it.id;
 const planItemDone = it => dayKey(P().touched[planKeyOf(it)] || 0) === dayKey(Date.now());
@@ -1262,7 +1278,7 @@ function planRecord(k) {
   if (m[1] === 'e') {
     const [id, key] = m[2].split('|'); if (!findEx(id)) return;
     if (items.some(i => i.t === 'ex' && i.id === id && i.key === key)) return;
-    const same = items.find(i => i.t === 'ex' && i.id === id && !i.cons && !i.floor && !planItemDone(i));
+    const same = items.find(i => i.t === 'ex' && i.id === id && !i.cons && !i.floor && !i.nu && !planItemDone(i));
     if (same) same.key = key; else items.push({ t: 'ex', id, key });
   } else {
     const t = m[1] === 'l' ? 'lick' : 'tune';
@@ -1286,6 +1302,7 @@ function makePlan(keep = []) {
   }
   if (sz.ex > cnt('ex')) { const f = pickFloor(items); if (f) items.push(f); }
   if (sz.ex > 0) { const ph = pickPhrase(items); if (ph) items.push(ph); }
+  if (sz.ex > 0 && !hasNew(items)) { const n = pickNew(items); if (n) items.push(n); }
   for (const [t, n] of [['ex', sz.ex - cnt('ex')], ['lick', sz.lick - cnt('lick')], ['tune', sz.tune - cnt('tune')]])
     for (let i = 0; i < n; i++) { const it = pickFor(t, items); if (it) items.push(it); }
   S.plan = { date: dayKey(Date.now()), inst: S.cur, items, fc: 1, ph: 1 }; save(true);   // automatic, not a user edit
@@ -1559,10 +1576,10 @@ function vHome() {
     return `<div>${d}<b class="${dm[k] ? 'on' : ''} ${k === today ? 'today' : ''}">${dm[k] ? '✓' : ''}</b></div>`; }).join('');
   if (!S.plan || S.plan.date !== today || S.plan.inst !== S.cur) makePlan();
   if (!S.plan.ph) { S.plan.ph = 1; const ph = planSize().ex > 0 && pickPhrase(S.plan.items); if (ph) S.plan.items.push(ph); save(true); }
-  consTopUp(); floorTopUp(); planTopUp();
+  consTopUp(); floorTopUp(); newTopUp(); planTopUp();
   const planHtml = S.plan.items.map((it, idx) => {
     let label = '', tag = '', key = '', done = false;
-    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : it.carry ? ' · from last time' : '');
+    if (it.t === 'ex') { const o = findEx(it.id); if (!o) return ''; tag = o.sec.name + (it.floor ? ' · floor key' : it.nu ? ' · new key' : it.cons ? (it.cons === 1 ? ' · new – play it again' : ' · new – once more') : it.carry ? ' · from last time' : '');
       const b = p.bpm[exKey(o.ex, it.key)]; key = b ? ` <small>${Tk(exKey(o.ex, it.key), b)}</small>` : ' <small>not logged</small>'; done = dayKey(p.touched[exKey(o.ex, it.key)] || 0) === today; label = esc(o.ex.name) + (it.key !== '—' ? ` · <b style="color:var(--accent)">${esc(it.key)}</b>` : ''); }
     if (it.t === 'lick') { const l = S.lib.licks.find(x => x.id === it.id); if (!l) return ''; tag = 'Lick' + (it.carry ? ' · from last time' : ''); label = esc(l.name); const b = p.bpm['l:' + l.id]; key = b ? ` <small>${T(l, b)}</small>` : ''; done = dayKey(p.touched['l:' + l.id] || 0) === today; }
     if (it.t === 'tune') { const t = tuneOf(it.id); if (!t) return ''; tag = (t.tempo ? 'Tempo tune' : 'Tune') + (it.carry ? ' · from last time' : ''); label = esc(vLabel(it.id)); const st = tuneStatus(it.id), nx = CP_ALL.find(c => !tuneState(it.id).cp?.[c.id]);
@@ -3213,11 +3230,12 @@ const A = {
   openTune: el => openTuneSheet(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id, el.dataset.k) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
   replan: () => { makePlan(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan.items.filter(planItemDone) : []); save(); render(); },
-  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.floor) S.plan.floorOut = [...(S.plan.floorOut || []), it.id]; if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
+  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.floor) S.plan.floorOut = [...(S.plan.floorOut || []), it.id]; if (it?.nu) S.plan.newOut = [...(S.plan.newOut || []), it.id]; if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
   planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
     if (cur.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + cur.id + '|' + cur.key];
     if (cur.floor) S.plan.floorOut = [...(S.plan.floorOut || []), cur.id];
-    const it = (cur.cons && (consDue(S.plan.items)[0] || consEarly(S.plan.items))) || (cur.floor && pickFloor(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
+    if (cur.nu) S.plan.newOut = [...(S.plan.newOut || []), cur.id];
+    const it = (cur.cons && (consDue(S.plan.items)[0] || consEarly(S.plan.items))) || (cur.floor && pickFloor(S.plan.items)) || (cur.nu && pickNew(S.plan.items)) || pickFor(cur.t, S.plan.items); if (!it) { toast('Nothing else to suggest'); return; }
     S.plan.items[i] = it; save(); render(); },
   planAddDirect: el => { const it = { t: el.dataset.t, id: el.dataset.id };
     if (it.t === 'ex') { const o = findEx(it.id); return pickKeySheet(o.ex); } addToPlan(it); },

@@ -40,6 +40,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - Floor keys: `floorTopUp` keeps an unplayed floor key on today's plan whenever a completed exercise has one to offer
   (one taken off the plan stays off that day: `S.plan.floorOut`).
 - `p.exDone` = exercises completed (every key logged) → +25 XP once (`exDoneCheck`); 0 = complete before the bonus existed (no XP).
+- New keys: `newTopUp`/`pickNew` keep an open plan item in a not-yet-logged key of an ordinary exercise (not a phrase section) on
+  today's plan whenever one exists (tagged `nu`; one taken off stays off that day: `S.plan.newOut`).
 - Every day's plan gets one ii–V–I phrase (`pickPhrase`, the one practised longest ago; `S.plan.ph` marks it done for the day).
 - `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; kept by a session on ANY instrument (`slotKept`); phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
   `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
