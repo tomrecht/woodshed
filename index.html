@@ -991,12 +991,15 @@ function weekHistory(p = P()) {
 }
 function streaks(p = P()) { const w = weekHistory(p); return { cur: w.cur, best: w.best, freezes: w.freezes }; }
 const BADGE_XP = 50;
+const LICK_NEW_XP = 15;
+const lickIsNew = k => k.startsWith('l:') && !P().hist.some(h => h.k === k);
 function xpCalc(p = P()) {
   let xp = 0;
   for (const w of weekHistory(p).weeks) xp += Math.round(w.own * w.mult) + w.bonus;   // practice time × streak multiplier, weekly bonuses
   xp += EXDONE_XP * Object.values(p.exDone || {}).filter(Boolean).length;
   xp += CHALLENGE_XP * Object.values(p.challenges || {}).filter(c => c.done).length;
-  for (const h of p.hist) xp += h.prev == null ? 2 : h.bpm > h.prev ? 10 : 0;
+  const lickSeen = new Set();   // a lick's first tempo ever = first time practising it: LICK_NEW_XP
+  for (const h of p.hist) xp += h.prev == null ? (h.k.startsWith('l:') && !lickSeen.has(h.k) && lickSeen.add(h.k) ? LICK_NEW_XP : 2) : h.bpm > h.prev ? 10 : 0;
   for (const id in p.tunes) { const r = p.tunes[id]; xp += CP_XP * Object.keys(r.cp || {}).length + REVIEW_XP * (r.rv?.n || 0); }
   for (const q of Object.values(QUIZ(p).tunes)) xp += q.xp || 0;
   xp += EARS().train?.xp || 0;
@@ -1995,7 +1998,8 @@ function sheetLick(id) {
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameLick" data-id="${esc(l.id)}">Rename</button>
       ${l.img ? `<button class="btn sm" data-act="lickImg" data-id="${esc(l.id)}">Replace image</button>` : ''}
       <button class="btn sm danger" data-act="delLick" data-id="${esc(l.id)}">Delete</button></div>`);
-  $('#lickBpm').onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + Ttxt(l, P().bpm[key]) + '  +10 XP'); };
+  $('#lickBpm').onchange = e => { const nw = lickIsNew(key), pb = setBpm(key, e.target.value);
+    if (nw && P().bpm[key]) toast('New lick: ' + l.name + '  +' + LICK_NEW_XP + ' XP'); else if (pb) toast('New record: ' + Ttxt(l, P().bpm[key]) + '  +10 XP'); };
   $('#lickNotes').onchange = e => { l.notes = e.target.value; save(); };
 }
 
@@ -3495,9 +3499,9 @@ const A = {
     // keep the metronome's note value: a half-note tempo is saved (and shown) as half notes for this key / item
     if (M.unit !== uk(k)) { if (k.startsWith('e:')) { const [id, key] = k.slice(2).split('|'), ex = findEx(id)?.ex; if (ex) setKeyUnit(ex, key, M.unit); } else setUnit(itemOfKey(k), M.unit); }
     const v = Math.round(q / uk(k));
-    const ex = k.startsWith('e:') ? k.slice(2).split('|')[0] : undefined, pb = setBpm(k, v, ex);
+    const ex = k.startsWith('e:') ? k.slice(2).split('|')[0] : undefined, nw = lickIsNew(k), pb = setBpm(k, v, ex);
     M.goal = M.unit === uk(k) ? v : M.bpm; mPaint();
-    toast((pb ? 'New record: ' : 'Saved: ') + itemLabel(k) + ' ' + TtxtK(k, P().bpm[k]) + (pb ? '  +10 XP' : ''));
+    toast((pb ? 'New record: ' : nw ? 'New lick: ' : 'Saved: ') + itemLabel(k) + ' ' + TtxtK(k, P().bpm[k]) + (pb ? '  +10 XP' : nw ? '  +' + LICK_NEW_XP + ' XP' : ''));
     if (sheetOpen && ex && M.loadedFor === ex) sheetEx(ex); else if (!sheetOpen) render(); },
   mUnit: () => mSetUnit(M.unit === 2 ? 1 : 2),
   mTs: () => { const o = [4, 3, 2, 5, 6, 7, 1]; M.bpb = o[(o.indexOf(M.bpb) + 1) % o.length]; M.beat = 0; S.settings.mBpb = M.bpb; save(true); mPaint(); },
