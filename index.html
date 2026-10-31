@@ -1015,16 +1015,28 @@ const CHALLENGES = [
   { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, prog: (p, ws) => QUIZ(p).log.filter(t => t >= ws).length },
   { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(EARS().trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
   { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
-  { id: 'sections', text: 'Work on exercises from 5 different categories', goal: 5, prog: (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean)).size },
+  { id: 'sections', text: g => `Work on exercises from ${g} different categories`, goal: 5, goalFn: secGoal, prog: (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean)).size },
   { id: 'licks', text: 'Practise 4 different licks', goal: 4, prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
   { id: 'review', text: 'Do 2 tune reviews (or start learning a new tune)', goal: 2, prog: (p, ws) => Object.values(p.tunes).filter(r => (r.rv?.last || 0) >= ws).length },
 ];
+// Categories goal: above your best week of the last 4 (from sessions and the tempo log), at least 8, at most all of them.
+function secGoal(p, ws) {
+  const weeks = [0, 1, 2, 3].map(() => new Set());
+  const add = (t, k) => { const w = Math.floor((ws - t) / (7 * DAY)), id = k.startsWith('e:') && findEx(k.slice(2).split('|')[0])?.sec.id;
+    if (t < ws && w < 4 && id) weeks[w].add(id); };
+  for (const x of p.sessions) for (const k of x.items || []) add(x.start, k);
+  for (const h of p.hist) add(h.t, h.k);
+  const all = S.lib.sections.filter(sec => sec.ex.length).length;
+  return Math.max(1, Math.min(all, Math.max(8, Math.max(...weeks.map(w => w.size)) + 2)));
+}
 function weekChallenge(p = P()) {
   const ws = monday(Date.now()).getTime(), key = dayKey(ws);
   p.challenges = p.challenges || {};
   if (!p.challenges[key]) { let h = 0; for (const ch of key + S.cur) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     p.challenges[key] = { id: CHALLENGES[h % CHALLENGES.length].id }; }
-  const rec = p.challenges[key], c = CHALLENGES.find(x => x.id === rec.id) || CHALLENGES[0];
+  const rec = p.challenges[key], c0 = CHALLENGES.find(x => x.id === rec.id) || CHALLENGES[0];
+  if (c0.goalFn && rec.goal == null && !rec.done) rec.goal = c0.goalFn(p, ws);
+  const goal = rec.goal ?? c0.goal, c = { ...c0, goal, text: typeof c0.text === 'function' ? c0.text(goal) : c0.text };
   const prog = c.prog(p, ws);
   return { key, c, rec, prog: Math.min(prog, c.goal), done: !!rec.done };
 }
