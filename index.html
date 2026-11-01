@@ -2770,9 +2770,16 @@ function detectNotes(x, sr) {
     const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return best && best[1] >= 3 ? +best[0] : null; });
   const notes = []; let cur = null;
   for (let i = 0; i < fr.length; i++) {
-    // a new attack on the same pitch (tongued repeat): energy jumps back up after a dip, well into the note
+    // a new attack on the same pitch (tongued repeat): energy jumps back up after a dip, well into the note. The dip is
+    // judged against the level just before it, not the note's peak – a held note fades, and a metronome click on top of
+    // a faded note is a jump without a dip (it used to chop held notes into quarters).
     const m = sm[i], inNote = cur && i - cur.i >= 8, prevMin = inNote ? Math.min(...fr.slice(i - 6, i).map(f => f.e)) : 0;
-    const attack = inNote && m === cur.m && fr[i].e > 2.2 * prevMin && prevMin < 0.5 * cur.pk;
+    const before = inNote ? Math.max(...fr.slice(Math.max(cur.i, i - 20), i - 6).map(f => f.e)) : 0;
+    const attack = inNote && m === cur.m && fr[i].e > 2.2 * prevMin && prevMin < 0.5 * before;
+    // a short pitch dropout with no dip in level (a click or drum hit over a held note) that returns to the same pitch: keep going
+    if (cur && m !== cur.m && i - cur.i >= 8) { let j = i; while (j < fr.length && j - i < 12 && sm[j] !== cur.m) j++;
+      const lvl = Math.max(...fr.slice(Math.max(cur.i, i - 14), i).map(f => f.e));
+      if (j < fr.length && j - i < 12 && sm.slice(i, j).filter(x => x != null).length < 4 && fr.slice(i, j).every(f => f.e >= 0.5 * lvl)) { i = j - 1; continue; } }
     if (m == null || !cur || cur.m !== m || attack) { if (cur) { cur.off = fr[i].t; notes.push(cur); } cur = m == null ? null : { on: fr[i].t, m, pk: fr[i].e, i }; }
     else cur.pk = Math.max(cur.pk, fr[i].e);
   }
