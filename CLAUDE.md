@@ -8,7 +8,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 
 ## Files
 - `index.html` – the whole app: CSS, HTML shell and one `<script>` (vanilla JS, no framework, no dependencies).
-- `sw.js` – offline cache. **Bump `CACHE` (`woodshed-vN`) on every deploy**, or phones keep the old version.
+- `sw.js` – offline cache. The page (navigation / index.html) is network-first (4 s timeout, cached copy offline), so an update
+  shows on the first open; everything else is cache-first, refreshed in the background. **Bump `CACHE` (`woodshed-vN`) on every deploy**, or phones keep the old version.
   New static files must be added to its `FILES` list.
 - `library.json` – ~1,355 chord charts (iReal Pro), as **E♭ (alto) parts**: `{t: title, s: style, c: composer, k: key, ts, b: [bar]}`;
   a bar is `{n, c: [chord symbols], sec?, ro?/rc? (repeat open/close), end? (ending no.), rep? (% bar), mk? (Segno/Coda/D.C.)}`.
