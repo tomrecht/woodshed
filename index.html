@@ -211,6 +211,8 @@ nav#tabs button.on{color:var(--accent)}
   color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hide{display:none!important}
+#stretch{position:fixed;inset:0;z-index:79;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:20px}
+.stretchList{text-align:left;margin:8px 0 14px;padding-left:20px;line-height:1.5}
 #cele{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:20px}
 .celeBox{position:relative;overflow:hidden;background:var(--surface);border-radius:20px;padding:24px 20px 16px;max-width:400px;width:100%;text-align:center;animation:pop .35s ease-out}
 @keyframes pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
@@ -317,6 +319,7 @@ table.grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent
 </nav>
 <div id="sheet"><div class="bk" data-act="closeSheet"></div><div class="panel" id="panel"></div></div>
 <div id="toast"></div>
+<div id="stretch" class="hide"><div class="celeBox"><div style="font-size:2.6rem">🧘</div><h3 style="margin:6px 0;text-align:center">Stretch break</h3><ul class="stretchList"><li>Drop and roll your shoulders back, 5 times</li><li>Tilt your head side to side, slowly</li><li>Open and shake out your hands; stretch your wrists</li><li>Stand up tall, take three slow breaths</li><li>Let your jaw and lips go loose</li></ul><button class="btn primary big" data-act="stretchOk">Done – back to it</button></div></div>
 <div id="cele" class="hide"><div class="celeBox"><div id="celeConf" class="conf"></div><div style="font-size:2.6rem">🎉</div><div id="celeBody"></div><button class="btn primary big" data-act="celeOk">Nice!</button></div></div>
 <input type="file" id="fileIn" accept="image/*" class="hide">
 <input type="file" id="importIn" accept="application/json,.json" class="hide">
@@ -1812,6 +1815,7 @@ function vMore() {
     <div class="row">${['ex', 'lick', 'tune'].map(k => `<select data-plansz="${k}">${[0, 1, 2, 3, 4, 5, 6].map(n => `<option ${planSize()[k] === n ? 'selected' : ''}>${n}</option>`).join('')}</select>`).join('')}</div>
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="drumsChk" ${S.settings.drums !== false ? 'checked' : ''}><span class="grow">Drums when playing chords (ride cymbal and hi-hat)</span></label></div>
     <label class="f">Weekly time goal</label><select id="minGoalSel">${[60, 120, 180, 240, 300, 360, 420, 480, 600, 720, 900].map(m => `<option value="${m}" ${m === weekMinGoal() ? 'selected' : ''}>${fmtMin(m)}</option>`).join('')}</select>
+    <label class="f">Stretch reminder during a session</label><select id="stretchSel">${[0, 15, 20, 25, 30, 40, 45, 60].map(m => `<option value="${m}" ${m === stretchMin() ? 'selected' : ''}>${m ? 'Every ' + m + ' min' : 'Off'}</option>`).join('')}</select>
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="celeChk" ${S.settings.celeSound !== false ? 'checked' : ''}><span class="grow">Sound with celebrations</span></label></div>
     <details style="margin-top:10px"><summary class="muted">How XP works</summary><p class="muted" style="font-size:.88rem">1 XP per practice minute, multiplied by your streak (+10% per streak week, up to ×2). Weekly goal met: +50, plus 10 per streak week (up to +150). Weekly time goal met: +50. Weekly challenge: +100. Tempo record +10 (first tempo +2), exercise complete (every key logged) +25, tune checkpoint +10, review +5, quiz +2 per correct chord, ear training +2 per right answer, rhythm passed +2, badge +50. Every 4 streak weeks earns a 🧊 freeze (max 2) that covers a missed week.</p></details>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
@@ -1872,6 +1876,7 @@ function render() {
     const sf = $('#syncForm'); if (sf) sf.onsubmit = async e => { e.preventDefault(); const t = $('#syncToken').value.trim(); if (!t) return; sf.querySelector('button').disabled = true; await Sync.connect(t); render(); };
     $('#drumsChk').onchange = e => { S.settings.drums = e.target.checked; save(); };
     $('#minGoalSel').onchange = e => { S.settings.minGoal = +e.target.value; save(); checkAchievements({ silent: true }); render(); };
+    $('#stretchSel').onchange = e => { S.settings.stretchMin = +e.target.value; save(); };
     $('#celeChk').onchange = e => { S.settings.celeSound = e.target.checked; save(); };
     $('#goalSel').onchange = e => { S.settings.goal = +e.target.value; save(); checkBadges(); render(); };
     const spi = $('#streakPerInstChk'); if (spi) spi.onchange = e => { S.settings.streakPerInst = e.target.checked; save(); checkAchievements({ silent: true }); render(); };
@@ -2212,6 +2217,17 @@ function tickSession() {
   const s = Math.floor(sessMs() / 1000);
   $('#sessTime').textContent = Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   $('#pauseBtn').textContent = S.session.runSince ? 'Pause' : 'Resume';
+  stretchCheck();
+}
+// Stretch reminder: every S.settings.stretchMin minutes of running session time (0 = off), shown only between
+// exercises – it waits while a sheet is open or anything (metronome, chords, phrase) is playing.
+const stretchMin = () => S.settings.stretchMin ?? 30;
+function stretchCheck() {
+  const n = stretchMin(), s = S.session; if (!n || !s || !s.runSince) return;
+  const ms = sessMs(); if (ms - (s.brk || 0) < n * 60000) return;
+  if (sheetOpen || M.on || CP.on || PH.on || REC.on || !$('#cele').classList.contains('hide') || !$('#stretch').classList.contains('hide')) return;
+  s.brk = ms; save(true);
+  $('#stretch').classList.remove('hide'); try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) {}
 }
 setInterval(tickSession, 1000);
 
@@ -3263,6 +3279,7 @@ const A = {
   claimReward: el => { const r = (P().rewards || []).find(x => x.id === el.dataset.id); if (r) { r.claimed = Date.now(); save(); toast('Enjoy it! 🎷'); render(); } },
   delReward: el => { const p = P(); if (!confirm('Delete this reward?')) return; p.rewards = (p.rewards || []).filter(x => x.id !== el.dataset.id); save(); render(); },
   celeOk: () => $('#cele').classList.add('hide'),
+  stretchOk: () => { $('#stretch').classList.add('hide'); if (S.session) { S.session.brk = sessMs(); save(true); } },
   gotoTab: el => { tab = el.dataset.tab2; reorderMode = false; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
