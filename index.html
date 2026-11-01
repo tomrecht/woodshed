@@ -124,7 +124,7 @@ details.sec .body{padding:0 10px 10px}
 @media(min-width:600px){.keys{grid-template-columns:1fr 1fr 1fr}}
 .krow{display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:10px;padding:6px 8px;border:1.5px solid transparent}
 .krow.sel{border-color:var(--accent)}
-.krow .kn{width:40px;font-weight:650;font-size:.95rem;flex:none}
+.krow .kn{cursor:pointer;width:40px;font-weight:650;font-size:.95rem;flex:none}
 .krow .kn small{display:block;font-weight:400;font-size:.7rem}
 .krow input{padding:7px 2px;text-align:center;background:var(--bg);min-width:0;flex:1;font-size:1.05rem;font-weight:600}
 .krow .iconbtn{padding:4px 2px}
@@ -1955,7 +1955,7 @@ function sheetEx(id, planKey) {
         return `<div><small>Fastest key</small><strong>${Tk(exKey(ex, fk), mx)}</strong><small>${esc(fk)}</small></div>`; })()}`; };
   const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
     return `<label class="krow" data-k="${esc(k)}" data-key="${esc(key)}"><span class="sw" style="background:${heatColor(v, ex)}"></span>
-      <span class="kn">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
+      <span class="kn" data-act="keySel" data-key="${esc(key)}">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
       <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
       <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" data-u="${uk(key)}" data-k="${esc(key)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
@@ -3537,6 +3537,7 @@ const A = {
   mTs: () => { const o = [4, 3, 2, 5, 6, 7, 1]; M.bpb = o[(o.indexOf(M.bpb) + 1) % o.length]; M.beat = 0; S.settings.mBpb = M.bpb; save(true); mPaint(); },
   mGoal: () => { if (M.goal != null) mSet(M.goal); },
   mStep: el => { mSet(M.bpm + +el.dataset.d); },
+  keySel: (el, e) => { e.preventDefault(); metroLoad(el.dataset.key); markKey(); },   // tap a key's name: frame + metronome move to it
   mPlay: () => M.on ? mStop() : mStart(),
   mTap: () => { const now = performance.now(); M.taps = M.taps.filter(t => now - t < 2500); M.taps.push(now);
     if (M.taps.length >= 2) { const iv = (M.taps[M.taps.length - 1] - M.taps[0]) / (M.taps.length - 1); mSet(60000 / iv); } },
