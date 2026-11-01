@@ -1204,8 +1204,12 @@ function weakestKey(ex) {
 }
 // Neglected items score higher; the random part keeps suggestions varied.
 const staleScore = t => Math.min(60, (Date.now() - (t || 0)) / DAY) + Math.random() * 20;
+// Not offered again today: anything practised today, or taken off today's plan (✕ or ⇄, kept in S.plan.out as 't:id').
+const practisedToday = (t, id) => dayKey(P().touched[(t === 'ex' ? 'x:' : t === 'lick' ? 'l:' : 't:') + id] || 0) === dayKey(Date.now());
+const skipToday = (t, id) => practisedToday(t, id) || exOutToday('out').has(t + ':' + id);
 function pickFor(t, items) {
   const p = P(), inPlan = new Set(items.filter(i => i.t === t).map(i => i.id));
+  for (const x of [...allEx().map(o => ['ex', o.ex.id]), ...S.lib.licks.map(l => ['lick', l.id]), ...allVersions().map(v => ['tune', v])]) if (x[0] === t && skipToday(t, x[1])) inPlan.add(x[1]);
   const best = arr => arr.sort((a, b) => b.s - a.s)[0];
   if (t === 'ex') {
     const usedSecs = new Set(items.filter(i => i.t === 'ex').map(i => findEx(i.id)?.sec.id));
@@ -1275,7 +1279,7 @@ const consCap = backlog => Math.min(CONS_CAP, Math.max(CONS_MAX, Math.ceil(backl
 function pickFloor(items) {
   const p = P(), today = dayKey(Date.now()), inPlan = new Set(items.filter(i => i.t === 'ex' && !planItemDone(i)).map(i => i.id)),
     had = new Set(items.filter(i => i.t === 'ex').map(i => i.id + '|' + i.key)), out = new Set(S.plan && S.plan.date === today && S.plan.inst === S.cur ? S.plan.floorOut || [] : []);
-  const c = allEx().filter(o => !inPlan.has(o.ex.id) && !out.has(o.ex.id)).map(o => ({ o, i: exInfo(o.ex) })).filter(x => x.i.floor && x.i.full && !had.has(x.o.ex.id + '|' + x.i.mk))
+  const c = allEx().filter(o => !inPlan.has(o.ex.id) && !out.has(o.ex.id)).map(o => ({ o, i: exInfo(o.ex) })).filter(x => x.i.floor && x.i.full && !had.has(x.o.ex.id + '|' + x.i.mk) && dayKey(p.touched[exKey(x.o.ex, x.i.mk)] || 0) !== today && !exOutToday('out').has('ex:' + x.o.ex.id))
     .map(x => ({ ...x, s: staleScore(p.touched['x:' + x.o.ex.id]) })).sort((a, b) => b.s - a.s)[0];
   return c && { t: 'ex', id: c.o.ex.id, key: c.i.mk, floor: true };
 }
@@ -1290,12 +1294,12 @@ function floorTopUp() {
 const exOutToday = f => new Set(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan[f] || [] : []);
 const unloggedReady = ex => readyKeys(ex).filter(k => P().bpm[exKey(ex, k)] == null);
 function pickNew(items) {
-  const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex' && !planItemDone(i)).map(i => i.id)), out = exOutToday('newOut');
+  const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex').map(i => i.id)), out = exOutToday('newOut');
   // categories you haven't worked on recently first (days since anything in the category, capped at 60, ±1 day of chance);
   // within a category, the exercise left longest; a category already open on today's plan goes last
   const days = t => Math.min(60, (Date.now() - (t || 0)) / DAY), secLast = new Map(), planSecs = new Set([...inPlan].map(id => findEx(id)?.sec.id));
   for (const o of allEx()) secLast.set(o.sec.id, Math.max(secLast.get(o.sec.id) || 0, p.touched['x:' + o.ex.id] || 0));
-  const c = allEx().filter(o => !o.sec.phrases && !inPlan.has(o.ex.id) && !out.has(o.ex.id) && unloggedReady(o.ex).length)
+  const c = allEx().filter(o => !o.sec.phrases && !inPlan.has(o.ex.id) && !out.has(o.ex.id) && !skipToday('ex', o.ex.id) && unloggedReady(o.ex).length)
     .map(o => ({ o, s: days(secLast.get(o.sec.id)) * 100 + days(p.touched['x:' + o.ex.id]) + Math.random() * 100 - (planSecs.has(o.sec.id) ? 1e5 : 0) })).sort((a, b) => b.s - a.s)[0];
   if (!c) return null; const ks = unloggedReady(c.o.ex);
   return { t: 'ex', id: c.o.ex.id, key: ks[Math.floor(Math.random() * ks.length)], nu: 1 };
@@ -3292,8 +3296,8 @@ const A = {
   openTune: el => openTuneSheet(el.dataset.id),
   openPlan: el => el.dataset.t === 'ex' ? sheetEx(el.dataset.id, el.dataset.k) : el.dataset.t === 'lick' ? sheetLick(el.dataset.id) : openTuneSheet(el.dataset.id),
   replan: () => { makePlan(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan.items.filter(planItemDone) : []); save(); render(); },
-  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it?.floor) S.plan.floorOut = [...(S.plan.floorOut || []), it.id]; if (it?.nu) S.plan.newOut = [...(S.plan.newOut || []), it.id]; if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
-  planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i];
+  planDel: el => { const [it] = S.plan.items.splice(+el.dataset.i, 1); if (it) S.plan.out = [...(S.plan.out || []), it.t + ':' + it.id]; if (it?.floor) S.plan.floorOut = [...(S.plan.floorOut || []), it.id]; if (it?.nu) S.plan.newOut = [...(S.plan.newOut || []), it.id]; if (it?.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + it.id + '|' + it.key]; save(); render(); },
+  planSwap: el => { const i = +el.dataset.i, cur = S.plan.items[i]; S.plan.out = [...(S.plan.out || []), cur.t + ':' + cur.id];
     if (cur.cons) S.plan.consOut = [...(S.plan.consOut || []), 'e:' + cur.id + '|' + cur.key];
     if (cur.floor) S.plan.floorOut = [...(S.plan.floorOut || []), cur.id];
     if (cur.nu) S.plan.newOut = [...(S.plan.newOut || []), cur.id];

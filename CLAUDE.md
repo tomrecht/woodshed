@@ -46,6 +46,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - New keys: `newTopUp`/`pickNew` (least recently worked category first) keep an open plan item in a not-yet-logged key of an ordinary exercise (not a phrase section) on
   today's plan whenever one exists (tagged `nu`; one taken off stays off that day: `S.plan.newOut`); a second one
   (`NEW_MIN` 2) is added while the plan has fewer than `PLAN_MAX` (7) items.
+- Suggestions (`pickFor`, `pickNew`, `pickFloor`) skip anything practised today and anything taken off today's plan with ✕/⇄
+  (`S.plan.out`, `'t:id'`; `skipToday`).
 - Every day's plan gets one ii–V–I phrase (`pickPhrase`, the one practised longest ago; `S.plan.ph` marks it done for the day).
 - Stretch reminder: every `S.settings.stretchMin` (default 30, 0 = off) minutes of running session time (`S.session.brk` = session ms at the last one);
   `stretchCheck` (from `tickSession`) waits while a sheet is open or anything plays, so it never interrupts an exercise.
