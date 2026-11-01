@@ -27,6 +27,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - Neff bebop exercise (`NEFF`, "Bebop dom. Neff ex. 1-12"): its sheet shows Steve Neff's *Mastering the Dominant Bebop Scale* ex. 1–12
   (`NEFF_ABC`, transcribed from the owner's photos, written in G7) with Exercise and Key pickers; `neffRender` transposes
   by `phraseShift` (octave kept in the sax range); the chosen exercise is `S.settings.neffN`.
+  Since libRev 14 also "Bebop minor ii–V Neff ex. 1-12" (`NEFF_MIN`, `NEFF_MIN_ABC`, written K:F = ii–V to Dm, keys `MIN` named by
+  the minor tonic). Both go through `NEFF_BOOKS` / `neffBook(ex)` (`abc`, written `sig`, `home` key, `keys`, settings key `set`, `label`).
 - Audio: notes, drums and phrase melody are created ~3 s before they sound (`soon()` queue, cleared by `earStop`), not all up
   front – hundreds of scheduled sources made phones crackle. New playback code should go through `soon()` too.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).

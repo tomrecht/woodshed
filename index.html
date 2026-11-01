@@ -353,7 +353,15 @@ const NEFF = 'Bebop dom. Neff ex. 1-12';
 // Steve Neff, Mastering the Dominant Bebop Scale (G7), exercises 1–12 as written (ABC body, K:C, L:1/8, 4/4).
 // Shown in the key chosen in the exercise sheet (G = as written).
 const NEFF_ABC = ["GABc def^f | g^f=fe dcBA | Bcde f^fga | bag^f =fedc |\ndef^f gabc' | d'c'ba g^f=fe | f^fga bc'd'e' | f'e'd'c' bag^f |\ng8 |]", "g^f=fe dcBc | dcBA G4 | bag^f =fede | fedc B4 |\nd'c'ba g^f=f^f | g^f=fe d4 | fedc BAGA | BAG^F =F4 |]", "g^f=fe defe | dcBA G4 | bag^f =f^fgf | fedc B4 |\nd'c'ba gaba | g^f=fe d4 | fedc Bcdc | BAG^F =F4 |]", "gaba g^f=fe | dcBc dcB2 | bc'd'c' bag^f | fede fed2 |\ndefe dcBA | G^F=F^F GF=F2 | f^fgf =fedc | BAGA BAG2 |]", "GABc dcBc | def^f g4 | Bcde fede | f^fga b4 |\nDEF^F GF=F^F | GABc d4 | F^FGA BAGA | Bcde f4 |]", "BAGA Bcde | fede f^fg2 | dcBc def^f | g^f=f^f gab2 |\nfede f^fga | baga bc'd'2 | G^F=F^F GABc | dcBc def2 |]", "G^F=FE DEF^F | GABc d4 | BAG^F =F^FGA | Bcde f4 |\ndcBA GABc | def^f g4 | fedc Bcde | f^fga b4 |]", "GABc defe | def^f g4 | Bcde f^fgf | f^fga b4 |\ndef^f gaba | gabc' d'4 | F^FGA Bcdc | Bcde f4 |]", "g^f=f^f gf=fe | dcBA G4 | baga bag^f | fedc B4 |\nd'c'bc' d'c'ba | g^f=fe d4 | fede fedc | BAG^F =F4 |]", "GABA GABc | dcBc def2 | Bcdc Bcde | fede f^fg2 |\nDEFE DEF^F | G^F=F^F GAB2 | F^FGF =F^FGA | BAGA Bcd2 |]", "G^F=FE D4 | BAG^F =F4 | dcBA G4 | fedc B4 |\ng^f=fe d4 | bag^f =f4 | d'c'ba g4 |]", "GABc d4 | Bcde f4 | def^f g4 | f^fga b4 |\ngabc' d'4 | bc'd'e' f'4 |]"];
-const isNeff = ex => ex.neff || ex.name === NEFF;
+const NEFF_MIN = 'Bebop minor ii–V Neff ex. 1-12';
+// Steve Neff, Mastering the E–7♭5 A7♭9 Bebop Scale, exercises 1–12 as written (K:F, i.e. ii–V to D minor).
+const NEFF_MIN_ABC = ["AB^cd efg^g | a_agf ed^cB | ^cdef g^gab | ^c'ba_a gfed |\nEFG^G AB^cd | ed^cB A_AGF | G^GAB ^cdef | gfed ^cBA^G |\nA8 |]", "a_agf ed^cd | ed^cB A4 | ^c'ba_a gfef | gfed ^c4 |\ned^cB A_AG^G | A_AGF E4 | gfed ^cBAB | ^cBA_A G4 |]", "a_agf efgf | ed^cB A4 | ^c'ba_a g^g=a_a | gfed ^c4 |\ned^cB ABcB | A_AGF E4 | gfed ^cded | ^cBA_A G4 |]", "ab^c'b a_agf | ed^cd e4 | ^cded cBA_A | GFEF G4 |\nefgf ed^cB | A_AG^G =A4 | g^ga_a =gfed | ^cBAB c4 |]", "AB^cd edcd | efg^g a4 | ^cdef gfef | g^gab ^c'4 |\nEFG^G A_A=G^G | AB^cd e4 | G^GAB ^cBAB | ^cdef g4 |]", "^cBAB cdef | gfef g4 | ed^cd efg^g | a_ag^g =a4 |\nGFEF G^GAB | ^cBAB c4 | A_AG^G =AB^cd | ed^cd e4 |]", "A_AGF EFG^G | AB^cd e4 | ^cBA_A G^G=AB | ^cdef g4 |\ned^cB ABcd | efg^g a4 | gfed ^cdef | g^gab ^c'4 |]", "AB^cd efgf | efg^g a4 | ^cdef g^ga_a | g^gab ^c'4 |\nEFG^G AB^cB | AB^cd e4 | G^GAB ^cded | ^cdef g4 |]", "a_ag^g =a_a=gf | ed^cB A4 | ^c'bab c'ba_a | gfed ^c4 |\ned^cd edcB | A_AGF E4 | gfef gfed | ^cBA_A G4 |]", "AB^cB ABcd | ed^cd e4 | ^cded cdef | gfef g4 |\nEFGF EFG^G | A_AG^G =A4 | G^GA_A =G^G=AB | ^cBAB c4 |]", "A_AGF E4 | ^cBA_A G4 | ed^cB A4 | gfed ^c4 |\na_agf e4 | ^c'ba_a g4 |]", "AB^cd e4 | ^cdef g4 | efg^g a4 | G^GAB ^c4 |\nAB^cd e4 | ^cdef g4 |]"];
+// The Neff books: notation, the key it is written in, the keys it is offered in, how a key is labelled.
+const NEFF_BOOKS = {
+  dom: { abc: NEFF_ABC, sig: 'C', home: 'G', keys: MAJ, set: 'neffN', label: k => k + '7' },
+  min: { abc: NEFF_MIN_ABC, sig: 'F', home: 'D', keys: MIN, set: 'neffNm', label: k => `${k}m · ${MAJ[(PCS[k] + 2) % 12]}–7♭5 ${MAJ[(PCS[k] + 7) % 12]}7♭9` },
+};
+const neffBook = ex => ex.name === NEFF_MIN || ex.neff === 'min' ? NEFF_BOOKS.min : ex.name === NEFF || ex.neff ? NEFF_BOOKS.dom : null;
 const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
 // ii–V–I phrases (ABC notation, written part; see the phrase section further down)
 const PHRASES = [   // built-in phrases: none for now (the owner adds their own)
@@ -385,7 +393,7 @@ function defaultLib() {
       sec('Melodic minor', UDT(MIN)),
       sec('Harmonic minor', UDT(MIN)),
       sec('Arpeggios', [['Major triads – 16ths', MAJ], ['Minor triads – 16ths', MIN], ['Augmented triads – 16ths', AUG], ['Diminished 7ths – 16ths', DIM7]]),
-      sec('Bebop scales', [['Bebop dominant – 16ths', MAJ], ['Bebop major – 16ths', MAJ], [NEFF, MAJ]]),
+      sec('Bebop scales', [['Bebop dominant – 16ths', MAJ], ['Bebop major – 16ths', MAJ], [NEFF, MAJ], [NEFF_MIN, MIN]]),
       sec('Diminished scale', [...UDT(DIMSC), ...DIM_PATTERNS.map(n => [n, DIMSC])]),
       sec('Whole-tone', [...UDT(WT), ...ADA('Triads', WT), ...ADA('Tetrads', WT)]),
       sec('Major triads & tetrads', [...ADA('Triads', MAJ), ...ADA('Tetrads', MAJ)]),
@@ -532,6 +540,11 @@ function migrate() {
     if (!sec) { sec = { id: CB_SEC, name: 'Clarinet: crossing the bridge', ex: [], forInst: 'clarinet', ordered: 1 }; S.lib.sections.push(sec); }
     CLAR_BRIDGE.forEach(([, title], i) => { const id = cbExId(i + 1); if (!sec.ex.some(e => e.id === id)) sec.ex.push({ id, name: (i + 1) + '. ' + title, keys: [...NONE], cb: i + 1 }); });
     S.libRev = 13;
+  }
+  if (S.libRev < 14) {   // Neff minor ii–V bebop exercises
+    const sec = S.lib.sections.find(x => x.id === 'bebop-scales' || x.name.toLowerCase() === 'bebop scales');
+    if (sec && !sec.ex.some(e => e.name === NEFF_MIN)) sec.ex.push({ id: slug('Bebop scales ' + NEFF_MIN), name: NEFF_MIN, keys: [...MIN] });
+    S.libRev = 14;
   }
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -1995,10 +2008,10 @@ function sheetEx(id, planKey) {
       <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
       <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" data-u="${uk(key)}" data-k="${esc(key)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
-  const cb = ex.cb && CLAR_BRIDGE[ex.cb - 1], nf = isNeff(ex), nfK = MAJ.includes(planKey) ? planKey : 'G';
+  const cb = ex.cb && CLAR_BRIDGE[ex.cb - 1], nf = neffBook(ex), nfK = nf && (nf.keys.includes(planKey) ? planKey : nf.home);
   openSheet(`${head(ex.name, sec.name)}
-    ${nf ? `<div class="row wrap" style="gap:8px;margin:4px 0"><label style="display:flex;align-items:center;gap:6px"><small class="muted">Exercise</small><select id="nfN">${NEFF_ABC.map((_, i) => `<option value="${i}" ${i === (S.settings.neffN || 0) ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
-      <label style="display:flex;align-items:center;gap:6px"><small class="muted">Key</small><select id="nfK">${MAJ.map(k => `<option ${k === nfK ? 'selected' : ''}>${esc(k)}7</option>`).join('')}</select></label></div><div id="nfNotes" class="cbnotes"><small class="muted">Loading notation…</small></div>` : ''}
+    ${nf ? `<div class="row wrap" style="gap:8px;margin:4px 0"><label style="display:flex;align-items:center;gap:6px"><small class="muted">Exercise</small><select id="nfN">${nf.abc.map((_, i) => `<option value="${i}" ${i === (S.settings[nf.set] || 0) ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
+      <label style="display:flex;align-items:center;gap:6px"><small class="muted">Key</small><select id="nfK">${nf.keys.map(k => `<option value="${esc(k)}" ${k === nfK ? 'selected' : ''}>${esc(nf.label(k))}</option>`).join('')}</select></label></div><div id="nfNotes" class="cbnotes"><small class="muted">Loading notation…</small></div>` : ''}
     ${ph ? phraseBlock(ex, phK) : ''}
     ${cb ? `<p class="muted" style="margin:4px 0 6px;font-size:.9rem"><small>${esc(cb[0])}</small><br>${esc(cb[2])}</p><div id="cbNotes" class="cbnotes"></div>` : ''}
     <div class="floorbox" id="floorbox">${floorHtml()}</div>
@@ -2011,8 +2024,8 @@ function sheetEx(id, planKey) {
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx + 1) % list.length].ex.id)}">Next →</button></div>
     <div class="row" style="margin-top:8px"><button class="btn sm" data-act="editEx" data-id="${esc(ex.id)}">Edit exercise</button>${ph ? `<button class="btn sm" data-act="editPhrase" data-id="${esc(ex.id)}">Edit notes</button>` : ''}</div>`, phraseStop);
-  if (nf) { const draw = () => neffRender($('#nfNotes'), +$('#nfN').value, $('#nfK').value.replace(/7$/, '')).catch(e => { const el = $('#nfNotes'); if (el) el.innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
-    $('#nfN').addEventListener('change', e => { S.settings.neffN = +e.target.value; save(true); draw(); }); $('#nfK').addEventListener('change', draw); draw(); }
+  if (nf) { const draw = () => neffRender($('#nfNotes'), nf, +$('#nfN').value, $('#nfK').value).catch(e => { const el = $('#nfNotes'); if (el) el.innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
+    $('#nfN').addEventListener('change', e => { S.settings[nf.set] = +e.target.value; save(true); draw(); }); $('#nfK').addEventListener('change', draw); draw(); }
   if (cb) loadAbc().then(A => { const el = $('#cbNotes'); if (el) cbRender(A, el, cb[3]); }).catch(e => { const el = $('#cbNotes'); if (el) el.innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
   if (ph) {
     const draw = () => phraseRender($('#phNotes'), ph, $('#phKey').value).catch(e => { $('#phNotes').innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
@@ -2759,11 +2772,11 @@ async function phraseRender(el, ph, k) {
 function cbRender(A, el, abc) {
   A.renderAbc(el, 'X:1\n' + abc, { responsive: 'resize', add_classes: true, staffwidth: 760, scale: 1.1, paddingtop: 0, paddingbottom: 4, paddingleft: 0, paddingright: 0 });
 }
-// Neff bebop exercise n (0-based) in dominant key k: moved from G7 by the octave that keeps it in the sax range.
-async function neffRender(el, n, k) {
+// Neff exercise n (0-based) of book bk in key k: moved from the written key by the octave that keeps it in the sax range.
+async function neffRender(el, bk, n, k) {
   const g = el._g = (el._g || 0) + 1;   // a later call wins
-  const A = await loadAbc(), ph = { abc: NEFF_ABC[n], key: 'C' }, ps = phraseEvents(A.parseOnly(abcDoc(ph))[0]).notes.map(x => x.p);
-  const s = phraseShift({ key: 'G' }, k, Math.min(...ps), Math.max(...ps));
+  const A = await loadAbc(), ph = { abc: bk.abc[n], key: bk.sig }, ps = phraseEvents(A.parseOnly(abcDoc(ph))[0]).notes.map(x => x.p);
+  const s = phraseShift({ key: bk.home }, k, Math.min(...ps), Math.max(...ps));
   if (!el.isConnected || el._g !== g) return;
   A.renderAbc(el, abcDoc(ph), { visualTranspose: s, responsive: 'resize', add_classes: true, paddingtop: 0, paddingbottom: 4, paddingleft: 0, paddingright: 0, staffwidth: 520, wrap: { minSpacing: 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } });
 }
