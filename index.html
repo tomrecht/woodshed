@@ -1981,10 +1981,12 @@ function sheetEx(id, planKey) {
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
   });
   // metronome comes up when you start on an exercise (not when the sheet is just refreshed)
-  if (!wasLoaded) { const i = exInfo(ex);
-    const k = planKey && ex.keys.includes(planKey) && p.bpm[exKey(ex, planKey)] ? planKey : i.mk || ex.keys[0];
-    metroLoad(exKey(ex, k)); }
+  // opened from a plan item: that key is the one highlighted, even a new key with no tempo yet
+  const pk = planKey && ex.keys.includes(planKey) ? planKey : null;
+  if (pk) metroLoad(exKey(ex, pk));
+  else if (!wasLoaded) metroLoad(exKey(ex, exInfo(ex).mk || ex.keys[0]));
   M.loadedFor = id; markKey();
+  if (pk && ex.keys.length > 1) { const r = $(`#panel label.krow[data-key="${CSS.escape(exKey(ex, pk))}"]`); if (r) setTimeout(() => r.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80); }
 }
 
 // the highlighted key row is the one the metronome is on (floor key on opening; ▶ on a row moves it)
