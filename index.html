@@ -144,7 +144,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .lcard .im img{width:100%;height:100%;object-fit:cover;object-position:left center}
 .lcard .t{padding:8px 10px;display:flex;justify-content:space-between;gap:6px}
 .lickimg{background:#fff;border-radius:10px;width:100%;display:block;margin:8px 0}
-.sheetmusic{margin:10px 0}.recbeat{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);margin:0 4px}.recbeat.on{background:var(--accent)}.recbeat.one{background:#e0675f}.phnotes{background:#fff;color:#111;border-radius:8px;padding:6px;margin-top:8px;min-height:40px}.phnotes svg{display:block}.cbar.playing{outline:2px solid var(--accent);outline-offset:-2px;background:color-mix(in srgb,var(--accent) 15%,transparent)}.smpage{position:relative}.smdel{position:absolute;top:14px;right:6px;background:var(--surface2)}
+.sheetmusic{margin:10px 0}.recbeat{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);margin:0 4px}.recbeat.on{background:var(--accent)}.recbeat.one{background:#e0675f}.phnotes{background:#fff;color:#111;border-radius:8px;padding:6px;margin-top:8px;min-height:40px}.phnotes svg{display:block}.cbnotes{background:#fff;color:#111;border-radius:8px;padding:6px;margin:4px 0 10px}.cbnotes svg{display:block}.cbar.playing{outline:2px solid var(--accent);outline-offset:-2px;background:color-mix(in srgb,var(--accent) 15%,transparent)}.smpage{position:relative}.smdel{position:absolute;top:14px;right:6px;background:var(--surface2)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:6px 12px;white-space:nowrap;font-size:.9rem}
 .swatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0;flex:none}.swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
@@ -362,6 +362,11 @@ const abcBarCount = abc => (abc || '').split(/\|\]|\||::|:\|/).filter(b => /[A-G
 const phraseLenOf = ex => abcBarCount(ex.abc || ((PHRASES.find(p => p.id === ex.phrase) || {}).abc));
 const phraseSecFor = (n, minor) => S.lib.sections.find(x => x.phrases && x.len === (n > 2 ? 4 : 2) && !x.minor === !minor);
 const PHRASE_SECS = [['ii-v-i-phrases', 'ii–V–I phrases', null, p => p.key === 'C'], ['ii-v-i-phrases-minor', 'ii–V–i phrases (minor)', null, p => p.key === 'Cm']];
+// Clarinet: crossing the bridge – 50 exercises (tools/bridge_book, also books/*.pdf). [book section, title, note, ABC]; written pitch.
+// Shown only for instruments named "…clarinet…" (sec.forInst) and offered in order (sec.ordered): see readyKeys.
+const CLAR_BRIDGE = [["Foundations", "Long-tone slurs across the break", "Half notes, ♩ = 60. Slur each pair without a gap. Keep the air fast and the voicing (tongue position) high on the throat note so the clarion note pops out without a bump. Right-hand fingers stay down on the throat tones.", "M:4/4\nL:1/8\nK:C\n(A4 B4) | (B4 A4) | (_B4 =B4) | (B4 _B4) | (A4 c4) |\n(c4 A4) | (G4 B4) | (B4 G4) | (^G4 B4) | (B4 ^G4) |\n(_B4 c4) | (c4 _B4) | (A4 d4) | (d4 A4) | (G4 c4) |\nc8 |]"], ["Foundations", "Right hand down: throat tones", "Play the throat tones with all three right-hand fingers (and the little finger on the low B/C key if comfortable) held down. Pitch and tone usually improve, and the clarion note is then only a left-hand move away. Compare one bar 'hands off', one bar 'right hand down'.", "M:4/4\nL:1/8\nK:C\nG4 A4 | _B4 A4 | G2 A2 _B2 A2 | G8 | (A2 B2 A2 B2) |\n(_B2 =B2 _B2 =B2) | (A2 c2 A2 c2) | B8 |]"], ["Foundations", "Twelfths: chalumeau to clarion", "Finger the low note, add the register key, and the instrument jumps a twelfth into the clarion. Slur each pair; the low note should not change shape or embouchure when the thumb opens the register key. This trains the air support every bridge crossing needs.", "M:4/4\nL:1/8\nK:C\n(E,4 B4) | (F,4 c4) | (^F,4 ^c4) | (G,4 d4) | (^G,4 ^d4) |\n(A,4 e4) | (_B,4 f4) | (B,4 ^f4) | (C4 g4) | (^C4 ^g4) |\n(D4 a4) | C8 |]"], ["Foundations", "Leaps from the throat into the clarion", "Quarter notes, slurred. Each leap starts on a throat tone and lands on a clarion note. Aim for the top note with air, not jaw pressure.", "M:4/4\nL:1/8\nK:C\n(G2 d2 G2 e2) | (A2 d2 A2 e2) | (_B2 =d2 _B2 f2) | (A2 c2 A2 B2) | (G2 c2 A2 d2) |\n(_B2 =c2 A2 B2) | (G2 e2 A2 f2) | g8 |]"], ["Foundations", "Bridge tremolos I", "Sixteenth notes, start ♩ = 50. Alternate across the break as evenly as possible. Move all fingers together; listen for any 'blip' between the notes.", "M:4/4\nL:1/16\nK:C\n(ABAB ABAB ABAB ABAB) | (A8 B8) | (^GBGB GBGB GBGB GBGB) | (^G8 B8) | (_Bc_Bc _Bc_Bc _Bc_Bc _Bc_Bc) |\n(_B8 c8) | (AcAc AcAc AcAc AcAc) | (A8 c8) |]"], ["Foundations", "Bridge tremolos II", "Wider tremolos. The throat note's right hand stays down throughout, so only the left hand and thumb move.", "M:4/4\nL:1/16\nK:C\n(GcGc GcGc GcGc GcGc) | (G8 c8) | (AdAd AdAd AdAd AdAd) | (A8 d8) | (_Bd_Bd _Bd_Bd _Bd_Bd _Bd_Bd) |\n(_B8 =d8) | (GdGd GdGd GdGd GdGd) | (G8 d8) |]"], ["Chromatic", "Chromatic: G4 to D5", "Eighth notes, slurred, ♩ = 60 → 120. The core of the bridge. Use the right-hand side key for B♭/A♯ only if your teacher prefers; otherwise use the standard throat fingering with the right hand down.", "M:4/4\nL:1/8\nK:C\n(G^GA^A Bc^cd) | (_dcB_B A_AG^G) | (A^ABc ^cd_d=c) | B_BA_A G4 |]"], ["Chromatic", "Chromatic: E4 to G5", "A wider chromatic sweep. Keep the tone the same colour from the bottom to the top; the break should be invisible.", "M:4/4\nL:1/8\nK:C\n(EF^FG ^GA^AB) | (c^cd^d ef^fg) | (_gfe_e d_dcB) | _BA_AG _GFE2 |]"], ["Chromatic", "Chromatic groups of four", "Each group of four starts a half step higher, then a half step lower on the way down. Slur in groups of four, then all tongued.", "M:4/4\nL:1/8\nK:C\n(F^FG^G F=G^GA) | (G^GA^A G=A^AB) | (A^ABc ABc^c) | (Bc^cd =c^cd^d) | (d_dcB dcB_B) |\n(cB_BA =B_BA_A) | (_BA_AG =A_AG_G) | F8 |]"], ["Chromatic", "Chromatic neighbour notes", "Upper and lower chromatic neighbours around every note of the bridge. Many of these cross the break twice per beat.", "M:4/4\nL:1/8\nK:C\n(G^G=G^F ^GAG=G) | (A^A=A^G ^ABA=A) | (BcB^A c^c=cB) | (^cdc=c d^d=d^c) | d8 |]"], ["Chromatic", "Chromatic triplets", "Compound meter, three notes per beat. Accent the first of each group lightly so the groupings fall in different places on the instrument.", "M:12/8\nL:1/8\nK:C\n(^FG^G A^AB c^cd ^def) | e_ed _dcB _BA_A G^F2 |]"], ["Chromatic", "Chromatic minor thirds", "Pairs of minor thirds rising by half steps. A demanding finger-coordination drill: go slowly.", "M:4/4\nL:1/8\nK:C\n(EGF^G FG^FA) | (^FAG^A GA^GB) | (^GBAc Ac^A^c) | (^A^cBd Bd=c^d) | (dB_d_B dBcA) |\n(cAB_A BA_BG) | (_BGA_G AG_AF) | (_AFGE GE_G_E) | E8 |]"], ["Scales in seconds", "C major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:C\n(CDEF GABc) | (defg fedc) | (BAGF EDCD) | (EFGA Bcde) | (fgfe dcBA) |\nGFED C4 |]"], ["Scales in seconds", "G major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:G\n(G,A,B,C DEFG) | (ABcd cBAG) | (FEDC B,A,G,A,) | (B,CDE FGAB) | (cdcB AGFE) |\nDCB,A, G,4 |]"], ["Scales in seconds", "F major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:F\n(F,G,A,B, CDEF) | (GABc BAGF) | (EDCB, A,G,F,G,) | (A,B,CD EFGA) | (BcBA GFED) |\nCB,A,G, F,4 |]"], ["Scales in seconds", "D major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:D\n(DEFG ABcd) | (efga gfed) | (cBAG FEDE) | (FGAB cdef) | (gagf edcB) |\nAGFE D4 |]"], ["Scales in seconds", "B♭ major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:Bb\n(B,CDE FGAB) | (cdef edcB) | (AGFE DCB,C) | (DEFG ABcd) | (efed cBAG) |\nFEDC B,4 |]"], ["Scales in seconds", "A major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:A\n(A,B,CD EFGA) | (Bcde dcBA) | (GFED CB,A,B,) | (CDEF GABc) | (dedc BAGF) |\nEDCB, A,4 |]"], ["Scales in seconds", "E♭ major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:Eb\n(EFGA Bcde) | (fgab agfe) | (dcBA GFEF) | (GABc defg) | (abag fedc) |\nBAGF E4 |]"], ["Scales in seconds", "E major scale over the break", "Two times through, slurred; then tongued. Hold the top and bottom notes steady in pitch. ♩ = 60 → 132.", "M:4/4\nL:1/8\nK:E\n(EFGA Bcde) | (fgab agfe) | (dcBA GFEF) | (GABc defg) | (abag fedc) |\nBAGF E4 |]"], ["Thirds", "Thirds in C major", "Broken thirds up and down. Many pairs straddle the break: make each pair a single gesture.", "M:4/4\nL:1/8\nK:C\n(CEDF EGFA) | (GBAc Bdce) | (ecdB cABG) | (AFGE FDEC) | C8 |]"], ["Thirds", "Thirds in G major", "Broken thirds up and down. Many pairs straddle the break: make each pair a single gesture.", "M:4/4\nL:1/8\nK:G\n(GBAc Bdce) | (dfeg fagb) | (bgaf gefd) | (ecdB cABG) | G8 |]"], ["Thirds", "Thirds in F major", "Broken thirds up and down. Many pairs straddle the break: make each pair a single gesture.", "M:4/4\nL:1/8\nK:F\n(FAGB AcBd) | (cedf egfa) | (afge fdec) | (dBcA BGAF) | F8 |]"], ["Thirds", "Thirds in D major", "Broken thirds up and down. Many pairs straddle the break: make each pair a single gesture.", "M:4/4\nL:1/8\nK:D\n(DFEG FAGB) | (AcBd cedf) | (fdec dBcA) | (BGAF GEFD) | D8 |]"], ["Thirds", "Thirds in B♭ major", "Broken thirds up and down. Many pairs straddle the break: make each pair a single gesture.", "M:4/4\nL:1/8\nK:Bb\n(B,DCE DFEG) | (FAGB AcBd) | (dBcA BGAF) | (GEFD ECDB,) | B,8 |]"], ["Thirds", "Thirds in A major", "Broken thirds up and down. Many pairs straddle the break: make each pair a single gesture.", "M:4/4\nL:1/8\nK:A\n(A,CB,D CEDF) | (EGFA GBAc) | (cABG AFGE) | (FDEC DB,CA,) | A,8 |]"], ["Harmonic minor", "A harmonic minor", "The raised seventh adds an awkward augmented second; several fall right at the break.", "M:4/4\nL:1/8\nK:Am\n(A,B,CD EF^GA) | (BcBA ^GFED) | (CB,A,B, CDEF) | (^GABc BAGF) | EDCB, A,4 |]"], ["Harmonic minor", "E harmonic minor", "The raised seventh adds an awkward augmented second; several fall right at the break.", "M:4/4\nL:1/8\nK:Em\n(EFGA Bc^de) | (fgfe ^dcBA) | (GFEF GABc) | (^defg fedc) | BAGF E4 |]"], ["Harmonic minor", "D harmonic minor", "The raised seventh adds an awkward augmented second; several fall right at the break.", "M:4/4\nL:1/8\nK:Dm\n(DEFG AB^cd) | (efed ^cBAG) | (FEDE FGAB) | (^cdef edcB) | AGFE D4 |]"], ["Harmonic minor", "G harmonic minor", "The raised seventh adds an awkward augmented second; several fall right at the break.", "M:4/4\nL:1/8\nK:Gm\n(GABc de^fg) | (abag ^fedc) | (BAGA Bcde) | (^fgab agfe) | dcBA G4 |]"], ["Patterns", "1-2-3-4 in C major", "Four-note scale groups, each starting one step higher.", "M:4/4\nL:1/8\nK:C\n(CDEF DEFG) | (EFGA FGAB) | (GABc ABcd) | (Bcde edcB) | (dcBA cBAG) |\n(BAGF AGFE) | (GFED FEDC) | C8 |]"], ["Patterns", "1-2-3-5 in G major", "A classic pattern; the skip at the end of each group often lands across the break.", "M:4/4\nL:1/8\nK:G\n(GABd ABce) | (Bcdf cdeg) | (defa efgb) | (bage agfd) | (gfec fedB) |\n(edcA dcBG) | G8 |]"], ["Patterns", "1-2-3-1 in F major", "Each group returns to its starting note. Watch the B♭–C–A and similar groups.", "M:4/4\nL:1/8\nK:F\n(FGAF GABG) | (ABcA BcdB) | (cdec defd) | (efge fgaf) | (agfa gfeg) |\n(fedf edce) | (dcBd cBAc) | (BAGB AGFA) | F8 |]"], ["Patterns", "1-3-2-4 in D major", "Broken thirds inside a four-note group.", "M:4/4\nL:1/8\nK:D\n(DFEG EGFA) | (FAGB GBAc) | (AcBd Bdce) | (cedf fdec) | (ecdB dBcA) |\n(cABG BGAF) | (AFGE GEFD) | D8 |]"], ["Patterns", "Triads on every degree in C", "Compound meter. Each triad crosses the break at least once in the middle of the range.", "M:12/8\nL:1/8\nK:C\n(CEG DFA EGB FAc) | (GBd Ace ecA dBG) | (cAF BGE AFD GEC) | C12 |]"], ["Patterns", "Triads on every degree in B♭", "As above, in B♭ — the throat B♭ to clarion C/D is the hard spot.", "M:12/8\nL:1/8\nK:Bb\n(B,DF CEG DFA EGB) | (FAc GBd dBG cAF) | (BGE AFD GEC FDB,) | B,12 |]"], ["Patterns", "Seventh chords in G major", "Four-note arpeggios on each degree. Keep fingers close to the keys.", "M:4/4\nL:1/8\nK:G\n(GBdf Aceg) | (Bdfa cegb) | (bgec afdB) | (gecA fdBG) | G8 |]"], ["Patterns", "Fourths in F major", "Broken fourths. Every pair should sound as smooth as a step.", "M:4/4\nL:1/8\nK:F\n(FBGc AdBe) | (cfdg eafb) | (bfae gdfc) | (eBdA cGBF) | F8 |]"], ["Patterns", "Fifths in C major", "Broken fifths: a bigger leap means more air, not more lip.", "M:4/4\nL:1/8\nK:C\n(CGDA EBFc) | (GdAe Bfcg) | (gcfB eAdG) | (cFBE ADGC) | C8 |]"], ["Patterns", "Sixths in D major", "Broken sixths up and down.", "M:4/4\nL:1/8\nK:D\n(DBEc FdGe) | (AfBg caac) | (gBfA eGdF) | cEBD D4 |]"], ["Patterns", "Octaves in G major", "Low note in the chalumeau or throat, high note in the clarion. Keep the throat open on the top note.", "M:4/4\nL:1/8\nK:G\n(G,GA,A B,BCc) | (DdEe eEdD) | (cCBB, AA,GG,) | G,8 |]"], ["Patterns", "Turns in A major", "Neighbour-note turns around each scale degree. Ideal for evening out G♯–A–B–C♯.", "M:4/4\nL:1/8\nK:A\n(A,B,A,G, B,CB,A,) | (CDCB, DEDC) | (EFED FGFE) | (GAGF ABAG) | (BcBA cBcd) |\n(BABc AGAB) | (GFGA FEFG) | (EDEF DCDE) | (CB,CD B,A,B,C) | A,8 |]"], ["Patterns", "Rocking pattern in E♭ major", "1-2-3-2 groups. Lots of throat-to-clarion back-and-forth.", "M:4/4\nL:1/8\nK:Eb\n(EFGF FGAG) | (GABA ABcB) | (Bcdc cded) | (defe efgf) | (gfef fede) |\n(edcd dcBc) | (cBAB BAGA) | (AGFG GFEF) | E8 |]"], ["Patterns", "Broken triads in E major", "1-3-5-3 shapes. E major puts G♯, A and B right at the break.", "M:4/4\nL:1/8\nK:E\n(EGBG FAcA) | (GBdB Acec) | (Bdfd cege) | (gece fdBd) | (ecAc dBGB) |\n(cAFA BGEG) | E8 |]"], ["Symmetric scales", "Whole-tone scale", "Whole steps from F4 to F5 and back, twice. The A–B and B–C♯ steps are the challenge.", "M:4/4\nL:1/8\nK:C\n(FGAB ^c^df_e) | (_dBAG FGAB) | (^c^df_e _dBAG) | F8 |]"], ["Symmetric scales", "Diminished arpeggios", "Stacked minor thirds starting on E, F, F♯ and G. Every arpeggio crosses the break.", "M:4/4\nL:1/8\nK:C\n(EG^A^c e_d_BG) | (F^GBd fdB_A) | (^FAc^d ^f_ecA) | (G^A^ce ge_d_B) | E8 |]"], ["Études", "Étude 1 — Bridge Waltz", "Legato, ♩ = 112. In F major the throat B♭ moves straight to clarion C again and again. Keep the right hand down on every B♭ and A.", "M:3/4\nL:1/8\nK:F\n(c2 A2 B2 | c4) d2 | (e2 d2 c2 | B4 A2) | (G2 A2 B2 |\nc2 d2 e2 | f4 e2 | d6) | (A2 c2 =B2 | c4 A2) |\n(B2 d2 c2 | A4 F2) | (G2 B2 d2 | c2 A2 B2 | A2 G2 E2 |\nF6) |]"], ["Études", "Étude 2 — Song over the bridge", "Singing tone, ♩ = 72. The melody lives right on the break; make every interval sound like it belongs to one voice.", "M:4/4\nL:1/8\nK:G\n(G2 A2 B2 c2 | d4 B4) | (A2 B2 c2 d2 | B4 G4) | (A2 c2 B2 d2 |\nc2 e2 d2 B2) | (A2 B2 G2 A2 | B8) | (d2 c2 B2 A2 | B2 c2 d4) |\n(e2 d2 c2 B2 | A2 G2 A4) | (B2 A2 B2 c2 | d2 B2 c2 A2) | (B2 A2 F2 A2 |\nG8) |]"], ["Études", "Étude 3 — Running eighths", "♩. = 76 → 116. In D major the B–C♯ crossing comes in nearly every bar. Slur two bars, then tongue two bars.", "M:6/8\nL:1/8\nK:D\n(ABc dcB | ABc d3) | (edc Bcd | c3 A3) | (Bcd edc |\nBAB cBA) | (GAB cBA | B3 A3) | (dcB ABc | def edc) |\n(Bcd cBA | B3 c3) | (dBG ABc | dcB AGF) | (EFG ABc |\nd6) |]"], ["Études", "Étude 4 — Minor lament", "♩ = 66, espressivo. D minor brings the throat B♭ against clarion C♯ — a tricky augmented second across the break.", "M:4/4\nL:1/8\nK:Dm\n(A2 B2 ^c2 d2 | e4 d2 ^c2) | (d2 B2 A2 G2 | A6) z2 | (F2 A2 d2 ^c2 |\nB2 A2 B2 ^c2) | (d2 e2 f2 e2 | d6) z2 | (f2 e2 d2 ^c2 | B2 ^c2 d2 B2) |\n(A2 B2 A2 G2 | F4 E4) | (D2 F2 A2 d2 | ^c2 B2 A2 G2) | (F2 E2 ^C2 E2 |\nD8) |]"]];
+const CB_SEC = 'clarinet-bridge';
+const cbExId = n => 'cb-' + n;
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
 
@@ -518,6 +523,12 @@ function migrate() {
       mn.ex.push(...x.ex.filter(e => isMinorKey(e.abcKey))); x.ex = x.ex.filter(e => !isMinorKey(e.abcKey)); }
     S.libRev = 12;
   }
+  if (S.libRev < 13) {   // clarinet bridge exercises
+    let sec = S.lib.sections.find(x => x.id === CB_SEC);
+    if (!sec) { sec = { id: CB_SEC, name: 'Clarinet: crossing the bridge', ex: [], forInst: 'clarinet', ordered: 1 }; S.lib.sections.push(sec); }
+    CLAR_BRIDGE.forEach(([, title], i) => { const id = cbExId(i + 1); if (!sec.ex.some(e => e.id === id)) sec.ex.push({ id, name: (i + 1) + '. ' + title, keys: [...NONE], cb: i + 1 }); });
+    S.libRev = 13;
+  }
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
   if (!S.earShared) {
@@ -585,8 +596,11 @@ function save(quiet) {
 }
 const P = () => S.prog[S.cur];
 const allTags = () => [...new Set(S.lib.tunes.flatMap(t => splitTags(t.tags)))].sort();
-const allEx = () => S.lib.sections.flatMap(sec => sec.ex.map(ex => ({ sec, ex })));
-const findEx = id => allEx().find(o => o.ex.id === id);
+// Categories for the current instrument: one with forInst only shows on instruments whose name contains it (e.g. clarinet).
+const secShown = sec => !sec.forInst || (curInst()?.name || '').toLowerCase().includes(sec.forInst);
+const libSecs = () => S.lib.sections.filter(secShown);
+const allEx = () => libSecs().flatMap(sec => sec.ex.map(ex => ({ sec, ex })));
+const findEx = id => { for (const sec of S.lib.sections) { const ex = sec.ex.find(e => e.id === id); if (ex) return { sec, ex }; } };
 const exKey = (ex, k) => 'e:' + ex.id + '|' + k;
 
 /* ---------- images (IndexedDB) ---------- */
@@ -1034,7 +1048,7 @@ const CHALLENGES = [
   { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(EARS().trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
   { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
   { id: 'sections', text: g => `Work on exercises from ${g} different categories`, goal: 5, goalFn: secGoal, prog: (p, ws) => secsThisWeek(p, ws).size,
-    detail: (p, ws) => { const done = secsThisWeek(p, ws); return S.lib.sections.filter(sec => sec.ex.length).sort((a, b) => done.has(b.id) - done.has(a.id))
+    detail: (p, ws) => { const done = secsThisWeek(p, ws); return libSecs().filter(sec => sec.ex.length).sort((a, b) => done.has(b.id) - done.has(a.id))
       .map(sec => `<span class="chip ${done.has(sec.id) ? 'on' : ''}">${done.has(sec.id) ? '✓ ' : ''}${esc(sec.name)}</span>`).join(''); } },
   { id: 'licks', text: 'Practise 4 different licks', goal: 4, prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
   { id: 'review', text: 'Do 2 tune reviews (or start learning a new tune)', goal: 2, prog: (p, ws) => Object.values(p.tunes).filter(r => (r.rv?.last || 0) >= ws).length },
@@ -1047,7 +1061,7 @@ function secGoal(p, ws) {
     if (t < ws && w < 4 && id) weeks[w].add(id); };
   for (const x of p.sessions) for (const k of x.items || []) add(x.start, k);
   for (const h of p.hist) add(h.t, h.k);
-  const all = S.lib.sections.filter(sec => sec.ex.length).length;
+  const all = libSecs().filter(sec => sec.ex.length).length;
   return Math.max(1, Math.min(all, Math.max(8, Math.max(...weeks.map(w => w.size)) + 2)));
 }
 function weekChallenge(p = P()) {
@@ -1136,7 +1150,7 @@ function badgeList() {
     ['ear50', '🎧', 'Good ears', '50 ear-training answers right', earOk >= 50],
     ['ear250', '👂', 'Big ears', '250 ear-training answers right', earOk >= 250],
     ['inst2', '🎺', 'Doubler', 'Add a second instrument', S.inst.length >= 2],
-    ...S.lib.sections.map(sec => ['sec:' + sec.id, '🏆', sec.name, 'Category complete – every exercise in every key', secDone(sec)]),
+    ...libSecs().map(sec => ['sec:' + sec.id, '🏆', sec.name, 'Category complete – every exercise in every key', secDone(sec)]),
   ];
   return B.map(([id, ic, name, desc, ok]) => ({ id, ic, name, desc, ok }));
 }
@@ -1200,7 +1214,11 @@ function dirPrev(ex) {
   const m = /^(.*) – (Descending|Alternating)$/.exec(ex.name), o = m && findEx(ex.id); if (!o) return null;
   return o.sec.ex.find(e => e.name === m[1] + ' – ' + DIR_ORDER[DIR_ORDER.indexOf(m[2]) - 1]) || null;
 }
+// In an ordered category (sec.ordered) only exercises up to the first one with a key not yet logged are offered.
+const nextInOrder = sec => sec.ex.find(e => e.keys.some(k => P().bpm[exKey(e, k)] == null));
 function readyKeys(ex) {
+  const o = ex.cb && findEx(ex.id);
+  if (o && o.sec.ordered) { const nx = nextInOrder(o.sec); if (nx && o.sec.ex.indexOf(ex) > o.sec.ex.indexOf(nx)) return []; }
   const prev = dirPrev(ex), p = P();
   return prev ? ex.keys.filter(k => p.bpm[exKey(prev, k)] != null) : ex.keys;
 }
@@ -1711,10 +1729,10 @@ function vExReorder() {
 function vEx() {
   if (reorderMode) return vExReorder();
   return `<div class="row" style="margin-bottom:12px"><input type="search" id="exFilter" placeholder="Filter exercises…" class="grow"><button class="btn sm" data-act="gotoTab" data-tab2="grid">Table entry</button>${reorderBtn()}</div>` +
-    S.lib.sections.map(sec => {
+    libSecs().map(sec => {
       const full = sec.ex.filter(ex => exInfo(ex).full).length;
       return `<details class="sec" data-sec="${esc(sec.id)}" ${openSecs.has(sec.id) ? 'open' : ''}><summary><span class="grow"><b>${esc(sec.name)}</b>${secDone(sec) ? '<span class="donebadge">✓ complete</span>' : ''}</span><small>${full}/${sec.ex.length}</small></summary>
-      <div class="body">${sec.ex.map(exRow).join('')}
+      <div class="body">${sec.ordered ? `<p class="muted" style="margin:0 0 8px;font-size:.9rem">Practise in order${nextInOrder(sec) ? ' – next: <b>' + esc(nextInOrder(sec).name) + '</b>' : ' – all done'}.</p>` : ''}${sec.ex.map(exRow).join('')}
       <div class="row"><button class="btn ghost" data-act="${isPhraseSec(sec) ? 'addPhrase' : 'addEx'}" data-sec="${esc(sec.id)}">${isPhraseSec(sec) ? '+ Phrase' : '+ Exercise'}</button><button class="btn ghost" data-act="editSec" data-sec="${esc(sec.id)}">Edit category</button></div></div></details>`;
     }).join('') + `<button class="btn ghost" data-act="addSec">+ Add category</button>`;
 }
@@ -1723,7 +1741,7 @@ const TRIO_DIRS = ['Ascending', 'Descending', 'Alternating'], TRIO_RE = /^(.*) �
 function vGrid() {
   const p = P();
   let tabIdx = 0;
-  const sections = S.lib.sections.map(sec => {
+  const sections = libSecs().map(sec => {
     // group exercises sharing the same key set so each table has one header row
     const groups = [];
     for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
@@ -1973,8 +1991,10 @@ function sheetEx(id, planKey) {
       <button type="button" class="iconbtn ubtn" data-act="keyUnit" data-ex="${esc(ex.id)}" data-k="${esc(k)}" title="Quarter or half notes for this key">${NOTE(uk(key))}</button>
       <input type="number" inputmode="numeric" enterkeyhint="next" min="1" max="400" data-key="${esc(key)}" value="${dv(key, v)}" placeholder="—">
       <button class="iconbtn" data-act="mOpen" data-bpm="${dv(key, v)}" data-u="${uk(key)}" data-k="${esc(key)}" title="Metronome at this tempo" type="button">▶</button></label>`; }).join('');
+  const cb = ex.cb && CLAR_BRIDGE[ex.cb - 1];
   openSheet(`${head(ex.name, sec.name)}
     ${ph ? phraseBlock(ex, phK) : ''}
+    ${cb ? `<p class="muted" style="margin:4px 0 6px;font-size:.9rem"><small>${esc(cb[0])}</small><br>${esc(cb[2])}</p><div id="cbNotes" class="cbnotes"></div>` : ''}
     <div class="floorbox" id="floorbox">${floorHtml()}</div>
     <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">${ph ? 'Your best clean tempo through all 12 keys.' : `Type your best clean tempo for each key. Tap a key's note to switch just that key between quarter and half notes.`}</p>${unitBtn('ex', ex, true)}</div>
     <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
@@ -1985,6 +2005,7 @@ function sheetEx(id, planKey) {
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx + 1) % list.length].ex.id)}">Next →</button></div>
     <div class="row" style="margin-top:8px"><button class="btn sm" data-act="editEx" data-id="${esc(ex.id)}">Edit exercise</button>${ph ? `<button class="btn sm" data-act="editPhrase" data-id="${esc(ex.id)}">Edit notes</button>` : ''}</div>`, phraseStop);
+  if (cb) loadAbc().then(A => { const el = $('#cbNotes'); if (el) cbRender(A, el, cb[3]); }).catch(e => { const el = $('#cbNotes'); if (el) el.innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
   if (ph) {
     const draw = () => phraseRender($('#phNotes'), ph, $('#phKey').value).catch(e => { $('#phNotes').innerHTML = `<small class="muted">${esc(e.message)}</small>`; });
     $('#phKey').addEventListener('change', () => { phraseStop(); draw(); });
@@ -2195,7 +2216,7 @@ function quizFinish() {
 }
 function pickerSheet(t) {
   const p = P(); let rows;
-  if (t === 'ex') rows = S.lib.sections.map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
+  if (t === 'ex') rows = libSecs().map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
     return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? Tk(exKey(ex, ex.keys[0]), i.vals[0]) : ''}</small></button>`; }).join('')).join('');
   else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? T(l, p.bpm['l:' + l.id]) : ''}</small></button>`).join('');
   else rows = allVersions().map(v => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}</span>${tunePips(v)}</button>`).join('');
@@ -2724,6 +2745,11 @@ async function phraseRender(el, ph, k) {
   const s = ps.length ? phraseShift(ph, k, Math.min(...ps), Math.max(...ps)) : 0;
   A.renderAbc(el, abcDoc(ph), { visualTranspose: s, responsive: 'resize', add_classes: true, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: 520, wrap: { minSpacing: 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } });
   return s;
+}
+// Clarinet bridge notation: the ABC already has 5 bars to a line; a wide staff scaled down to the screen keeps
+// 5 bars on one staff (9 bars on two).
+function cbRender(A, el, abc) {
+  A.renderAbc(el, 'X:1\n' + abc, { responsive: 'resize', add_classes: true, staffwidth: 760, scale: 1.1, paddingtop: 0, paddingbottom: 4, paddingleft: 0, paddingright: 0 });
 }
 // Which key to show first: the plan's key, else the weakest/unlogged key.
 // Keys to show it in: the 12 major or minor keys (named like the exercise keys), starting from the one it's written in.
@@ -3290,7 +3316,7 @@ const A = {
       const unit = { hours: ' hours', streak: ' weeks', goalweeks: ' weeks', level: '', tunes: ' tunes' }[ty];
       const nowTxt = ty === 'hours' ? fmtHM(h) : ty === 'level' ? 'Level ' + lv : now + unit;
       $('#rwTarget').innerHTML = ty === 'tune' ? `<label class="f">Tune</label><select name="tune" id="rwSel">${allVersions().map(v => `<option value="${esc(v)}">${esc(vLabel(v))}</option>`).join('')}</select><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`
-        : ty === 'category' ? `<label class="f">Category</label><select name="cat" id="rwSel">${S.lib.sections.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`
+        : ty === 'category' ? `<label class="f">Category</label><select name="cat" id="rwSel">${libSecs().map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`
         : `<label class="f">Target</label><input type="number" inputmode="numeric" name="target" id="rwNum" min="1" value="${sugg}"><p class="muted" id="rwNow" style="margin:6px 0 0"></p>`;
       const upd = () => { const el = $('#rwNow'); if (!el) return;
         if (ty === 'tune') { const v = $('#rwSel').value, n = CP_ALL.filter(c => tuneState(v).cp?.[c.id]).length;
