@@ -355,10 +355,12 @@ const DIM_PATTERNS = ['21 43 65 …', '65 21 43 …'];
 const PHRASES = [   // built-in phrases: none for now (the owner adds their own)
 ].map(([id, name, key, abc]) => ({ id, name, key, abc }));
 const PHRASE_LEN_SECS = [['phrases-2', 'ii–V–I phrases · 2 bars', 2], ['phrases-4', 'ii–V–I phrases · 4 bars', 4]];
+// minor ii–V–i phrases have their own categories (rev 12); a phrase goes by its written key (Cm, F#m … = minor)
+const PHRASE_MIN_SECS = [['phrases-m2', 'Minor ii–V–i phrases · 2 bars', 2], ['phrases-m4', 'Minor ii–V–i phrases · 4 bars', 4]];
 // bars in a phrase's notation (bar lines; a closing |] counts once)
 const abcBarCount = abc => (abc || '').split(/\|\]|\||::|:\|/).filter(b => /[A-Ga-gz]/.test(b.replace(/"[^"]*"/g, ''))).length;
 const phraseLenOf = ex => abcBarCount(ex.abc || ((PHRASES.find(p => p.id === ex.phrase) || {}).abc));
-const phraseSecFor = n => S.lib.sections.find(x => x.phrases && x.len === (n > 2 ? 4 : 2));
+const phraseSecFor = (n, minor) => S.lib.sections.find(x => x.phrases && x.len === (n > 2 ? 4 : 2) && !x.minor === !minor);
 const PHRASE_SECS = [['ii-v-i-phrases', 'ii–V–I phrases', null, p => p.key === 'C'], ['ii-v-i-phrases-minor', 'ii–V–i phrases (minor)', null, p => p.key === 'Cm']];
 const KEYSETS = [['major','Major keys (C, Db, D…)',MAJ],['minor','Minor keys (C, C#, D…)',MIN],['none','No keys – one tempo',NONE],
   ['aug','Augmented triads (4)',AUG],['dim7','Diminished 7ths (3)',DIM7],['dimsc','Diminished scale (3)',DIMSC],['wt','Whole-tone (2)',WT]];
@@ -507,6 +509,14 @@ function migrate() {
     S.lib.sections = S.lib.sections.filter(x => !old.includes(x) && !made.includes(x));
     S.lib.sections.splice(Math.min(at, S.lib.sections.length), 0, ...made);
     S.libRev = 11;
+  }
+  if (S.libRev < 12) {   // minor ii–V–i phrases get their own 2- and 4-bar categories, after the major ones; minor-key phrases move there
+    const maj = S.lib.sections.filter(x => x.phrases && x.len && !x.minor), at = maj.length ? S.lib.sections.indexOf(maj[maj.length - 1]) + 1 : S.lib.sections.length;
+    const made = PHRASE_MIN_SECS.filter(([id]) => !S.lib.sections.some(x => x.id === id)).map(([id, name, len]) => ({ id, name, ex: [], phrases: 1, len, minor: 1 }));
+    S.lib.sections.splice(at, 0, ...made);
+    for (const x of maj) { const mn = S.lib.sections.find(y => y.phrases && y.minor && y.len === x.len); if (!mn) continue;
+      mn.ex.push(...x.ex.filter(e => isMinorKey(e.abcKey))); x.ex = x.ex.filter(e => !isMinorKey(e.abcKey)); }
+    S.libRev = 12;
   }
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -1770,7 +1780,7 @@ function vLicks() {
     <section class="card">${L.map((l, i) => `<div class="rorow"><span class="grow">${esc(l.name)}</span>${mvBtns('lick', l.id, i, L.length)}</div>`).join('')}</section>`;
   // ii–V–I phrases live with the exercises (tempo, plan) but are licks in spirit, so they're listed here too
   const phSecs = S.lib.sections.filter(isPhraseSec);
-  const phCard = phSecs.length ? `<section class="card"><h3>ii–V–I phrases</h3>${phSecs.map(sec => `<div class="row" style="margin:8px 0 4px"><small class="muted grow">${sec.len ? sec.len + ' bars' : esc(sec.name)}</small><button class="btn sm" data-act="addPhrase" data-sec="${esc(sec.id)}">+ Phrase</button></div>
+  const phCard = phSecs.length ? `<section class="card"><h3>ii–V–I phrases</h3>${phSecs.map(sec => `<div class="row" style="margin:8px 0 4px"><small class="muted grow">${sec.len ? (sec.minor ? 'Minor · ' : 'Major · ') + sec.len + ' bars' : esc(sec.name)}</small><button class="btn sm" data-act="addPhrase" data-sec="${esc(sec.id)}">+ Phrase</button></div>
     ${sec.ex.length ? sec.ex.map(exRow).join('') : '<p class="muted" style="margin:0;font-size:.85rem">None yet.</p>'}`).join('')}</section>` : '';
   return `<div class="row" style="margin-bottom:12px;justify-content:flex-end">${reorderBtn()}</div>${phCard}<div class="lgrid">${S.lib.licks.map(l => { const b = p.bpm['l:' + l.id];
     return `<button class="lcard" data-act="openLick" data-id="${esc(l.id)}"><div class="im">${l.img ? `<img data-img="${esc(l.img)}" alt="">` : 'no image'}</div>
@@ -2916,7 +2926,7 @@ const phraseDesc = ex => ex.num || /^Phrase \d+/.test(ex.name) ? ex.name.replace
 const nextPhraseNum = () => Math.max(0, ...phraseExs().map(phraseNum)) + 1;
 // The phrase editor: name, the key it's written in, which keys to practise, and the ABC with a live preview.
 function phraseEditor(sec, ex) {
-  const ph = ex ? phraseOf(ex) : { abc: '', key: 'C' };
+  const ph = ex ? phraseOf(ex) : { abc: '', key: sec && sec.minor ? 'Cm' : 'C' };
   let recLen = ex ? (phraseLenOf(ex) > 2 ? 4 : 2) : (sec.len || 2);   // the take's length; a saved phrase goes to the category for its bar count
   const keyOpts = [...MAJOR_KEYS, ...MINOR_KEYS].map(x => `<option ${x === ph.key ? 'selected' : ''}>${x}</option>`).join('');
   formSheet(ex ? 'Edit phrase' : 'New phrase', `<label class="f">Description <small class="muted">(optional – it's numbered: Phrase ${(ex && phraseNum(ex)) || nextPhraseNum()})</small></label><input type="text" name="desc" value="${esc(ex ? phraseDesc(ex) : '')}" placeholder="e.g. altered">
@@ -2942,7 +2952,7 @@ function phraseEditor(sec, ex) {
       Chords in quotes before a note: <b>"Dm7" D</b>. Use b and # in chord names (G7b9, F#m7).</p></details>`,
     fd => { const desc = fd.desc.trim(), num = (ex && phraseNum(ex)) || nextPhraseNum(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!abc) { toast('Add some notes'); return false; }
       const name = 'Phrase ' + num + (desc ? ' – ' + desc : '');
-      const to = phraseSecFor(abcBarCount(abc)) || sec;
+      const to = phraseSecFor(abcBarCount(abc), isMinorKey(fd.wkey)) || sec;
       if (ex) { Object.assign(ex, { name, num, keys, abc, abcKey: fd.wkey }); if (to !== sec) { sec.ex = sec.ex.filter(x => x !== ex); to.ex.push(ex); } }
       else { ex = { id: 'phrase-' + num + '-' + uid(), name, num, keys, abc, abcKey: fd.wkey }; to.ex.push(ex); }
       openSecs.add(to.id); if (to !== sec) toast('Saved under ' + to.name);
