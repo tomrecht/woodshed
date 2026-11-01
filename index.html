@@ -1301,9 +1301,15 @@ function pickNew(items) {
   return { t: 'ex', id: c.o.ex.id, key: ks[Math.floor(Math.random() * ks.length)], nu: 1 };
 }
 const hasNew = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); return o && !o.sec.phrases && P().bpm[exKey(o.ex, it.key)] == null; });
+// Aim for NEW_MIN open new-key items; the first is always kept, further ones only while the plan has < PLAN_MAX items.
+const NEW_MIN = 2, PLAN_MAX = 7;
+const newCount = items => items.filter(i => !planItemDone(i) && hasNew([i])).length;
 function newTopUp() {
-  if (!S.plan || planSize().ex <= 0 || hasNew(S.plan.items.filter(i => !planItemDone(i)))) return;
-  const n = pickNew(S.plan.items); if (n) { S.plan.items.push(n); save(true); }
+  if (!S.plan || planSize().ex <= 0) return; const items = S.plan.items; let added = false;
+  while (newCount(items) < NEW_MIN && (newCount(items) === 0 || items.length < PLAN_MAX)) {
+    const n = pickNew(items); if (!n) break; items.push(n); added = true;
+  }
+  if (added) save(true);
 }
 // Practised today = the plan item's own key / lick / tune version was touched today.
 const planKeyOf = it => it.t === 'ex' ? 'e:' + it.id + '|' + it.key : (it.t === 'lick' ? 'l:' : 't:') + it.id;
