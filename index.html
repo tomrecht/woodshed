@@ -330,6 +330,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const uid = () => Math.random().toString(36).slice(2, 9);
 const slug = s => s.toLowerCase().replace(/#/g, 's').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const DAY = 864e5;
+const isToday = t => !!t && dayKey(t) === dayKey(Date.now()); // filled ✓ Practiced buttons
 const dayKey = d => { d = new Date(d); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const monday = d => { d = new Date(d); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d; };
 const addDays = (d, n) => { d = new Date(d); d.setDate(d.getDate() + n); return d; };
@@ -1953,7 +1954,7 @@ function sheetEx(id, planKey) {
     <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">${ph ? 'Your best clean tempo through all 12 keys.' : `Type your best clean tempo for each key. Tap a key's note to switch just that key between quarter and half notes.`}</p>${unitBtn('ex', ex, true)}</div>
     <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
     <div class="sp"></div>
-    <div class="row"><button class="btn grow" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
+    <div class="row"><button class="btn grow${isToday(p.touched['x:' + ex.id]) ? ' primary' : ''}" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
     ${histList('e:' + ex.id + '|', k => k.split('|')[1] === '—' ? ex.name : k.split('|')[1])}
     <div class="row" style="margin-top:14px">
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
@@ -1997,7 +1998,7 @@ function sheetLick(id) {
     <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="lickBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-u="${uk(key)}" data-k="${esc(key)}" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>
     <label class="f">Notes</label><textarea id="lickNotes" rows="2">${esc(l.notes || '')}</textarea>
     <div class="sp"></div>
-    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="lick" data-id="${esc(l.id)}">+ Today's plan</button></div>
+    <div class="row"><button class="btn grow${isToday(p.touched[key]) ? ' primary' : ''}" data-act="practicedItem" data-k="${esc(key)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="lick" data-id="${esc(l.id)}">+ Today's plan</button></div>
     ${histList(key, () => l.name)}
     <div class="row wrap" style="margin-top:14px"><button class="btn sm" data-act="renameLick" data-id="${esc(l.id)}">Rename</button>
       ${l.img ? `<button class="btn sm" data-act="lickImg" data-id="${esc(l.id)}">Replace image</button>` : ''}
@@ -2040,7 +2041,7 @@ function sheetTune(vid, opts = {}) {
     <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
     <label class="f">Notes (form, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
     <div class="sp"></div>
-    <div class="row"><button class="btn grow" data-act="practicedItem" data-k="${esc(key)}">✓ Played it today</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(vid)}">+ Today's plan</button></div>
+    <div class="row"><button class="btn grow${isToday(p.touched[key]) ? ' primary' : ''}" data-act="practicedItem" data-k="${esc(key)}">✓ Played it today</button><button class="btn grow" data-act="planAddDirect" data-t="tune" data-id="${esc(vid)}">+ Today's plan</button></div>
     ${histList(key, () => vLabel(vid))}
     <label class="f">Tags</label><div id="tagbox">${tagHtml()}</div>
     <form class="row" id="tagForm"><input type="text" id="tagIn" list="tagList" placeholder="Add tag, e.g. ballad, gig"><datalist id="tagList">${allTags().map(x => `<option value="${esc(x)}">`).join('')}</datalist><button class="btn" type="submit">Add</button></form>
@@ -3362,8 +3363,8 @@ const A = {
   tuneFilter: el => { tuneFilter = el.dataset.f; render(); },
   practiced: el => { const o = findEx(el.dataset.ex); o.ex.keys.forEach(k => { const inp = $(`#panel input[data-key="${CSS.escape(exKey(o.ex, k))}"]`); if (inp && inp.value) touch(exKey(o.ex, k), o.ex.id, false, true); }); P().touched['x:' + o.ex.id] = Date.now();
     if (!S.plan || !S.plan.items.some(i => i.t === 'ex' && i.id === o.ex.id && planItemDone(i))) { const k = exKey(o.ex, exInfo(o.ex).mk || o.ex.keys[0]); touch(k, o.ex.id, false, true); planRecord(k); }
-    save(); toast('Marked practiced'); },
-  practicedItem: el => { touch(el.dataset.k); save(); toast('Marked practiced'); },
+    save(); el.classList.add('primary'); toast('Marked practiced'); },
+  practicedItem: el => { touch(el.dataset.k); save(); el.classList.add('primary'); toast('Marked practiced'); },
   schedSheet: () => { schedAddDay = null; schedSheet(); },
   schedNav: el => { schedWeek = Math.max(0, schedWeek + +el.dataset.d); schedAddDay = null; schedSheet(); },
   schedAddDay: el => { schedAddDay = el.dataset.day || null; schedSheet(); },
