@@ -26,7 +26,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`
   (converts concert → alto). Forum: https://forums.irealpro.com (XenForo; search with `/search/search?keywords=...`).
-- PDFs (the owner's iReal export and lick sheets) are git-ignored and not in the repo.
+- PDFs (the owner's iReal export and lick sheets) are git-ignored and not in the repo, except `books/*.pdf`:
+  `books/Crossing-the-Bridge-Clarinet.pdf` (50 clarinet break exercises), built by `tools/bridge_book/` (see its README).
 
 ## Data – never lose the owner's data
 - All state lives in `localStorage` key `woodshed.v1` (object `S`), optionally synced to a private GitHub gist.
