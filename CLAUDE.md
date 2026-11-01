@@ -24,6 +24,9 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   held notes survive metronome clicks (`detectNotes`: a same-pitch re-attack needs a dip below the level just before it, and a
   short pitch dropout with no level dip is bridged); test the analysis with synthetic audio (`detectNotes`/`quantizeNotes`/`notesToAbc`) and Chrome's fake mic
   (`--use-file-for-fake-audio-capture=file.wav`).
+- Neff bebop exercise (`NEFF`, "Bebop dom. Neff ex. 1-12"): its sheet shows Steve Neff's *Mastering the Dominant Bebop Scale* ex. 1–12
+  (`NEFF_ABC`, transcribed from the owner's photos, written in G7) with Exercise and Key pickers; `neffRender` transposes
+  by `phraseShift` (octave kept in the sax range); the chosen exercise is `S.settings.neffN`.
 - Audio: notes, drums and phrase melody are created ~3 s before they sound (`soon()` queue, cleared by `earStop`), not all up
   front – hundreds of scheduled sources made phones crackle. New playback code should go through `soon()` too.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
