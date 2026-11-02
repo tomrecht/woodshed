@@ -703,7 +703,8 @@ const Sync = (() => {
   }
   const fileText = async f => f.truncated ? (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content;
   // Returns null if a photo is missing on this device, so a partial set never overwrites the cloud copy.
-  async function localImgs() { const o = {}; for (const id of libImgIds()) { let v = null; try { v = await idb.get(id); } catch (e) {} if (!v) return null; o[id] = v; } return o; }
+  // pk- ids = imported sheet-music pack pages: too big for the gist, so they stay on the device (re-import elsewhere)
+  async function localImgs() { const o = {}; for (const id of libImgIds().filter(id => !id.startsWith('pk-'))) { let v = null; try { v = await idb.get(id); } catch (e) {} if (!v) return null; o[id] = v; } return o; }
   async function applyRemote(remote, g) {
     const keepSession = S.session;
     if (g.files[IMGFILE]) { try { const im = JSON.parse(await fileText(g.files[IMGFILE])); for (const [k, v] of Object.entries(im)) if (v) { await idb.put(k, v); imgCache[k] = v; } } catch (e) {} }
@@ -1907,7 +1908,7 @@ function vMore() {
       <form class="row" id="syncForm"><input type="password" id="syncToken" placeholder="ghp_…" autocomplete="off"><button class="btn primary" type="submit">Connect</button></form>`}
     <h3 style="margin:16px 0 6px">Backup file</h3>
     <p class="muted" style="margin-top:0">${S.settings.lastBackup ? 'Last exported ' + ago(S.settings.lastBackup) + '.' : 'A file copy of everything, for safekeeping.'}</p>
-    <div class="row wrap"><button class="btn" data-act="gotoTab" data-tab2="grid">Table entry</button><button class="btn" data-act="exportData">Export backup</button><button class="btn" data-act="importData">Restore backup</button></div><p class="muted" style="font-size:.75rem;margin:14px 0 0">Piano sound: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Drums: Versilian Community Sample Library (CC0). Chord charts from iReal Pro exports and the iReal Pro forums.</p></section>`;
+    <div class="row wrap"><button class="btn" data-act="gotoTab" data-tab2="grid">Table entry</button><button class="btn" data-act="exportData">Export backup</button><button class="btn" data-act="importData">Restore backup</button><button class="btn" data-act="importSheets">Import sheet music</button></div><p class="muted" style="font-size:.75rem;margin:14px 0 0">Piano sound: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Drums: Versilian Community Sample Library (CC0). Chord charts from iReal Pro exports and the iReal Pro forums.</p></section>`;
 }
 const curInst = () => S.inst.find(i => i.id === S.cur);
 /* ---------- colour schemes (one per instrument) ---------- */
@@ -3304,7 +3305,7 @@ function vTrain() {
   const pct = k => tr[k]?.n ? Math.round(100 * tr[k].ok / tr[k].n) + '% of ' + tr[k].n : 'not tried yet';
   const vs = allVersions(), quizzes = vs.reduce((a, v) => a + (quizOf(v)?.n || 0), 0);
   const chip = (set, k, v, n) => `<button class="chip ${(S.settings[set] ?? ({ rhLevel: 0, rhBars: 1, earPool: 'mine', earPart: 'any', rhFeel: 'straight', rhClick: 'all' })[set]) === v ? 'on' : ''}" data-act="trainSet" data-k="${set}" data-v="${v}">${n}</button>`;
-  return `<section class="card"><h3>📖 Fingering chart</h3><p class="muted" style="margin-top:0">Altissimo fingerings with key diagrams – star the ones that work on your horn.</p>
+  return `<section class="card"><h3>📖 Fingering chart</h3><p class="muted" style="margin-top:0">Altissimo and quarter-tone fingerings with key diagrams – star the ones that work on your horn.</p>
     <button class="btn primary" style="width:100%" data-act="gotoTab" data-tab2="fing">Open</button></section>
   <section class="card"><h3>Away from the horn</h3><div class="stats3"><div><small>This week</small><strong>${fmtMin(wk)}</strong></div><div><small>Total</small><strong>${fmtMin(tot)}</strong></div><div><small>Answers right</small><strong>${tr.ok || 0}</strong></div></div>
     <small class="muted">Time here is logged separately from your playing hours.</small></section>
@@ -3341,11 +3342,11 @@ const FK_NAME = { '8va': 'Oct', Fx: 'front F', Pd: 'palm D', Pe: 'palm E♭', Pf
 const FK_LH = ['8va', 'Pd', 'Pe', 'Pf', 'Fx', 'L1', 'bis', 'L2', 'L3', 'G#', 'C#', 'B', 'Bb'];
 const fingText = k => { const s = new Set(k.split(' ')), part = ks => ks.filter(x => s.has(x)).map(x => FK_NAME[x]).join(' ') || '–';
   return part(FK_LH) + ' | ' + part(Object.keys(FK_NAME).filter(x => !FK_LH.includes(x))); };
-const fingNote = n => n.replace('#', '♯').replace(/^([A-G])b/, '$1♭');
+const fingNote = n => n.replace('#', '♯').replace(/^([A-G])b/, '$1♭').replace(/q$/, ' +¼');   // 'C#4q' = a quarter tone above C♯4
 function fingConcert(n) { // written alto pitch → concert (a major sixth lower)
-  const m = /^([A-G])(#|b)?(\d)$/.exec(n); if (!m) return '';
+  const m = /^([A-G])(#|b)?(\d)(q?)$/.exec(n); if (!m) return '';
   const pc = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0), v = 12 * (+m[3] + 1) + pc - 9;
-  return ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][v % 12] + (Math.floor(v / 12) - 1);
+  return ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][v % 12] + (Math.floor(v / 12) - 1) + (m[4] ? ' +¼' : '');
 }
 function fingSvg(k) { // key diagram: left hand above the line, right hand below; pressed keys filled
   const s = new Set(k.split(' ')), on = x => s.has(x) ? 'on' : '';
@@ -3670,6 +3671,23 @@ const A = {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'woodshed-backup-' + dayKey(Date.now()) + '.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000); render();
   },
+  // Sheet-music pack: {app: 'woodshed-sheets', pitch: 'Bb', tunes: [{name, composer?, pages: [jpeg data URLs]}]}. Pages are added to each tune
+  // (made if missing) under fixed ids, so importing again replaces them instead of doubling up.
+  importSheets: () => { const f = $('#importIn'); f.value = ''; f.onchange = async () => {
+    let d; try { d = JSON.parse(await f.files[0].text()); if (d.app !== 'woodshed-sheets' || !Array.isArray(d.tunes)) throw 0; } catch (e) { toast('That file is not a Woodshed sheet-music pack'); return; }
+    const pitch = TRANSP[d.pitch] != null ? d.pitch : 'Eb'; let nt = 0, np = 0, made = 0;
+    toast('Importing ' + d.tunes.length + ' tunes…');
+    for (const it of d.tunes) {
+      let t = S.lib.tunes.find(x => normT(x.name) === normT(it.name) || (x.chart && normT(x.chart) === normT(it.name)));
+      if (!t) { t = { id: slug(it.name), name: it.name, tags: '' }; if (it.composer) t.composer = it.composer; S.lib.tunes.push(t); made++; }
+      const list = ((t.sheets = t.sheets || {})[pitch] = t.sheets[pitch] || []);
+      for (let i = 0; i < it.pages.length; i++) { const id = 'pk-' + slug(it.name) + '-' + (i + 1);
+        await idb.put(id, it.pages[i]); imgCache[id] = it.pages[i]; if (!list.includes(id)) list.push(id); np++; }
+      nt++;
+    }
+    if (made) { S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); if (LIB) linkCharts(); }
+    save(); render(); toast(`Added ${np} ${PITCH_NAME[pitch]} pages to ${nt} tunes` + (made ? ` (${made} new)` : '') + (instTr() !== pitch ? ` – shown on ${PITCH_NAME[pitch]} instruments` : ''));
+  }; f.click(); },
   importData: () => { const f = $('#importIn'); f.value = ''; f.onchange = async () => {
     try { const d = JSON.parse(await f.files[0].text()); if (d.app !== 'woodshed' || !d.state || !d.state.lib) throw 0;
       if (!confirm('Replace everything on this device with this backup?')) return;

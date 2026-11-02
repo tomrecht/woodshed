@@ -33,7 +33,11 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   front – hundreds of scheduled sources made phones crackle. New playback code should go through `soon()` too.
 - `fingerings.json` – fingering reference (Train tab → 📖 Fingering chart, view `vFing`, `tab = 'fing'`): `{sets: [{id, name, src, items: [{n: written note, f: [{k: keys, d?, for?}]}]}]}`.
   Keys are space-separated ids (`8va Fx Pd Pe Pf L1 bis L2 L3 G# C# B Bb | Se Sc Sb F# R1 R2 Fk R3 Eb C`), drawn by `fingSvg`. Altissimo F♯6–A6 and D7–D8 from the
-  Woodwind Fingering Guide (`sax_alt_4`/`_6`); A♯6–C♯7 (`sax_alt_5`), quarter tones and multiphonics not added yet. Stars (works on my horn) in `S.fstar`.
+  Woodwind Fingering Guide (`sax_alt_4`/`_6`) plus Kevin Danenberg's tenor chart (`for: ['tenor']`); set `qt` = WFG quarter tones (note `C#4q` = a quarter tone
+  above C♯4). Not yet: WFG `sax_alt_5` (A♯6–C♯7 for all saxes), multiphonics. Stars (works on my horn) in `S.fstar`.
+- Sheet-music packs: Progress → "Import sheet music" reads `{app: 'woodshed-sheets', pitch, tunes: [{name, composer?, pages: [jpeg data URLs]}]}` and adds
+  pages to each tune's `t.sheets[pitch]` under fixed ids `pk-<slug>-<n>` (re-import replaces). `pk-` pages are NOT synced to the gist (too big) – import per device.
+  The owner's Standards in B♭ pack was built from his PDFs (copyrighted scans – never commit them to this public repo).
 - Tunes from the owner's "Standards in Bb" books: `STANDARDS_BB`, added by libRev 15.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`
