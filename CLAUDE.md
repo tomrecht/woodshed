@@ -37,6 +37,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   as they are; `for` only where a source says which sax); set `qt` = WFG quarter tones (note `C#4q` = a quarter tone above C♯4). Not yet: multiphonics. Stars (works on my horn) in `S.fstar`.
 - Sheet-music packs: Progress → "Import sheet music" reads `{app: 'woodshed-sheets', pitch, tunes: [{name, composer?, pages: [jpeg data URLs]}]}` and adds
   pages to each tune's `t.sheets[pitch]` under fixed ids `pk-<slug>-<n>` (re-import replaces). `pk-` pages are NOT synced to the gist (too big) – import per device.
+  A pack tune may also carry `lead: {abc, key}` → `t.lead` (melody as notation, in the pack's pitch): the tune sheet draws it for the current instrument
+  (`leadKey`: moved by `SOUND` difference, plus the version's key) and plays it (`phrasePlay`). Melodies are copyrighted, so they travel in packs, not the repo.
   The owner's Standards in B♭ pack was built from his PDFs (copyrighted scans – never commit them to this public repo).
 - Tunes from the owner's "Standards in Bb" books: `STANDARDS_BB`, added by libRev 15.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).

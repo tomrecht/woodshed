@@ -2123,6 +2123,7 @@ function sheetTune(vid, opts = {}) {
     <div class="row" style="margin-top:6px"><input type="number" inputmode="numeric" id="tuneBpm" value="${dv(key, p.bpm[key])}" placeholder="—"><button class="btn" data-act="mOpen" data-u="${uk(key)}" data-k="${esc(key)}" data-bpm="${dv(key, p.bpm[key])}" title="Metronome at this tempo">▶</button></div>` : ''}
     ${review}
     ${chartBox}
+    ${leadBlock(t)}
     <div class="sheetmusic"><div class="row"><b class="grow">Sheet music <small class="muted">(${PITCH_NAME[instTr()]} part)</small></b><small class="muted">${tuneSheets(t).length ? (tuneSheets(t).length + ' page' + (tuneSheets(t).length === 1 ? '' : 's')) : 'your own copy, kept on this device'}</small></div>
       ${tuneSheets(t).map((im, i) => `<div class="smpage"><img class="lickimg" data-img="${esc(im)}" alt="${esc(t.name)} page ${i + 1}"><button class="iconbtn smdel" data-act="tuneImgDel" data-id="${esc(id)}" data-i="${i}" title="Remove this page" aria-label="Remove page">✕</button></div>`).join('')}
       <button class="btn ghost" style="width:100%" data-act="tuneImg" data-id="${esc(id)}">+ Add ${tuneSheets(t).length ? 'another page' : PITCH_NAME[instTr()] + ' sheet music (photo or screenshot)'}</button></div>
@@ -2139,6 +2140,9 @@ function sheetTune(vid, opts = {}) {
   sheetTune.refresh = () => sheetTune(vid, opts);
   if (CP.vid !== vid) chartStop(); CP.vid = vid; CP.chart = opts.chart && ch ? ch : null;
   if (!CP.chart) chartStop();
+  if (t.lead) { const el = $('#leadNot'), lk = leadKey(t, vid); if (el) phraseRender(el, leadPh(t), lk).catch(() => { el.textContent = 'Could not draw the notation.'; });
+    const pb = $('#phBtn'); if (pb) pb.onclick = () => { if (PH.on) return phraseStop(); const b = +$('#leadBpm').value || 120; S.settings.leadBpm = b; save(true);
+      phrasePlay(leadPh(t), lk, b, { melody: true }).catch(e => toast(e.message)); }; }
   $$('#panel input[data-cp]').forEach(cb => cb.onchange = () => { setCheckpoint(vid, cb.dataset.cp, cb.checked); sheetTune(vid, opts); });
   const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + TtxtK(key, P().bpm[key]) + '  +10 XP'); sheetTune(vid, opts); };
   $('#tuneTempo').onchange = e => { t.tempo = e.target.checked; save(); sheetTune(vid, opts); };
@@ -2788,6 +2792,16 @@ async function phraseRender(el, ph, k) {
   A.renderAbc(el, abcDoc(ph), { visualTranspose: s, responsive: 'resize', add_classes: true, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: 520, wrap: { minSpacing: 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } });
   return s;
 }
+// A tune's melody (lead sheet) as notation: t.lead = { abc: body (L:1/8; an M: line inside for other meters), key: its written key, pitch: 'Bb' | 'Eb' | 'C' }.
+// Shown for the current instrument: moved to its written key (and to the version's key, if this is another key of the tune), octave kept in range.
+const leadPh = t => ({ abc: t.lead.abc, key: t.lead.key });
+function leadKey(t, vid) {
+  const own = transposeKeyName(t.lead.key, SOUND[t.lead.pitch || 'Bb'] - SOUND[instTr()]), vk = vKey(vid), main = vk && chartFor(t.id)?.mainKey;
+  return vk && main ? transposeKeyName(own, mod12(PCS[keyRoot(vk)] - PCS[keyRoot(main)])) : own;
+}
+const leadBlock = t => !t.lead ? '' : `<div class="card" style="background:var(--surface2);margin:10px 0;padding:10px"><div class="row"><b class="grow">Melody <small class="muted">(${PITCH_NAME[instTr()]} part, transcribed from the ${PITCH_NAME[t.lead.pitch || 'Bb']} sheet)</small></b></div>
+  <div id="leadNot" class="phnotes" style="margin:6px 0"></div>
+  <div class="row"><button class="btn primary" id="phBtn">▶ Play</button><label class="muted" style="font-size:.9rem">♩=</label><input type="number" inputmode="numeric" id="leadBpm" value="${S.settings.leadBpm || 120}" style="width:80px"></div></div>`;
 // Clarinet bridge notation: the ABC already has 5 bars to a line; a wide staff scaled down to the screen keeps
 // 5 bars on one staff (9 bars on two).
 function cbRender(A, el, abc) {
@@ -3680,6 +3694,7 @@ const A = {
     for (const it of d.tunes) {
       let t = S.lib.tunes.find(x => normT(x.name) === normT(it.name) || (x.chart && normT(x.chart) === normT(it.name)));
       if (!t) { t = { id: slug(it.name), name: it.name, tags: '' }; if (it.composer) t.composer = it.composer; S.lib.tunes.push(t); made++; }
+      if (it.lead && it.lead.abc) t.lead = { abc: it.lead.abc, key: it.lead.key, pitch };
       const list = ((t.sheets = t.sheets || {})[pitch] = t.sheets[pitch] || []);
       for (let i = 0; i < it.pages.length; i++) { const id = 'pk-' + slug(it.name) + '-' + (i + 1);
         await idb.put(id, it.pages[i]); imgCache[id] = it.pages[i]; if (!list.includes(id)) list.push(id); np++; }
