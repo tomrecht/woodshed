@@ -3689,19 +3689,19 @@ const A = {
   // (made if missing) under fixed ids, so importing again replaces them instead of doubling up.
   importSheets: () => { const f = $('#importIn'); f.value = ''; f.onchange = async () => {
     let d; try { d = JSON.parse(await f.files[0].text()); if (d.app !== 'woodshed-sheets' || !Array.isArray(d.tunes)) throw 0; } catch (e) { toast('That file is not a Woodshed sheet-music pack'); return; }
-    const pitch = TRANSP[d.pitch] != null ? d.pitch : 'Eb'; let nt = 0, np = 0, made = 0;
+    const pitch = TRANSP[d.pitch] != null ? d.pitch : 'Eb'; let nt = 0, np = 0, made = 0, nm = 0;
     toast('Importing ' + d.tunes.length + ' tunes…');
     for (const it of d.tunes) {
       let t = S.lib.tunes.find(x => normT(x.name) === normT(it.name) || (x.chart && normT(x.chart) === normT(it.name)));
       if (!t) { t = { id: slug(it.name), name: it.name, tags: '' }; if (it.composer) t.composer = it.composer; S.lib.tunes.push(t); made++; }
-      if (it.lead && it.lead.abc) t.lead = { abc: it.lead.abc, key: it.lead.key, pitch };
+      if (it.lead && it.lead.abc) { t.lead = { abc: it.lead.abc, key: it.lead.key, pitch }; nm++; }
       const list = ((t.sheets = t.sheets || {})[pitch] = t.sheets[pitch] || []);
       for (let i = 0; i < it.pages.length; i++) { const id = 'pk-' + slug(it.name) + '-' + (i + 1);
         await idb.put(id, it.pages[i]); imgCache[id] = it.pages[i]; if (!list.includes(id)) list.push(id); np++; }
       nt++;
     }
     if (made) { S.lib.tunes.sort((a, b) => a.name.localeCompare(b.name)); if (LIB) linkCharts(); }
-    save(); render(); toast(`Added ${np} ${PITCH_NAME[pitch]} pages to ${nt} tunes` + (made ? ` (${made} new)` : '') + (instTr() !== pitch ? ` – shown on ${PITCH_NAME[pitch]} instruments` : ''));
+    save(); render(); toast([np ? `${np} ${PITCH_NAME[pitch]} pages` + (instTr() !== pitch ? ` (shown on ${PITCH_NAME[pitch]} instruments)` : '') : '', nm ? `${nm} melodies (shown in every instrument's key)` : ''].filter(Boolean).join(' and ') + ` added to ${nt} tunes` + (made ? ` (${made} new)` : ''));
   }; f.click(); },
   importData: () => { const f = $('#importIn'); f.value = ''; f.onchange = async () => {
     try { const d = JSON.parse(await f.files[0].text()); if (d.app !== 'woodshed' || !d.state || !d.state.lib) throw 0;
