@@ -32,9 +32,9 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - Audio: notes, drums and phrase melody are created ~3 s before they sound (`soon()` queue, cleared by `earStop`), not all up
   front – hundreds of scheduled sources made phones crackle. New playback code should go through `soon()` too.
 - `fingerings.json` – fingering reference (Train tab → 📖 Fingering chart, view `vFing`, `tab = 'fing'`): `{sets: [{id, name, src, items: [{n: written note, f: [{k: keys, d?, for?}]}]}]}`.
-  Keys are space-separated ids (`8va Fx Pd Pe Pf L1 bis L2 L3 G# C# B Bb | Se Sc Sb F# R1 R2 Fk R3 Eb C`), drawn by `fingSvg`. Altissimo F♯6–A6 and D7–D8 from the
-  Woodwind Fingering Guide (`sax_alt_4`/`_6`) plus Kevin Danenberg's tenor chart (`for: ['tenor']`); set `qt` = WFG quarter tones (note `C#4q` = a quarter tone
-  above C♯4). Not yet: WFG `sax_alt_5` (A♯6–C♯7 for all saxes), multiphonics. Stars (works on my horn) in `S.fstar`.
+  Keys are space-separated ids (`8va Fx Pd Pe Pf L1 bis L2 L3 G# C# B Bb | Se Sc Sb F# R1 R2 Fk R3 Eb C`), drawn by `fingSvg`. Altissimo from the
+  Woodwind Fingering Guide (`sax_alt_4`/`_5`/`_6`, F♯6–D8) plus Kevin Danenberg's tenor chart (fingerings are written pitch, so they're shown on alto
+  as they are; `for` only where a source says which sax); set `qt` = WFG quarter tones (note `C#4q` = a quarter tone above C♯4). Not yet: multiphonics. Stars (works on my horn) in `S.fstar`.
 - Sheet-music packs: Progress → "Import sheet music" reads `{app: 'woodshed-sheets', pitch, tunes: [{name, composer?, pages: [jpeg data URLs]}]}` and adds
   pages to each tune's `t.sheets[pitch]` under fixed ids `pk-<slug>-<n>` (re-import replaces). `pk-` pages are NOT synced to the gist (too big) – import per device.
   The owner's Standards in B♭ pack was built from his PDFs (copyrighted scans – never commit them to this public repo).
