@@ -150,6 +150,16 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .swatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0;flex:none}.swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
 .chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
 .chsecs .chip{padding:3px 9px;font-size:.78rem}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.ftile{background:var(--surface);border-radius:var(--r);padding:10px 8px 8px;position:relative;display:flex;flex-direction:column;align-items:center}
+.fsvg{width:84px;height:auto}
+.fsvg circle,.fsvg ellipse,.fsvg rect{fill:none;stroke:var(--muted);stroke-width:1.2}
+.fsvg .on{fill:var(--accent);stroke:var(--accent)}
+.fsvg .on+text{fill:var(--accent-ink)}
+.fsvg line{stroke:var(--line);stroke-width:1.2}
+.fsvg text{font-size:6px;fill:var(--muted);text-anchor:middle;pointer-events:none}
+.fbody{text-align:center;margin-top:6px;font-size:.85rem}.fbody .fk{font-weight:600}.fbody small{display:block;margin-top:3px}
+.fstar{position:absolute;top:4px;right:4px;font-size:1.25rem}.fstar.on{color:var(--accent)}
 .trow{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;background:var(--surface);border-radius:12px;padding:12px;margin-bottom:8px}
 .pips{display:flex;gap:4px}
 .pips i{width:10px;height:10px;border-radius:50%;background:var(--empty)}
@@ -1912,10 +1922,10 @@ function render() {
   Ntfy.schedule();
   applyTheme();
   const v = $('#view');
-  v.innerHTML = tab === 'home' ? vHome() : tab === 'ex' ? vEx() : tab === 'grid' ? vGrid() : tab === 'licks' ? vLicks() : tab === 'tunes' ? vTunes() : tab === 'train' ? vTrain() : vMore();
+  v.innerHTML = tab === 'home' ? vHome() : tab === 'ex' ? vEx() : tab === 'grid' ? vGrid() : tab === 'licks' ? vLicks() : tab === 'tunes' ? vTunes() : tab === 'train' ? vTrain() : tab === 'fing' ? vFing() : vMore();
   v.classList.toggle('wide', tab === 'grid');
   if (tab === 'grid') bindGrid();
-  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'grid' ? 'ex' : tab)));
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'grid' ? 'ex' : tab === 'fing' ? 'train' : tab)));
   $('#instSel').innerHTML = S.inst.map(i => `<option value="${i.id}" ${i.id === S.cur ? 'selected' : ''}>${esc(i.name)}</option>`).join('');
   if (tab === 'licks') hydrateImgs(v);
   if (tab === 'ex' && !reorderMode) {
@@ -3284,7 +3294,9 @@ function vTrain() {
   const pct = k => tr[k]?.n ? Math.round(100 * tr[k].ok / tr[k].n) + '% of ' + tr[k].n : 'not tried yet';
   const vs = allVersions(), quizzes = vs.reduce((a, v) => a + (quizOf(v)?.n || 0), 0);
   const chip = (set, k, v, n) => `<button class="chip ${(S.settings[set] ?? ({ rhLevel: 0, rhBars: 1, earPool: 'mine', earPart: 'any', rhFeel: 'straight', rhClick: 'all' })[set]) === v ? 'on' : ''}" data-act="trainSet" data-k="${set}" data-v="${v}">${n}</button>`;
-  return `<section class="card"><h3>Away from the horn</h3><div class="stats3"><div><small>This week</small><strong>${fmtMin(wk)}</strong></div><div><small>Total</small><strong>${fmtMin(tot)}</strong></div><div><small>Answers right</small><strong>${tr.ok || 0}</strong></div></div>
+  return `<section class="card"><h3>📖 Fingering chart</h3><p class="muted" style="margin-top:0">Altissimo fingerings with key diagrams – star the ones that work on your horn.</p>
+    <button class="btn primary" style="width:100%" data-act="gotoTab" data-tab2="fing">Open</button></section>
+  <section class="card"><h3>Away from the horn</h3><div class="stats3"><div><small>This week</small><strong>${fmtMin(wk)}</strong></div><div><small>Total</small><strong>${fmtMin(tot)}</strong></div><div><small>Answers right</small><strong>${tr.ok || 0}</strong></div></div>
     <small class="muted">Time here is logged separately from your playing hours.</small></section>
   <section class="card"><h3>🧠 Changes quiz</h3><p class="muted" style="margin-top:0">Fill in the changes of a tune from memory, bar by bar. ${quizzes} quiz${quizzes === 1 ? '' : 'zes'} done.</p>
     <button class="btn primary" style="width:100%" data-act="quizPick">Choose a tune</button></section>
@@ -3309,6 +3321,58 @@ function quizPickSheet() {
   openSheet(`${head('Changes quiz', 'Pick a tune')}<input type="search" id="pickFilter" placeholder="Search…" style="margin:6px 0 8px">
     ${vs.map(({ v, k }) => `<button class="trow" data-act="quizStart" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}<br><small>${{ due: 'review due', learning: 'learning', done: 'learned', new: 'not started' }[k]}${quizOf(v) ? ' · best ' + quizOf(v).best + '%' : ''}</small></span>${tunePips(v)}</button>`).join('')}`);
   $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#panel .trow').forEach(r => r.classList.toggle('hide', !!q && !r.dataset.name.includes(q))); };
+}
+
+/* ---------- Fingering reference (fingerings.json, loaded on first view) ---------- */
+let FING = null, fingP = null;
+function loadFing() { return fingP || (fingP = fetch('fingerings.json').then(r => r.json()).then(d => { FING = d; return d; }).catch(e => { fingP = null; throw e; })); }
+const FK_NAME = { '8va': 'Oct', Fx: 'front F', Pd: 'palm D', Pe: 'palm E♭', Pf: 'palm F', L1: '1', bis: 'bis', L2: '2', L3: '3', 'G#': 'G♯', 'C#': 'low C♯', B: 'low B', Bb: 'low B♭',
+  Se: 'side E', Sc: 'side C', Sb: 'side B♭', 'F#': 'high F♯', R1: '1', R2: '2', Fk: 'fork F♯', R3: '3', Eb: 'low E♭', C: 'low C' };
+const FK_LH = ['8va', 'Pd', 'Pe', 'Pf', 'Fx', 'L1', 'bis', 'L2', 'L3', 'G#', 'C#', 'B', 'Bb'];
+const fingText = k => { const s = new Set(k.split(' ')), part = ks => ks.filter(x => s.has(x)).map(x => FK_NAME[x]).join(' ') || '–';
+  return part(FK_LH) + ' | ' + part(Object.keys(FK_NAME).filter(x => !FK_LH.includes(x))); };
+const fingNote = n => n.replace('#', '♯').replace(/^([A-G])b/, '$1♭');
+function fingConcert(n) { // written alto pitch → concert (a major sixth lower)
+  const m = /^([A-G])(#|b)?(\d)$/.exec(n); if (!m) return '';
+  const pc = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0), v = 12 * (+m[3] + 1) + pc - 9;
+  return ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][v % 12] + (Math.floor(v / 12) - 1);
+}
+function fingSvg(k) { // key diagram: left hand above the line, right hand below; pressed keys filled
+  const s = new Set(k.split(' ')), on = x => s.has(x) ? 'on' : '';
+  const c = (id, x, y, r) => `<circle class="${on(id)}" cx="${x}" cy="${y}" r="${r}"/>`;
+  const e = (id, x, y, rx, ry, t) => `<ellipse class="${on(id)}" cx="${x}" cy="${y}" rx="${rx}" ry="${ry}"/>${t ? `<text x="${x}" y="${y + 2.2}">${t}</text>` : ''}`;
+  const r = (id, x, y, w, h, t) => `<rect class="${on(id)}" x="${x}" y="${y}" width="${w}" height="${h}" rx="2"/><text x="${x + w / 2}" y="${y + h / 2 + 2.2}">${t}</text>`;
+  return `<svg class="fsvg" viewBox="0 0 92 214" aria-label="${esc(fingText(k))}">
+    ${c('8va', 10, 30, 6)}<text x="10" y="44">oct</text>
+    ${e('Pd', 66, 12, 7, 5, 'D')}${e('Pe', 80, 24, 7, 5, 'E♭')}${e('Pf', 66, 36, 7, 5, 'F')}
+    ${c('Fx', 42, 16, 4.5)}${c('L1', 42, 36, 10)}${c('bis', 42, 52, 4)}${c('L2', 42, 68, 10)}${c('L3', 42, 92, 10)}
+    ${e('G#', 66, 104, 9, 5, 'G♯')}${e('C#', 62, 117, 6, 5, 'C♯')}${e('B', 76, 117, 6, 5, 'B')}${e('Bb', 69, 129, 7, 4.5, 'B♭')}
+    <line x1="22" y1="139" x2="62" y2="139"/>
+    ${r('Se', 4, 142, 14, 11, 'E')}${r('Sc', 4, 155, 14, 11, 'C')}${r('Sb', 4, 168, 14, 11, 'B♭')}${r('F#', 4, 181, 14, 11, 'F♯')}
+    ${c('R1', 42, 152, 10)}${c('R2', 42, 176, 10)}${c('Fk', 58, 188, 3.5)}${c('R3', 42, 200, 10)}
+    ${e('Eb', 72, 200, 8, 4.5, 'E♭')}${e('C', 72, 210, 8, 4, 'C')}</svg>`;
+}
+function vFing() {
+  if (!FING) { loadFing().then(() => { if (tab === 'fing') render(); }).catch(() => { if (tab === 'fing') { $('#view').innerHTML = `<section class="card"><p>Couldn't load the fingering chart – are you offline?</p><button class="btn sm" data-act="gotoTab" data-tab2="train">← Back</button></section>`; } });
+    return `<section class="card"><p class="muted">Loading fingerings…</p></section>`; }
+  const st = S.settings, set = FING.sets.find(x => x.id === st.fingSet) || FING.sets[0];
+  const item = set.items.find(x => x.n === st.fingNote) || set.items[0], stars = S.fstar || {};
+  const altoOnly = st.fingAlto ?? true, mine = !!st.fingMine;
+  let fs = item.f.map((f, i) => ({ ...f, id: set.id + '|' + item.n + '|' + f.k }));
+  if (altoOnly) fs = fs.filter(f => !f.for || f.for.includes('alto'));
+  if (mine) fs = fs.filter(f => stars[f.id]);
+  const nStar = it => it.f.filter(f => stars[set.id + '|' + it.n + '|' + f.k]).length;
+  const chip = (act, v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-v="${esc(v)}">${label}</button>`;
+  return `<section class="card"><div class="row"><h3 class="grow" style="margin:0">📖 Fingering chart</h3><button class="btn sm" data-act="gotoTab" data-tab2="train">← Train</button></div>
+    ${FING.sets.length > 1 ? `<div class="chips" style="margin-top:10px">${FING.sets.map(x => chip('fingSet', x.id, esc(x.name), x === set)).join('')}</div>` : ''}
+    <div class="chips" style="margin-top:10px">${set.items.map(it => chip('fingNote', it.n, fingNote(it.n) + (nStar(it) ? ' ★' : ''), it === item)).join('')}</div>
+    <div class="chips">${chip('fingAlto', '', 'Alto-friendly only', altoOnly)}${chip('fingMine', '', '★ My picks only', mine)}</div>
+    <p style="margin:2px 0 0"><b style="font-size:1.3rem">${fingNote(item.n)}</b> <span class="muted">written · sounds ${fingConcert(item.n)} on alto · ${fs.length} of ${item.f.length} fingering${item.f.length === 1 ? '' : 's'}</span></p></section>
+  <div class="fgrid">${fs.map(f => `<div class="ftile">${fingSvg(f.k)}<div class="fbody"><div class="fk">${esc(fingText(f.k))}</div>${f.d ? `<small>${esc(f.d)}</small>` : ''}</div>
+    <button class="iconbtn fstar ${stars[f.id] ? 'on' : ''}" data-act="fingStar" data-id="${esc(f.id)}" aria-label="Mark as working on my horn">${stars[f.id] ? '★' : '☆'}</button></div>`).join('') ||
+    `<section class="card muted">${mine ? 'None marked yet – tap ☆ on a fingering that works on your horn.' : 'Nothing for alto here – turn off “Alto-friendly only”.'}</section>`}</div>
+  <section class="card"><small class="muted">Filled keys are pressed. Above the line: left hand (oct = thumb octave key, front F, palm keys D/E♭/F, bis, G♯ and low C♯/B/B♭ pinky keys); below: right hand (side E/C/B♭, high F♯, fork F♯, low E♭/C).
+    Altissimo responds differently on every horn and mouthpiece – try several, keep the ones that speak and are in tune, and star them. Source: ${esc(set.src)}</small></section>`;
 }
 
 /* ---------- actions ---------- */
@@ -3362,6 +3426,11 @@ const A = {
   delReward: el => { const p = P(); if (!confirm('Delete this reward?')) return; p.rewards = (p.rewards || []).filter(x => x.id !== el.dataset.id); save(); render(); },
   celeOk: () => $('#cele').classList.add('hide'),
   stretchOk: () => { $('#stretch').classList.add('hide'); if (S.session) { S.session.brk = sessMs(); save(true); } },
+  fingSet: el => { S.settings.fingSet = el.dataset.v; S.settings.fingNote = null; save(true); render(); },
+  fingNote: el => { S.settings.fingNote = el.dataset.v; save(true); render(); },
+  fingAlto: () => { S.settings.fingAlto = !(S.settings.fingAlto ?? true); save(true); render(); },
+  fingMine: () => { S.settings.fingMine = !S.settings.fingMine; save(true); render(); },
+  fingStar: el => { const st = S.fstar || (S.fstar = {}), id = el.dataset.id; if (st[id]) delete st[id]; else st[id] = 1; save(); render(); },
   gotoTab: el => { tab = el.dataset.tab2; reorderMode = false; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
