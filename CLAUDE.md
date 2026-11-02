@@ -34,7 +34,7 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - `fingerings.json` – fingering reference (Train tab → 📖 Fingering chart, view `vFing`, `tab = 'fing'`): `{sets: [{id, name, src, items: [{n: written note, f: [{k: keys, d?, for?}]}]}]}`.
   Keys are space-separated ids (`8va Fx Pd Pe Pf L1 bis L2 L3 G# C# B Bb | Se Sc Sb F# R1 R2 Fk R3 Eb C`), drawn by `fingSvg`. Altissimo from the
   Woodwind Fingering Guide (`sax_alt_4`/`_5`/`_6`, F♯6–D8) plus Kevin Danenberg's tenor chart (fingerings are written pitch, so they're shown on alto
-  as they are; `for` only where a source says which sax); set `qt` = WFG quarter tones (note `C#4q` = a quarter tone above C♯4). Not yet: multiphonics. Stars (works on my horn) in `S.fstar`.
+  as they are; `for` only where a source says which sax); set `qt` = WFG quarter tones (note `C#4q` = a quarter tone above C♯4). set `mp` = multiphonics (`flat`: one list, tiles titled by `t`). Stars (works on my horn) in `S.fstar`.
 - Sheet-music packs: Progress → "Import sheet music" reads `{app: 'woodshed-sheets', pitch, tunes: [{name, composer?, pages: [jpeg data URLs]}]}` and adds
   pages to each tune's `t.sheets[pitch]` under fixed ids `pk-<slug>-<n>` (re-import replaces). `pk-` pages are NOT synced to the gist (too big) – import per device.
   A pack tune may also carry `lead: {abc, key}` → `t.lead` (melody as notation, in the pack's pitch): the tune sheet draws it for the current instrument
