@@ -31,6 +31,10 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   the minor tonic). Both go through `NEFF_BOOKS` / `neffBook(ex)` (`abc`, written `sig`, `home` key, `keys`, settings key `set`, `label`).
 - Audio: notes, drums and phrase melody are created ~3 s before they sound (`soon()` queue, cleared by `earStop`), not all up
   front – hundreds of scheduled sources made phones crackle. New playback code should go through `soon()` too.
+- `fingerings.json` – fingering reference (Train tab → 📖 Fingering chart, view `vFing`, `tab = 'fing'`): `{sets: [{id, name, src, items: [{n: written note, f: [{k: keys, d?, for?}]}]}]}`.
+  Keys are space-separated ids (`8va Fx Pd Pe Pf L1 bis L2 L3 G# C# B Bb | Se Sc Sb F# R1 R2 Fk R3 Eb C`), drawn by `fingSvg`. Altissimo F♯6–A6 and D7–D8 from the
+  Woodwind Fingering Guide (`sax_alt_4`/`_6`); A♯6–C♯7 (`sax_alt_5`), quarter tones and multiphonics not added yet. Stars (works on my horn) in `S.fstar`.
+- Tunes from the owner's "Standards in Bb" books: `STANDARDS_BB`, added by libRev 15.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`
   (converts concert → alto). Forum: https://forums.irealpro.com (XenForo; search with `/search/search?keywords=...`).
