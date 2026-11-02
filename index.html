@@ -2140,7 +2140,7 @@ function sheetTune(vid, opts = {}) {
   sheetTune.refresh = () => sheetTune(vid, opts);
   if (CP.vid !== vid) chartStop(); CP.vid = vid; CP.chart = opts.chart && ch ? ch : null;
   if (!CP.chart) chartStop();
-  if (t.lead) { const el = $('#leadNot'), lk = leadKey(t, vid); if (el) phraseRender(el, leadPh(t), lk).catch(() => { el.textContent = 'Could not draw the notation.'; });
+  if (t.lead) { const el = $('#leadNot'), lk = leadKey(t, vid); if (el) phraseRender(el, leadPh(t), lk, 4).catch(() => { el.textContent = 'Could not draw the notation.'; });
     const pb = $('#phBtn'); if (pb) pb.onclick = () => { if (PH.on) return phraseStop(); const b = +$('#leadBpm').value || 120; S.settings.leadBpm = b; save(true);
       phrasePlay(leadPh(t), lk, b, { melody: true }).catch(e => toast(e.message)); }; }
   $$('#panel input[data-cp]').forEach(cb => cb.onchange = () => { setCheckpoint(vid, cb.dataset.cp, cb.checked); sheetTune(vid, opts); });
@@ -2786,15 +2786,33 @@ async function phrasePlay(ph, k, bpm, { melody = true, loop = false, keys = null
   if (PH.on) PH.timer = setTimeout(() => { if (PH.on) phraseStop(); }, (dur + 0.3) * 1000);
 }
 // Draw the phrase in key k into el. Returns the semitone shift used.
-async function phraseRender(el, ph, k) {
+async function phraseRender(el, ph, k, perLine = 2) {
   const A = await loadAbc(), tune = A.parseOnly(abcDoc(ph))[0], ps = phraseEvents(tune).notes.map(n => n.p);
   const s = ps.length ? phraseShift(ph, k, Math.min(...ps), Math.max(...ps)) : 0;
-  A.renderAbc(el, abcDoc(ph), { visualTranspose: s, responsive: 'resize', add_classes: true, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: 520, wrap: { minSpacing: 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } });
+  A.renderAbc(el, abcDoc(ph), { visualTranspose: s, responsive: 'resize', add_classes: true, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0, staffwidth: perLine > 2 ? 760 : 520, wrap: { minSpacing: perLine > 2 ? 1.1 : 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: perLine } });
   return s;
 }
 // A tune's melody (lead sheet) as notation: t.lead = { abc: body (L:1/8; an M: line inside for other meters), key: its written key, pitch: 'Bb' | 'Eb' | 'C' }.
 // Shown for the current instrument: moved to its written key (and to the version's key, if this is another key of the tune), octave kept in range.
-const leadPh = t => ({ abc: t.lead.abc, key: t.lead.key });
+const leadPh = t => ({ abc: leadBeam(t.lead.abc), key: t.lead.key });
+// Beam eighths and shorter: notes written as separate tokens ("G E F G") are joined within each half bar (beats 1–2, 3–4),
+// since abcjs only beams notes with no space between them. Rests, quarters and longer break the beam.
+function leadBeam(abc) {
+  const len = (n, sl, d) => (n ? +n : 1) / (sl ? (d ? +d : 2 ** sl.length) : 1);
+  const info = tok => { let t = tok.replace(/"[^"]*"/g, '').replace(/![^!]*!/g, ''), f = 1, dur = 0, short = true, rest = false;
+    const m = /^\((\d)(?::(\d))?(?::(\d))?/.exec(t); if (m) { f = (+m[2] || (m[1] === '3' ? 2 : 3)) / +m[1]; t = t.slice(m[0].length); }
+    const re = /(\[[^\]]*\]|[\^_=]*[A-Ga-gzx][,']*)(\d*)(\/*)(\d*)/g; let x, n = 0;
+    while ((x = re.exec(t))) { n++; const l = len(x[2], x[3], x[4]) * f; dur += l; if (l >= 2) short = false; if (/^[zx]/.test(x[1])) rest = true; }
+    return n ? { dur, ok: short && !rest } : null; };
+  return abc.split('\n').map(line => line.split(/(\|+[\]:]*|:\|+|\[\d|\|\d)/).map(seg => {
+    if (/^(\|+[\]:]*|:\|+|\[\d|\|\d)$/.test(seg)) return seg;
+    const toks = seg.trim().split(/\s+/).filter(Boolean); if (!toks.length) return seg; let pos = 0, out = '', prev = null;
+    for (const tk of toks) { const i = info(tk);
+      const join = i && prev && i.ok && prev.ok && Math.floor(pos / 4 + 1e-9) === Math.floor((pos + i.dur) / 4 - 1e-9) && Math.floor(pos / 4 + 1e-9) === Math.floor((pos - prev.dur) / 4 + 1e-9);
+      out += (out && !join ? ' ' : '') + tk; if (i) { pos += i.dur; prev = i; } else prev = null; }
+    return ' ' + out + ' ';
+  }).join('')).join('\n');
+}
 function leadKey(t, vid) {
   const own = transposeKeyName(t.lead.key, SOUND[t.lead.pitch || 'Bb'] - SOUND[instTr()]), vk = vKey(vid), main = vk && chartFor(t.id)?.mainKey;
   return vk && main ? transposeKeyName(own, mod12(PCS[keyRoot(vk)] - PCS[keyRoot(main)])) : own;
