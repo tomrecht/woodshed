@@ -40,6 +40,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   A pack tune may also carry `lead: {abc, key}` → `t.lead` (melody as notation, in the pack's pitch): the tune sheet draws it for the current instrument
   (`leadKey`: moved by `SOUND` difference, plus the version's key) and plays it (`phrasePlay`). Melodies are copyrighted, so they travel in packs, not the repo.
   The owner's Standards in B♭ pack was built from his PDFs (copyrighted scans – never commit them to this public repo).
+- `tools/openbook/` – `ly2abc.py` converts an OpenBook (github.com/veltzer/openbook, MIT; LilyPond, voice in `\relative c'`) tune to ABC with chord symbols;
+  `make_pack.py` builds a concert-pitch melody pack from it. The owner's 78-tune OpenBook pack was built this way (check bar lengths after converting).
 - Tunes from the owner's "Standards in Bb" books: `STANDARDS_BB`, added by libRev 15.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`
