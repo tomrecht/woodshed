@@ -42,6 +42,9 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   The owner's Standards in B♭ pack was built from his PDFs (copyrighted scans – never commit them to this public repo).
 - `tools/openbook/` – `ly2abc.py` converts an OpenBook (github.com/veltzer/openbook, MIT; LilyPond, voice in `\relative c'`) tune to ABC with chord symbols;
   `make_pack.py` builds a concert-pitch melody pack from it. The owner's 78-tune OpenBook pack was built this way (check bar lengths after converting).
+- Tune type tags (blues, rhythm changes, ballad, standard, bebop, …): `TUNE_TYPES` applied once per tune by `applyTuneTypes` (migrate + after import; `t.typed`).
+  Tunes tab "Learning now" card → `tunePickSheet` (not-started tunes, filter by type, one-tap Start = `started`). While any tune is being
+  learned, `pickFor('tune')` never suggests not-started tunes.
 - Tunes from the owner's "Standards in Bb" books: `STANDARDS_BB`, added by libRev 15.
 - `licks/` lick images, `piano/` Salamander piano samples (CC BY 3.0), `drums/` VCSL drum samples (CC0).
 - `tools/ireal_decode.py`, `tools/add_chart.py` – decode iReal Pro forum share links and add a chart to `library.json`

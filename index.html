@@ -1297,7 +1297,9 @@ function pickFor(t, items) {
   // Tunes: pick a kind first (review due 45, learning 35, not started 30 – only kinds that exist), then the most pressing of that kind.
   const kindOf = v => reviewDue(v) ? 'due' : tuneStatus(v);
   const pool = allVersions().filter(v => !inPlan.has(v) && kindOf(v) !== 'done');
-  const kinds = [['due', 45], ['learning', 35], ['new', 30]].filter(([k]) => pool.some(v => kindOf(v) === k));
+  // not-started tunes are suggested only while nothing is being learned – once the owner picks tunes, the plan sticks to those
+  const learning = allVersions().some(v => tuneStatus(v) === 'learning');
+  const kinds = [['due', 45], ['learning', 35], ['new', 30]].filter(([k]) => (k !== 'new' || !learning) && pool.some(v => kindOf(v) === k));
   if (!kinds.length) return null;
   let r = Math.random() * kinds.reduce((a, k) => a + k[1], 0), kind = kinds[0][0];
   for (const [k, w] of kinds) { if ((r -= w) < 0) { kind = k; break; } }
@@ -1862,7 +1864,11 @@ function vTunes() {
   const list = S.lib.tunes.filter(match);
   const vs = allVersions(), nDue = vs.filter(reviewDue).length;
   const counts = { learning: vs.filter(v => tuneStatus(v) === 'learning').length, done: vs.filter(v => tuneStatus(v) === 'done').length };
-  return `<div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}${k === 'due' && nDue ? ' · ' + nDue : ''}</button>`).join('')}</div>
+  const lrn = S.lib.tunes.filter(t => versionsOf(t).some(v => tuneStatus(v) === 'learning'));
+  return `<section class="card"><h3>📖 Learning now${lrn.length ? ' · ' + lrn.length : ''}</h3>
+    ${lrn.length ? `<div class="chipsw" style="margin-bottom:10px">${lrn.map(t => `<button class="chip" data-act="openTune" data-id="${esc(t.id)}">${esc(t.name)}</button>`).join('')}</div>` : '<p class="muted" style="margin-top:0">Pick the tunes you want to work on – they come up in your daily plan.</p>'}
+    <button class="btn primary" style="width:100%" data-act="tunePick">＋ Start a new tune</button></section>
+  <div class="chips">${filters.map(([k, n]) => `<button class="chip ${tuneFilter === k ? 'on' : ''}" data-act="tuneFilter" data-f="${esc(k)}">${esc(n)}${k === 'due' && nDue ? ' · ' + nDue : ''}</button>`).join('')}</div>
     <p class="muted" style="margin:0 0 10px">${counts.learning} learning · ${counts.done} learned · ${nDue} review${nDue === 1 ? '' : 's'} due · dots: melody, changes, soloing</p>
     ${list.map(t => { const b = p.bpm['t:' + t.id]; const last = Math.max(...versionsOf(t).map(v => p.touched['t:' + v] || 0));
       const extra = (t.keys || []).length ? 'also in ' + t.keys.join(', ') : '';
@@ -2138,7 +2144,8 @@ function sheetTune(vid, opts = {}) {
       ${tuneSheets(t).map((im, i) => `<div class="smpage"><img class="lickimg" data-img="${esc(im)}" alt="${esc(t.name)} page ${i + 1}"><button class="iconbtn smdel" data-act="tuneImgDel" data-id="${esc(id)}" data-i="${i}" title="Remove this page" aria-label="Remove page">✕</button></div>`).join('')}
       <button class="btn ghost" style="width:100%" data-act="tuneImg" data-id="${esc(id)}">+ Add ${tuneSheets(t).length ? 'another page' : PITCH_NAME[instTr()] + ' sheet music (photo or screenshot)'}</button></div>
     <div id="cps">${cpHtml}</div>
-    ${st === 'new' ? `<button class="btn" style="width:100%;margin-bottom:8px" data-act="tuneStart" data-id="${esc(vid)}">Start learning this tune</button>` : ''}
+    ${st === 'new' ? `<button class="btn primary" style="width:100%;margin-bottom:8px" data-act="tuneStart" data-id="${esc(vid)}">Start learning this tune</button>` : ''}
+    ${st === 'learning' && !Object.keys(ts.cp || {}).length ? `<button class="btn ghost" style="margin:0 0 8px" data-act="tuneStop" data-id="${esc(vid)}">Not now – take it off my learning list</button>` : ''}
     <div class="stages" style="margin-top:10px"><label><input type="checkbox" id="tuneTempo" ${t.tempo ? 'checked' : ''}><span class="grow">Tempo tune – track BPM like an exercise</span></label></div>
     <label class="f">Notes (form, recordings to check…)</label><textarea id="tuneNotes" rows="3">${esc(ts.notes || '')}</textarea>
     <div class="sp"></div>
@@ -3368,6 +3375,20 @@ function vTrain() {
     <label class="f">Tempo ♩=<span id="rhBpmV">${S.settings.rhBpm || 80}</span></label><input type="range" id="rhBpm" min="50" max="160" step="5" value="${S.settings.rhBpm || 80}" style="width:100%">
     <button class="btn primary" style="width:100%;margin-top:8px" data-act="rhStart">Start</button></section>`;
 }
+// Pick a not-started tune to learn, filtered by type tag (blues, ballad, …). One tap starts it.
+const TYPE_ORDER = ['blues', 'minor blues', 'rhythm changes', 'standard', 'ballad', 'bebop', 'hard bop', 'monk', 'latin', 'waltz', 'modal', 'odd meter'];
+let tunePickTag = '';
+function tunePickSheet() {
+  const fresh = S.lib.tunes.filter(t => versionsOf(t).every(v => tuneStatus(v) === 'new'));
+  const tags = TYPE_ORDER.filter(x => fresh.some(t => splitTags(t.tags).includes(x)));
+  const list = fresh.filter(t => !tunePickTag || splitTags(t.tags).includes(tunePickTag));
+  openSheet(`${head('Start a new tune', fresh.length + ' not started yet')}
+    <div class="chips" style="margin-top:6px">${['', ...tags].map(x => `<button class="chip ${tunePickTag === x ? 'on' : ''}" data-act="tunePickTag" data-v="${esc(x)}">${x ? esc(x) : 'All'}</button>`).join('')}</div>
+    <input type="search" id="pickFilter" placeholder="Search…" style="margin:0 0 8px">
+    ${list.map(t => `<div class="trow" data-name="${esc(t.name.toLowerCase())}"><button class="grow" style="background:none;border:0;text-align:left;color:inherit;padding:0" data-act="openTune" data-id="${esc(t.id)}">${esc(t.name)}<br><small>${esc([t.composer, splitTags(t.tags).filter(x => TYPE_ORDER.includes(x)).join(', '), t.lead ? 'melody' : ''].filter(Boolean).join(' · '))}</small></button>
+      <button class="btn sm primary" data-act="tunePickStart" data-id="${esc(t.id)}">Start</button></div>`).join('') || '<p class="muted">Nothing here.</p>'}`);
+  $('#pickFilter').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#panel .trow').forEach(r => r.classList.toggle('hide', !!q && !r.dataset.name.includes(q))); };
+}
 function quizPickSheet() {
   const order = { due: 0, learning: 1, done: 2, new: 3 };
   const vs = allVersions().filter(v => hasChart(tuneOf(v))).map(v => ({ v, k: reviewDue(v) ? 'due' : tuneStatus(v) })).sort((a, b) => order[a.k] - order[b.k] || vLabel(a.v).localeCompare(vLabel(b.v)));
@@ -3503,6 +3524,10 @@ const A = {
   pickItem: el => { const t = el.dataset.t, id = el.dataset.id;
     if (t === 'ex') { const o = findEx(id); if (o.ex.keys.length > 1) return pickKeySheet(o.ex); addToPlan({ t, id, key: o.ex.keys[0] }); }
     else addToPlan({ t, id }); closeSheet(); },
+  tunePick: () => tunePickSheet(),
+  tunePickTag: el => { tunePickTag = el.dataset.v; tunePickSheet(); },
+  tunePickStart: el => { const t = tuneOf(el.dataset.id); tuneRec(t.id).started = true; save(); toast(t.name + ' – started. It will come up in your daily plan.'); tunePickSheet(); render(); },
+  tuneStop: el => { const r = tuneRec(el.dataset.id); delete r.started; save(); toast('Taken off your learning list'); sheetTune.refresh(); render(); },
   tuneStart: el => { tuneRec(el.dataset.id).started = true; save(); toast('Added to your learning list'); sheetTune.refresh(); },
   review: el => { const ivl = applyReview(el.dataset.id, +el.dataset.r); toast(['Shaky', 'OK', 'Solid'][+el.dataset.r] + ' – next review in ' + ivl + ' day' + (ivl === 1 ? '' : 's') + '  +' + REVIEW_XP + ' XP'); sheetTune.refresh(); },
   cpQuick: el => { setCheckpoint(el.dataset.id, el.dataset.c, true); el.remove(); },
