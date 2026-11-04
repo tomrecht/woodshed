@@ -1090,16 +1090,16 @@ function level(xp) { let n = 1; while (100 * n * (n + 1) / 2 <= xp) n++; const b
 /* ---------- weekly challenge: one rotating target per week ---------- */
 const CHALLENGE_XP = 100;
 const CHALLENGES = [
-  { id: 'records', text: 'Set 3 tempo records', goal: 3, prog: (p, ws) => p.hist.filter(h => h.t >= ws && h.prev != null && h.bpm > h.prev).length },
-  { id: 'tunecp', text: 'Tick 3 tune checkpoints', goal: 3, prog: (p, ws) => Object.values(p.tunes).reduce((a, r) => a + Object.values(r.cp || {}).filter(t => t >= ws).length, 0) },
-  { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, prog: (p, ws) => QUIZ(p).log.filter(t => t >= ws).length },
-  { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, prog: (p, ws) => Object.entries(EARS().trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
-  { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
-  { id: 'sections', text: g => `Work on exercises from ${g} different categories`, goal: 5, goalFn: secGoal, prog: (p, ws) => secsThisWeek(p, ws).size,
+  { id: 'records', text: 'Set 3 tempo records', goal: 3, go: 'ex', prog: (p, ws) => p.hist.filter(h => h.t >= ws && h.prev != null && h.bpm > h.prev).length },
+  { id: 'tunecp', text: 'Tick 3 tune checkpoints', goal: 3, go: 'tunes', prog: (p, ws) => Object.values(p.tunes).reduce((a, r) => a + Object.values(r.cp || {}).filter(t => t >= ws).length, 0) },
+  { id: 'quiz', text: 'Finish 2 changes quizzes', goal: 2, go: 'quizPick', prog: (p, ws) => QUIZ(p).log.filter(t => t >= ws).length },
+  { id: 'ear', text: 'Get 20 ear-training answers right', goal: 20, go: 'train', prog: (p, ws) => Object.entries(EARS().trainDays || {}).filter(([d]) => new Date(d + 'T12:00').getTime() >= ws).reduce((a, [, n]) => a + n, 0) },
+  { id: 'long', text: 'Practise 60 minutes in one session', goal: 60, go: 'startSession', prog: (p, ws) => Math.max(0, ...p.sessions.filter(x => x.start >= ws).map(x => x.min)) },
+  { id: 'sections', text: g => `Work on exercises from ${g} different categories`, goal: 5, go: 'ex', goalFn: secGoal, prog: (p, ws) => secsThisWeek(p, ws).size,
     detail: (p, ws) => { const done = secsThisWeek(p, ws); return libSecs().filter(sec => sec.ex.length).sort((a, b) => done.has(b.id) - done.has(a.id))
       .map(sec => `<span class="chip ${done.has(sec.id) ? 'on' : ''}">${done.has(sec.id) ? '✓ ' : ''}${esc(sec.name)}</span>`).join(''); } },
-  { id: 'licks', text: 'Practise 4 different licks', goal: 4, prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
-  { id: 'review', text: 'Do 2 tune reviews (or start learning a new tune)', goal: 2, prog: (p, ws) => Object.values(p.tunes).filter(r => (r.rv?.last || 0) >= ws).length },
+  { id: 'licks', text: 'Practise 4 different licks', goal: 4, go: 'licks', prog: (p, ws) => Object.entries(p.touched).filter(([k, t]) => k.startsWith('l:') && t >= ws).length },
+  { id: 'review', text: 'Do 2 tune reviews (or start learning a new tune)', goal: 2, go: 'tunes', prog: (p, ws) => Object.values(p.tunes).filter(r => (r.rv?.last || 0) >= ws).length },
 ];
 const secsThisWeek = (p, ws) => new Set(Object.entries(p.touched).filter(([k, t]) => k.startsWith('x:') && t >= ws).map(([k]) => findEx(k.slice(2))?.sec.id).filter(Boolean));
 // Categories goal: above your best week of the last 4 (from sessions and the tempo log), at least 8, at most all of them.
@@ -1740,7 +1740,7 @@ function vHome() {
     if (!open.length) return '';
     const { r, pr } = open[0];
     return `<section class="card"><div class="row"><span style="font-size:1.5rem">🎁</span><div class="grow"><small class="muted">Next reward · ${esc(rewardGoalText(r))}</small><br><b>${esc(r.name)}</b></div>${r.type === 'custom' ? `<button class="btn sm" data-act="didReward" data-id="${r.id}">I did it ✓</button>` : `<small>${rewardProgText(r, pr)}</small>`}</div>${r.type === 'custom' ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${pr.pct}%"></i></div>`}</section>`; })()}
-  <section class="card ${ch.done ? 'chdone' : ''}"><div class="row"><span style="font-size:1.5rem">🎯</span><div class="grow"><small class="muted">This week's challenge · +${CHALLENGE_XP} XP</small><br><b>${esc(ch.c.text)}</b></div><b>${ch.done ? '✓' : ch.prog + '/' + ch.c.goal}</b></div>
+  <section class="card ${ch.done ? 'chdone' : ''}" ${ch.done || !ch.c.go ? '' : `data-act="challengeGo" data-go="${ch.c.go}" style="cursor:pointer"`}><div class="row"><span style="font-size:1.5rem">🎯</span><div class="grow"><small class="muted">This week's challenge · +${CHALLENGE_XP} XP</small><br><b>${esc(ch.c.text)}</b></div><b>${ch.done ? '✓' : ch.prog + '/' + ch.c.goal}</b>${ch.done || !ch.c.go ? '' : '<span class="muted" style="margin-left:6px">›</span>'}</div>
     ${ch.done ? '' : `<div class="bar" style="margin-top:8px"><i style="width:${Math.round(100 * ch.prog / ch.c.goal)}%"></i></div>`}
     ${ch.detail ? `<div class="chipsw chsecs" style="margin-top:8px">${ch.detail}</div>` : ''}</section>
   ${backupDue ? `<section class="card row"><span class="grow">It's been a while since your last backup.</span><button class="btn sm" data-act="exportData">Back up</button></section>` : ''}
@@ -3505,6 +3505,8 @@ const A = {
   fingAlto: () => { S.settings.fingAlto = !(S.settings.fingAlto ?? true); save(true); render(); },
   fingMine: () => { S.settings.fingMine = !S.settings.fingMine; save(true); render(); },
   fingStar: el => { const st = S.fstar || (S.fstar = {}), id = el.dataset.id; if (st[id]) delete st[id]; else st[id] = 1; save(); render(); },
+  // Weekly challenge card: jump to where it's done (a tab, or an action such as the quiz tune picker).
+  challengeGo: el => { const g = el.dataset.go; if (A[g] && !['ex', 'licks', 'tunes', 'train'].includes(g)) { if (g === 'startSession' && S.session) return; A[g](el); } else { tab = g; reorderMode = false; render(); window.scrollTo(0, 0); } },
   gotoTab: el => { tab = el.dataset.tab2; reorderMode = false; render(); window.scrollTo(0, 0); },
   openEx: el => sheetEx(el.dataset.id),
   openLick: el => sheetLick(el.dataset.id),
