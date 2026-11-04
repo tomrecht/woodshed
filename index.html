@@ -2036,9 +2036,10 @@ function sheetEx(id, planKey) {
   const info = exInfo(ex), ph = phraseOf(ex), phK = ph && phraseKeyDefault(ex, ph); if (ph) { phraseStop(); PH.ex = id; }
   const floorHtml = () => { const i = exInfo(ex);
     if (!i.floor) return '';
-    return `<div><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? Tk(exKey(ex, i.mk), i.min) : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
+    const go = k => `data-act="keySel" data-scroll="1" data-key="${esc(exKey(ex, k))}" style="cursor:pointer"`;
+    return `<div ${i.full ? go(i.mk) : ''}><small>Floor (slowest key)</small><strong style="color:var(--accent)">${i.full ? Tk(exKey(ex, i.mk), i.min) : '—'}</strong><small>${i.full ? esc(i.mk) : i.logged + '/' + i.n + ' keys logged'}</small></div>
       ${(() => { if (!i.logged) return '<div><small>Fastest key</small><strong>—</strong></div>'; const mx = Math.max(...i.vals.filter(v => v != null)), fk = ex.keys[i.vals.indexOf(mx)];
-        return `<div><small>Fastest key</small><strong>${Tk(exKey(ex, fk), mx)}</strong><small>${esc(fk)}</small></div>`; })()}`; };
+        return `<div ${go(fk)}><small>Fastest key</small><strong>${Tk(exKey(ex, fk), mx)}</strong><small>${esc(fk)}</small></div>`; })()}`; };
   const rows = ex.keys.map((k, j) => { const key = exKey(ex, k); const v = p.bpm[key];
     return `<label class="krow" data-k="${esc(k)}" data-key="${esc(key)}"><span class="sw" style="background:${heatColor(v, ex)}"></span>
       <span class="kn" data-act="keySel" data-key="${esc(key)}">${k === '—' ? 'BPM' : esc(k)}<small>${ago(p.touched[key])}</small></span>
@@ -3781,7 +3782,8 @@ const A = {
   mTs: () => { const o = [4, 3, 2, 5, 6, 7, 1]; M.bpb = o[(o.indexOf(M.bpb) + 1) % o.length]; M.beat = 0; S.settings.mBpb = M.bpb; save(true); mPaint(); },
   mGoal: () => { if (M.goal != null) mSet(M.goal); },
   mStep: el => { mSet(M.bpm + +el.dataset.d); },
-  keySel: (el, e) => { e.preventDefault(); metroLoad(el.dataset.key); markKey(); },   // tap a key's name: frame + metronome move to it
+  keySel: (el, e) => { e.preventDefault(); metroLoad(el.dataset.key); markKey();
+    if (el.dataset.scroll) $(`#panel label.krow[data-key="${CSS.escape(el.dataset.key)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); },   // tap a key's name: frame + metronome move to it
   mPlay: () => M.on ? mStop() : mStart(),
   mTap: () => { const now = performance.now(); M.taps = M.taps.filter(t => now - t < 2500); M.taps.push(now);
     if (M.taps.length >= 2) { const iv = (M.taps[M.taps.length - 1] - M.taps[0]) / (M.taps.length - 1); mSet(60000 / iv); } },
