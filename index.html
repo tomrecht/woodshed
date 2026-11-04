@@ -2865,7 +2865,7 @@ function phraseBlock(ex, k) {
   const p = P(), b = p.bpm[exKey(ex, ex.keys[0])];
   return `<div class="phrase card" style="background:var(--surface2);padding:10px">
     <div class="row"><label class="grow" style="display:flex;align-items:center;gap:8px"><small class="muted">Key</small><select id="phKey">${phraseKeys(phraseOf(ex)).map(x => `<option ${x === k ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
-      <small class="muted">one tempo, all keys</small></div>
+      <small class="muted">one tempo, all keys</small><button type="button" class="btn sm" data-act="editPhrase" data-id="${esc(ex.id)}" title="Edit the notes (type ABC or record a new take)">✎ Edit</button></div>
     <div id="phNotes" class="phnotes"><small class="muted">Loading notation…</small></div>
     <div class="row wrap" style="margin-top:6px"><button class="btn primary" id="phBtn" data-act="phToggle">${PH.on ? '■ Stop' : '▶ Play'}</button>
       <input type="number" inputmode="numeric" id="phBpm" min="40" max="360" value="${b ? Math.round(b) : 120}" style="width:5em" aria-label="Tempo"><small class="muted">bpm</small><button type="button" class="btn sm" data-act="phSave" title="Save this as your tempo for the phrase">Save tempo</button>
