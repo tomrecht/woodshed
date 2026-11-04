@@ -93,3 +93,10 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 2. Run it: `python3 -m http.server 8000` and load `http://localhost:8000/` in a headless browser (e.g. Playwright) at
    phone width (~360–390px); click through the feature and check the console for errors.
 3. Commit with a clear message, bump the `sw.js` cache version, push to `main`.
+
+## Limber (`limber/`) – separate daily-exercise app
+Owner's daily exercise checklist, live at https://tomrecht.github.io/woodshed/limber/ (own PWA: `limber/index.html`, `sw.js`, `manifest.json`, icons).
+Shares nothing with Woodshed except the origin: its data is `localStorage` key `limber.v1` (`ex` list, `log[day] = {d: {exId: sets done}, n, full}`;
+a day's `full` is frozen once the day passes, so editing the list never rewrites history). Timed exercises have a timer (5 s get-ready, sides, sets).
+Its own cache `limber-vN` (bump on each Limber deploy). Each app's service worker deletes only its OWN caches (`woodshed-*` / `limber-*`) –
+they share the origin's cache storage, so a blanket cleanup would wipe the other app's offline copy.
