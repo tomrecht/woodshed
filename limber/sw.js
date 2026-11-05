@@ -1,25 +1,3 @@
-// Offline cache for Limber (its own scope, separate from Woodshed's). Page: network first; the rest cache first.
-const CACHE = 'limber-v1';
-const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
-self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('limber-') && k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  const u = new URL(e.request.url);
-  if (e.request.mode === 'navigate' || u.pathname.endsWith('/') || u.pathname.endsWith('/index.html')) {
-    e.respondWith(caches.open(CACHE).then(async c => {
-      const hit = () => c.match(e.request, { ignoreSearch: true }).then(h => h || c.match('index.html'));
-      try {
-        const r = await Promise.race([fetch(e.request, { cache: 'no-store' }), new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]);
-        if (r.ok) { c.put(e.request, r.clone()); return r; }
-        return (await hit()) || r;
-      } catch (err) { return (await hit()) || Response.error(); }
-    }));
-    return;
-  }
-  e.respondWith(caches.open(CACHE).then(async c => {
-    const hit = await c.match(e.request, { ignoreSearch: true });
-    const net = fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
-    return hit || net;
-  }));
-});
+// Limber moved to /limber/. This worker only removes itself; it deletes no caches (the origin is shared).
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', () => self.registration.unregister());
