@@ -2507,14 +2507,14 @@ async function mStart() {
   try {
     M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)();
     if (!M.hi) { M.hi = mBuf(2640); M.lo = mBuf(1980); }
-    M.on = true; $('#mPlay').textContent = '■';
+    M.on = true; M.last = Date.now(); $('#mPlay').textContent = '■';
     if (M.ctx.state !== 'running') await M.ctx.resume();
     M.beat = 0; M.next = M.ctx.currentTime + 0.05; clearInterval(M.timer); M.timer = setInterval(mSched, 25); mSched();
     const t0 = M.ctx.currentTime;
     setTimeout(() => { if (M.on && M.ctx.currentTime === t0) toast('No sound output – check volume, silent mode or audio device'); }, 800);
   } catch (e) { M.on = false; $('#mPlay').textContent = '▶'; toast('Could not start audio: ' + e.message); }
 }
-function mStop() { M.on = false; clearInterval(M.timer); $('#mPlay').textContent = '▶'; }
+function mStop() { M.on = false; M.last = Date.now(); clearInterval(M.timer); $('#mPlay').textContent = '▶'; }
 function mShow(on) { $('#metro').classList.toggle('on', on); document.body.classList.toggle('metro-on', on); if (!on) { mStop(); M.auto = false; } else mPaint(); }
 $('#mBpm').addEventListener('change', e => mSet(e.target.value));
 $('#mVol').addEventListener('input', e => { S.settings.mVol = +e.target.value; $('#mVolV').textContent = e.target.value + '%'; if (M.vol) M.vol.gain.value = mVolGain(+e.target.value); });
@@ -2525,7 +2525,17 @@ $('#mVol').addEventListener('change', () => save(true));
 const EAR = { out: null };
 const PIANO = { buf: {}, loading: null };
 const PIANO_NOTES = { C1: 24, Ds1: 27, Fs1: 30, A1: 33, C2: 36, Ds2: 39, Fs2: 42, A2: 45, C3: 48, Ds3: 51, Fs3: 54, A3: 57, C4: 60, Ds4: 63, Fs4: 66, A4: 69, C5: 72, Ds5: 75, Fs5: 78 };
-function audioCtx() { M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (M.ctx.state !== 'running') M.ctx.resume(); return M.ctx; }
+function audioCtx() { M.ctx = M.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (M.ctx.state !== 'running') M.ctx.resume(); M.last = Date.now(); return M.ctx; }
+// Battery: a running AudioContext keeps the phone's audio hardware awake even in silence. Every playback path
+// goes through audioCtx() or mStart(), which resume it, so put it to sleep after a minute with nothing playing,
+// or at once when the app is hidden and nothing is playing.
+function audioBusy() { return M.on || CP.on || PH.on || REC.on || RH.timer || AQ.q.length; }
+function audioIdleSleep(now) {
+  if (!M.ctx || M.ctx.state !== 'running' || audioBusy()) return;
+  if (now || Date.now() - (M.last || 0) > 60000) M.ctx.suspend().catch(() => {});
+}
+setInterval(() => audioIdleSleep(false), 10000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') audioIdleSleep(true); });
 function loadPiano() {
   if (PIANO.loading) return PIANO.loading;
   const ctx = audioCtx();
