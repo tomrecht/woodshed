@@ -86,6 +86,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   `stretchCheck` (from `tickSession`) waits while a sheet is open or anything plays, so it never interrupts an exercise.
 - `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; kept by a session on ANY instrument (`slotKept`); phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
   `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
+- Tempo undo (`tempoUndoAt`): a change that is still current can be put back – ↶ in each item's Tempo history and in Progress → All changes,
+  and the toast after typing a tempo (`tempoToast`) has an Undo button. Clearing a tempo leaves no hist entry, so it can't be undone.
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).
 - Tunes have versions (keys): version id = `tuneId` or `tuneId@Key`. Progress per version: checkpoints `cp`, review `rv`, quiz `qz`.
 - Changing data shape? Add a one-time migration in `migrate()` guarded by a flag/revision, and keep old data working.

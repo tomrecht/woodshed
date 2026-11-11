@@ -1,5 +1,5 @@
 // Offline cache. The page is fetched fresh when online; other files are served from the cache and refreshed in the background.
-const CACHE = 'woodshed-v120';
+const CACHE = 'woodshed-v121';
 const FILES = ['./', 'index.html', 'vendor/abcjs-basic-min.js', 'library.json', 'fingerings.json', 'manifest.json', 'icon-192.png', 'icon-512.png', ...Array.from({ length: 25 }, (_, i) => `licks/lick-${i + 1}.png`),
   ...['C1','Ds1','Fs1','A1','C2','Ds2','Fs2','A2','C3','Ds3','Fs3','A3','C4','Ds4','Fs4','A4','C5','Ds5','Fs5'].map(n => `piano/${n}.mp3`),
   ...['ride1', 'ride2', 'hat1', 'hat2', 'kick'].map(n => `drums/${n}.mp3`)];

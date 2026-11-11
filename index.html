@@ -220,6 +220,8 @@ nav#tabs button.on{color:var(--accent)}
 #toast{position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-20px);opacity:0;transition:.25s;z-index:60;background:var(--accent);
   color:var(--accent-ink);font-weight:650;border-radius:12px;padding:10px 16px;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1;transform:translateX(-50%)}
+#toast.act.on{pointer-events:auto}
+#toast button{margin-left:12px;background:var(--accent-ink);color:var(--accent);border:0;border-radius:8px;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer}
 .hide{display:none!important}
 #stretch{position:fixed;inset:0;z-index:79;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:20px}
 .stretchList{text-align:left;margin:8px 0 14px;padding-left:20px;line-height:1.5}
@@ -349,7 +351,10 @@ const monday = d => { d = new Date(d); d.setHours(0, 0, 0, 0); d.setDate(d.getDa
 const addDays = (d, n) => { d = new Date(d); d.setDate(d.getDate() + n); return d; };
 const ago = t => { if (!t) return ''; const d = Math.floor((Date.now() - t) / DAY); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 7 ? d + 'd ago' : d < 60 ? Math.floor(d / 7) + 'w ago' : Math.floor(d / 30) + 'mo ago'; };
 const fmtMin = m => m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '');
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2600); }
+// toast(msg, undo): with an undo function the toast carries an Undo button and stays up longer
+function toast(msg, undo) { const t = $('#toast'); t.textContent = msg; t.classList.toggle('act', !!undo);
+  if (undo) { const b = document.createElement('button'); b.textContent = 'Undo'; b.onclick = () => { t.classList.remove('on', 'act'); clearTimeout(toast.h); undo(); }; t.append(b); }
+  t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on', 'act'), undo ? 7000 : 2600); }
 
 /* ---------- key sets & default library ---------- */
 const MAJ = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -823,14 +828,14 @@ function touch(k, exId, bulk, noPlan) {
 // Stored on the history entry (h.xp); records from before this have none and keep the old flat 10.
 const RECORD_XP_PER_BPM = 3, RECORD_XP_MIN = 5, RECORD_XP_MAX = 50, RECORD_XP_OLD = 10;
 const recordXp = (k, v, prev) => Math.max(RECORD_XP_MIN, Math.min(RECORD_XP_MAX, RECORD_XP_PER_BPM * Math.round((v - prev) / uk(k))));
-let lastRecordXp = 0;
+let lastRecordXp = 0, lastHistI = -1;
 function setBpm(k, v, exId, bulk) {
   const p = P(); v = v === '' || v == null ? null : Math.round(+v);
   if (v != null && (!isFinite(v) || v <= 0)) v = null;
   if (v != null) v *= uk(k);
   const prev = p.bpm[k] ?? null; if (v === prev) return false;
   if (v == null) delete p.bpm[k]; else { const h = { t: Date.now(), k, bpm: v, prev };
-    if (prev != null && v > prev) h.xp = lastRecordXp = recordXp(k, v, prev); p.bpm[k] = v; p.hist.push(h); }
+    if (prev != null && v > prev) h.xp = lastRecordXp = recordXp(k, v, prev); p.bpm[k] = v; lastHistI = p.hist.push(h) - 1; }
   touch(k, exId, bulk, v == null); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k);
   if (prev == null && v != null && k.startsWith('e:')) exDoneCheck(k.slice(2).split('|')[0], bulk);
   save(); checkBadges(); return v != null && prev != null && v > prev;
@@ -2026,18 +2031,27 @@ function sheetTempoLog() {
   openSheet(`${head('Tempo changes', 'newest first')}<ul class="list">${rows.map(({ h, i }) => { const cur = p.bpm[h.k], live = cur === h.bpm && h.prev != null, down = h.prev != null && h.bpm < h.prev;
     return `<li><span class="grow">${esc(itemLabel(h.k))}<br><small class="muted">${new Date(h.t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${fmtTime(h.t)}${h.undo ? ' · undo' : ''}</small></span>
       <b style="color:${down ? '#e0675f' : h.prev != null && h.bpm > h.prev ? 'var(--accent)' : 'var(--text)'}">${h.prev != null ? `<small>${dv(h.k, h.prev)}→</small>` : '<small>new </small>'}${Tk(h.k, h.bpm)}</b>
-      ${live ? `<button class="iconbtn" data-act="tempoUndo" data-i="${i}" title="Put back ${dv(h.k, h.prev)}" aria-label="Undo">↶</button>` : ''}</li>`; }).join('') || '<li class="muted">No tempo changes yet.</li>'}</ul>`);
+      ${live ? `<button class="iconbtn" data-act="tempoUndo" data-log="1" data-i="${i}" title="Put back ${dv(h.k, h.prev)}" aria-label="Undo">↶</button>` : ''}</li>`; }).join('') || '<li class="muted">No tempo changes yet.</li>'}</ul>`);
 }
+// Undo a tempo change: only while it is still the current value; puts back what it replaced (logged as an 'undo' entry).
+const histLive = (p, h) => h && h.prev != null && p.bpm[h.k] === h.bpm;
+function tempoUndoAt(i) { const p = P(), h = p.hist[i]; if (!histLive(p, h)) return false;
+  p.bpm[h.k] = h.prev; p.hist.push({ t: Date.now(), k: h.k, bpm: h.prev, prev: h.bpm, undo: 1 }); save(); toast('Restored ' + TtxtK(h.k, h.prev)); return true; }
+let sheetRedraw = null; // re-renders the open item sheet after an undo
+// Toast after a tempo change typed into an item sheet, with an Undo button (for an overwrite by mistake)
+function tempoToast(k, pb, msg) { const i = lastHistI, h = P().hist[i]; if (!h || h.k !== k) return pb && toast(msg);
+  const undo = () => { if (tempoUndoAt(i) && sheetRedraw) sheetRedraw(); };
+  if (pb) toast(msg, undo); else if (h.prev != null) toast(`${itemLabel(k)}: ${dv(k, h.prev)} → ${dv(k, h.bpm)}`, undo); }
 function histList(prefix, labelFn) {
-  const all = P().hist.filter(x => x.k.startsWith(prefix));
+  const p = P(), all = p.hist.map((x, i) => ({ ...x, i })).filter(x => x.k.startsWith(prefix));
   const h = all.slice(-12).reverse();
-  if (!h.length) return '';
+  if (!h.length) return '<div class="histlist"></div>';
   const single = new Set(all.map(x => x.k)).size === 1;
-  return `<h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all, uk(all[0].k)) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${dv(x.k, x.prev)}→</small>` : ''}${Tk(x.k, x.bpm)}</b></li>`).join('')}</ul>`;
+  return `<div class="histlist"><h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all, uk(all[0].k)) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${dv(x.k, x.prev)}→</small>` : ''}${Tk(x.k, x.bpm)}</b>${histLive(p, x) ? `<button class="iconbtn" data-act="tempoUndo" data-i="${x.i}" title="Put back ${dv(x.k, x.prev)}" aria-label="Undo">↶</button>` : ''}</li>`).join('')}</ul></div>`;
 }
 
 function sheetEx(id, planKey) {
-  const o = findEx(id); if (!o) return; const { sec, ex } = o; const p = P(), wasLoaded = M.loadedFor === id;
+  const o = findEx(id); if (!o) return; const { sec, ex } = o; const p = P(), wasLoaded = M.loadedFor === id; sheetRedraw = () => sheetEx(id, planKey);
   const list = allEx(); const idx = list.findIndex(x => x.ex.id === id);
   const info = exInfo(ex), ph = phraseOf(ex), phK = ph && phraseKeyDefault(ex, ph); if (ph) { phraseStop(); PH.ex = id; }
   const floorHtml = () => { const i = exInfo(ex);
@@ -2087,7 +2101,8 @@ function sheetEx(id, planKey) {
       const v = P().bpm[inp.dataset.key]; inp.closest('.krow').querySelector('.sw').style.background = heatColor(v, ex);
       inp.closest('.krow').querySelector('.kn small').textContent = 'today';
       $('#floorbox').innerHTML = floorHtml();
-      if (pb) toast('New record: ' + TtxtK(inp.dataset.key, v) + '  +' + lastRecordXp + ' XP');
+      tempoToast(inp.dataset.key, pb, 'New record: ' + TtxtK(inp.dataset.key, v) + '  +' + lastRecordXp + ' XP');
+      const hl = $('#panel .histlist'); if (hl) hl.outerHTML = histList('e:' + ex.id + '|', k => k.split('|')[1] === '—' ? ex.name : k.split('|')[1]);
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[j + 1] || inp).focus(); if (!inputs[j + 1]) inp.blur(); } });
   });
@@ -2104,6 +2119,7 @@ function sheetEx(id, planKey) {
 const markKey = () => $$('#panel label.krow').forEach(r => r.classList.toggle('sel', r.dataset.key === M.key));
 
 function sheetLick(id) {
+  sheetRedraw = () => sheetLick(id);
   const l = S.lib.licks.find(x => x.id === id); if (!l) return; const key = 'l:' + l.id; const p = P();
   openSheet(`${head(l.name, 'all 12 keys')}
     ${l.img ? `<img class="lickimg" data-img="${esc(l.img)}" alt="${esc(l.name)}">` : `<button class="btn ghost" data-act="lickImg" data-id="${esc(l.id)}">+ Add notation image (photo or screenshot)</button>`}
@@ -2117,11 +2133,12 @@ function sheetLick(id) {
       ${l.img ? `<button class="btn sm" data-act="lickImg" data-id="${esc(l.id)}">Replace image</button>` : ''}
       <button class="btn sm danger" data-act="delLick" data-id="${esc(l.id)}">Delete</button></div>`);
   $('#lickBpm').onchange = e => { const nw = lickIsNew(key), pb = setBpm(key, e.target.value);
-    if (nw && P().bpm[key]) toast('New lick: ' + l.name + '  +' + LICK_NEW_XP + ' XP'); else if (pb) toast('New record: ' + Ttxt(l, P().bpm[key]) + '  +' + lastRecordXp + ' XP'); };
+    if (nw && P().bpm[key]) toast('New lick: ' + l.name + '  +' + LICK_NEW_XP + ' XP'); else tempoToast(key, pb, 'New record: ' + Ttxt(l, P().bpm[key]) + '  +' + lastRecordXp + ' XP'); };
   $('#lickNotes').onchange = e => { l.notes = e.target.value; save(); };
 }
 
 function sheetTune(vid, opts = {}) {
+  sheetRedraw = () => sheetTune(vid, opts);
   const t = tuneOf(vid); if (!t) return; const id = t.id; const key = 't:' + vid; const p = P();
   const ts = tuneState(vid), st = tuneStatus(vid), ch = chartFor(vid);
   const vers = versionsOf(t);
@@ -2168,7 +2185,7 @@ function sheetTune(vid, opts = {}) {
     const pb = $('#phBtn'); if (pb) pb.onclick = () => { if (PH.on) return phraseStop(); const b = +$('#leadBpm').value || 120; S.settings.leadBpm = b; save(true);
       phrasePlay(leadPh(t), lk, b, { melody: true }).catch(e => toast(e.message)); }; }
   $$('#panel input[data-cp]').forEach(cb => cb.onchange = () => { setCheckpoint(vid, cb.dataset.cp, cb.checked); sheetTune(vid, opts); });
-  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); if (pb) toast('New record: ' + TtxtK(key, P().bpm[key]) + '  +' + lastRecordXp + ' XP'); sheetTune(vid, opts); };
+  const tb = $('#tuneBpm'); if (tb) tb.onchange = e => { const pb = setBpm(key, e.target.value); sheetTune(vid, opts); tempoToast(key, pb, 'New record: ' + TtxtK(key, P().bpm[key]) + '  +' + lastRecordXp + ' XP'); };
   $('#tuneTempo').onchange = e => { t.tempo = e.target.checked; save(); sheetTune(vid, opts); };
   $('#tuneNotes').onchange = e => { tuneRec(vid).notes = e.target.value; save(); };
   $('#tagForm').onsubmit = e => { e.preventDefault(); const v = $('#tagIn').value.trim().toLowerCase().replace(/^#/, ''); if (!v) return;
@@ -3683,9 +3700,9 @@ const A = {
   delSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec); if (!confirm(`Delete "${sec.name}" and its ${sec.ex.length} exercises? Logged tempos are kept in backups but hidden.`)) return;
     S.lib.sections = S.lib.sections.filter(s => s !== sec); save(); closeSheet(); },
   tempoLog: () => sheetTempoLog(),
-  tempoUndo: el => { const p = P(), h = p.hist[+el.dataset.i]; if (!h || p.bpm[h.k] !== h.bpm || h.prev == null) return;
+  tempoUndo: el => { const p = P(), i = +el.dataset.i, h = p.hist[i]; if (!histLive(p, h)) return;
     if (!confirm(`Put ${itemLabel(h.k)} back to ${dv(h.k, h.prev)}?`)) return;
-    p.bpm[h.k] = h.prev; p.hist.push({ t: Date.now(), k: h.k, bpm: h.prev, prev: h.bpm, undo: 1 }); save(); toast('Restored ' + TtxtK(h.k, h.prev)); sheetTempoLog(); },
+    tempoUndoAt(i); if (el.dataset.log || !sheetRedraw) sheetTempoLog(); else sheetRedraw(); },
   mVolToggle: () => { const r = $('#mVolRow'), v = $('#mVol'); r.classList.toggle('hide'); v.value = mVolVal(); $('#mVolV').textContent = v.value + '%'; },
   addPhrase: el => phraseEditor(S.lib.sections.find(s => s.id === el.dataset.sec)),
   editPhrase: el => { const { sec, ex } = findEx(el.dataset.id); phraseEditor(sec, ex); },
