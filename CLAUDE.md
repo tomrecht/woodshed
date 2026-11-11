@@ -87,7 +87,8 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - `S.sched` = scheduled practice (once, or weekly on chosen days; optional length; kept by a session on ANY instrument (`slotKept`); phone reminders via ntfy.sh, settings per device in `woodshed.ntfy`); `S.ear` = shared ear-training stats;
   `S.quiz[Eb|Bb|C]` = changes-quiz results per pitch.
 - Tempo undo (`tempoUndoAt`): a change that is still current can be put back – ↶ in each item's Tempo history and in Progress → All changes,
-  and the toast after typing a tempo (`tempoToast`) has an Undo button. Clearing a tempo leaves no hist entry, so it can't be undone.
+  and the toast after typing a tempo (`tempoToast`) has an Undo button. Clearing a tempo leaves no hist entry; the old value goes to `p.cleared[k]`
+  (`{bpm, t}`, dropped when a new tempo is typed) and can be put back the same ways (`clearedUndo`).
 - **Tempos are stored as quarter-note BPM.** Items/keys can be shown in half notes (`unit: 2`, exercise `unitKeys`).
 - Tunes have versions (keys): version id = `tuneId` or `tuneId@Key`. Progress per version: checkpoints `cp`, review `rv`, quiz `qz`.
 - Changing data shape? Add a one-time migration in `migrate()` guarded by a flag/revision, and keep old data working.

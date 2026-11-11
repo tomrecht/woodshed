@@ -828,13 +828,15 @@ function touch(k, exId, bulk, noPlan) {
 // Stored on the history entry (h.xp); records from before this have none and keep the old flat 10.
 const RECORD_XP_PER_BPM = 3, RECORD_XP_MIN = 5, RECORD_XP_MAX = 50, RECORD_XP_OLD = 10;
 const recordXp = (k, v, prev) => Math.max(RECORD_XP_MIN, Math.min(RECORD_XP_MAX, RECORD_XP_PER_BPM * Math.round((v - prev) / uk(k))));
-let lastRecordXp = 0, lastHistI = -1;
+let lastRecordXp = 0, lastHistI = -1, lastCleared = null;
 function setBpm(k, v, exId, bulk) {
   const p = P(); v = v === '' || v == null ? null : Math.round(+v);
   if (v != null && (!isFinite(v) || v <= 0)) v = null;
   if (v != null) v *= uk(k);
   const prev = p.bpm[k] ?? null; if (v === prev) return false;
-  if (v == null) delete p.bpm[k]; else { const h = { t: Date.now(), k, bpm: v, prev };
+  // a cleared tempo leaves no hist entry; it is kept in p.cleared so it can be put back (until a new tempo is typed)
+  if (p.cleared) delete p.cleared[k];
+  if (v == null) { delete p.bpm[k]; (p.cleared = p.cleared || {})[k] = { bpm: prev, t: Date.now() }; lastCleared = k; } else { const h = { t: Date.now(), k, bpm: v, prev };
     if (prev != null && v > prev) h.xp = lastRecordXp = recordXp(k, v, prev); p.bpm[k] = v; lastHistI = p.hist.push(h) - 1; }
   touch(k, exId, bulk, v == null); if (prev == null && v != null && !bulk && k.startsWith('e:')) consStart(k);
   if (prev == null && v != null && k.startsWith('e:')) exDoneCheck(k.slice(2).split('|')[0], bulk);
@@ -2028,7 +2030,7 @@ function tempoChart(series, u = 1) {
 // (back to what it replaced); lowered tempos are marked, since an accidental overwrite usually lowers one.
 function sheetTempoLog() {
   const p = P(), rows = p.hist.map((h, i) => ({ h, i })).slice(-60).reverse();
-  openSheet(`${head('Tempo changes', 'newest first')}<ul class="list">${rows.map(({ h, i }) => { const cur = p.bpm[h.k], live = cur === h.bpm && h.prev != null, down = h.prev != null && h.bpm < h.prev;
+  openSheet(`${head('Tempo changes', 'newest first')}<ul class="list">${clearedRows('', itemLabel)}${rows.map(({ h, i }) => { const cur = p.bpm[h.k], live = cur === h.bpm && h.prev != null, down = h.prev != null && h.bpm < h.prev;
     return `<li><span class="grow">${esc(itemLabel(h.k))}<br><small class="muted">${new Date(h.t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${fmtTime(h.t)}${h.undo ? ' · undo' : ''}</small></span>
       <b style="color:${down ? '#e0675f' : h.prev != null && h.bpm > h.prev ? 'var(--accent)' : 'var(--text)'}">${h.prev != null ? `<small>${dv(h.k, h.prev)}→</small>` : '<small>new </small>'}${Tk(h.k, h.bpm)}</b>
       ${live ? `<button class="iconbtn" data-act="tempoUndo" data-log="1" data-i="${i}" title="Put back ${dv(h.k, h.prev)}" aria-label="Undo">↶</button>` : ''}</li>`; }).join('') || '<li class="muted">No tempo changes yet.</li>'}</ul>`);
@@ -2037,17 +2039,24 @@ function sheetTempoLog() {
 const histLive = (p, h) => h && h.prev != null && p.bpm[h.k] === h.bpm;
 function tempoUndoAt(i) { const p = P(), h = p.hist[i]; if (!histLive(p, h)) return false;
   p.bpm[h.k] = h.prev; p.hist.push({ t: Date.now(), k: h.k, bpm: h.prev, prev: h.bpm, undo: 1 }); save(); toast('Restored ' + TtxtK(h.k, h.prev)); return true; }
+function clearedUndo(k) { const p = P(), c = p.cleared?.[k]; if (!c || p.bpm[k] != null) return false;
+  p.bpm[k] = c.bpm; delete p.cleared[k]; save(); toast('Restored ' + TtxtK(k, c.bpm)); return true; }
+// cleared tempos (still empty) under a hist prefix, newest first, as list rows with a put-back button
+const clearedRows = (prefix, labelFn) => Object.entries(P().cleared || {}).filter(([k]) => k.startsWith(prefix) && P().bpm[k] == null).sort((a, b) => b[1].t - a[1].t)
+  .map(([k, c]) => `<li><span class="grow">${esc(labelFn(k))}<br><small class="muted">cleared ${new Date(c.t).toLocaleDateString([], { month: 'short', day: 'numeric' })} ${fmtTime(c.t)}</small></span><b style="color:#e0675f"><small>${dv(k, c.bpm)}→</small>—</b><button class="iconbtn" data-act="clearedUndo" data-k="${esc(k)}" title="Put back ${dv(k, c.bpm)}" aria-label="Undo">↶</button></li>`).join('');
 let sheetRedraw = null; // re-renders the open item sheet after an undo
 // Toast after a tempo change typed into an item sheet, with an Undo button (for an overwrite by mistake)
-function tempoToast(k, pb, msg) { const i = lastHistI, h = P().hist[i]; if (!h || h.k !== k) return pb && toast(msg);
+function tempoToast(k, pb, msg) { const i = lastHistI, h = P().hist[i];
+  if (P().bpm[k] == null) { if (lastCleared === k && P().cleared?.[k]) toast(`${itemLabel(k)} cleared (was ${dv(k, P().cleared[k].bpm)})`, () => { if (clearedUndo(k) && sheetRedraw) sheetRedraw(); }); return; }
+  if (!h || h.k !== k) return pb && toast(msg);
   const undo = () => { if (tempoUndoAt(i) && sheetRedraw) sheetRedraw(); };
   if (pb) toast(msg, undo); else if (h.prev != null) toast(`${itemLabel(k)}: ${dv(k, h.prev)} → ${dv(k, h.bpm)}`, undo); }
 function histList(prefix, labelFn) {
   const p = P(), all = p.hist.map((x, i) => ({ ...x, i })).filter(x => x.k.startsWith(prefix));
-  const h = all.slice(-12).reverse();
-  if (!h.length) return '<div class="histlist"></div>';
+  const h = all.slice(-12).reverse(), cl = clearedRows(prefix, labelFn);
+  if (!h.length && !cl) return '<div class="histlist"></div>';
   const single = new Set(all.map(x => x.k)).size === 1;
-  return `<div class="histlist"><h3 style="margin:14px 0 6px">Tempo history</h3>${single ? tempoChart(all, uk(all[0].k)) : ''}<ul class="list">${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${dv(x.k, x.prev)}→</small>` : ''}${Tk(x.k, x.bpm)}</b>${histLive(p, x) ? `<button class="iconbtn" data-act="tempoUndo" data-i="${x.i}" title="Put back ${dv(x.k, x.prev)}" aria-label="Undo">↶</button>` : ''}</li>`).join('')}</ul></div>`;
+  return `<div class="histlist"><h3 style="margin:14px 0 6px">Tempo history</h3>${single && all.length ? tempoChart(all, uk(all[0].k)) : ''}<ul class="list">${cl}${h.map(x => `<li><span class="grow">${esc(labelFn(x.k))}</span><small>${new Date(x.t).toLocaleDateString()}</small><b style="color:${x.prev != null && x.bpm > x.prev ? 'var(--accent)' : 'var(--text)'}">${x.prev != null ? `<small>${dv(x.k, x.prev)}→</small>` : ''}${Tk(x.k, x.bpm)}</b>${histLive(p, x) ? `<button class="iconbtn" data-act="tempoUndo" data-i="${x.i}" title="Put back ${dv(x.k, x.prev)}" aria-label="Undo">↶</button>` : ''}</li>`).join('')}</ul></div>`;
 }
 
 function sheetEx(id, planKey) {
@@ -3700,6 +3709,8 @@ const A = {
   delSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec); if (!confirm(`Delete "${sec.name}" and its ${sec.ex.length} exercises? Logged tempos are kept in backups but hidden.`)) return;
     S.lib.sections = S.lib.sections.filter(s => s !== sec); save(); closeSheet(); },
   tempoLog: () => sheetTempoLog(),
+  clearedUndo: el => { const k = el.dataset.k, c = P().cleared?.[k]; if (!c || !confirm(`Put ${itemLabel(k)} back to ${dv(k, c.bpm)}?`)) return;
+    clearedUndo(k); if ($('#panel .histlist') && sheetRedraw) sheetRedraw(); else sheetTempoLog(); },
   tempoUndo: el => { const p = P(), i = +el.dataset.i, h = p.hist[i]; if (!histLive(p, h)) return;
     if (!confirm(`Put ${itemLabel(h.k)} back to ${dv(h.k, h.prev)}?`)) return;
     tempoUndoAt(i); if (el.dataset.log || !sheetRedraw) sheetTempoLog(); else sheetRedraw(); },
