@@ -621,7 +621,7 @@ function migrate() {
   }
   if (!S.exDoneRev) {   // exercises already complete when the completion bonus arrived: recorded, without XP
     for (const i of S.inst) { const p = S.prog[i.id]; if (!p) continue; p.exDone = p.exDone || {};
-      for (const sec of S.lib.sections) for (const ex of sec.ex) if (p.exDone[ex.id] == null && ex.keys.length && ex.keys.every(k => p.bpm[exKey(ex, k)] != null)) p.exDone[ex.id] = 0; }
+      for (const sec of S.lib.sections) for (const ex of sec.ex) if (p.exDone[ex.id] == null && !ex.noTempo && ex.keys.length && ex.keys.every(k => p.bpm[exKey(ex, k)] != null)) p.exDone[ex.id] = 0; }
     S.exDoneRev = 1;
   }
   // Each instrument gets its own colour scheme; existing ones take them in order (the first keeps amber).
@@ -845,23 +845,26 @@ function setBpm(k, v, exId, bulk) {
 // First time every key of an exercise has a tempo: +EXDONE_XP. p.exDone = { exId: when } (0 = completed before this existed, no XP).
 const EXDONE_XP = 25;
 function exDoneCheck(id, quiet) {
-  const p = P(), o = findEx(id); if (!o || (p.exDone = p.exDone || {})[id] != null || !o.ex.keys.every(k => p.bpm[exKey(o.ex, k)] != null)) return;
+  const p = P(), o = findEx(id); if (!o || o.ex.noTempo || (p.exDone = p.exDone || {})[id] != null || !o.ex.keys.every(k => p.bpm[exKey(o.ex, k)] != null)) return;
   p.exDone[id] = Date.now(); if (quiet && p.cel) (p.cel.ex = p.cel.ex || {})[id] = 1;   // table catch-up: no pop-up (checkAchievements shows the rest)
 }
 // any exercise with every key logged that never got its bonus (e.g. the last key arrived by sync) gets it now
 function exDoneHeal(p) {
   p.exDone = p.exDone || {};
   for (const sec of S.lib.sections) for (const ex of sec.ex)
-    if (p.exDone[ex.id] == null && ex.keys.length && ex.keys.every(k => p.bpm[exKey(ex, k)] != null)) p.exDone[ex.id] = Date.now();
+    if (p.exDone[ex.id] == null && !ex.noTempo && ex.keys.length && ex.keys.every(k => p.bpm[exKey(ex, k)] != null)) p.exDone[ex.id] = Date.now();
 }
 const FLOOR_MIN = 2;   // every exercise with keys gets a floor (slowest key); keyless ones have a single tempo
+// ex.noTempo: an exercise you just play (no tempo boxes); it never counts toward floors, new keys, completion or badges.
+function tempoEx(ex) { return !ex.noTempo; }
 function exInfo(ex) {
+  if (ex.noTempo) return { vals: ex.keys.map(() => null), logged: 0, min: null, mk: null, n: ex.keys.length, floor: false, full: false, nt: true };
   const p = P(); const vals = ex.keys.map(k => p.bpm[exKey(ex, k)] ?? null);
   let min = null, mk = null; vals.forEach((v, i) => { if (v != null && (min == null || v < min)) { min = v; mk = ex.keys[i]; } });
   const logged = vals.filter(v => v != null).length;
   return { vals, logged, min, mk, n: ex.keys.length, floor: ex.keys.length >= FLOOR_MIN, full: logged === ex.keys.length };
 }
-const secDone = sec => sec.ex.length > 0 && sec.ex.every(ex => exInfo(ex).full);
+const secDone = sec => sec.ex.some(tempoEx) && sec.ex.filter(tempoEx).every(ex => exInfo(ex).full);
 /* ---------- tunes: keys (versions), checkpoints, spaced review ---------- */
 const CP_GROUPS = [
   ['Melody', [['m1', 'Sing it'], ['m2', 'Play from the chart'], ['m3', 'Play from memory']]],
@@ -1276,7 +1279,7 @@ function dirPrev(ex) {
   return o.sec.ex.find(e => e.name === m[1] + ' – ' + DIR_ORDER[DIR_ORDER.indexOf(m[2]) - 1]) || null;
 }
 // In an ordered category (sec.ordered) only exercises up to the first one with a key not yet logged are offered.
-const nextInOrder = sec => sec.ex.find(e => e.keys.some(k => P().bpm[exKey(e, k)] == null));
+const nextInOrder = sec => sec.ex.find(e => e.noTempo ? !P().touched['x:' + e.id] : e.keys.some(k => P().bpm[exKey(e, k)] == null));
 function readyKeys(ex) {
   const o = ex.cb && findEx(ex.id);
   if (o && o.sec.ordered) { const nx = nextInOrder(o.sec); if (nx && o.sec.ex.indexOf(ex) > o.sec.ex.indexOf(nx)) return []; }
@@ -1383,7 +1386,7 @@ function floorTopUp() {
 // A new key: an exercise from the ordinary sections (not ii–V–I phrases; licks are their own type) in a key not logged
 // yet, so new material is always on offer. Any open plan item with an unlogged key counts; one taken off stays off today.
 const exOutToday = f => new Set(S.plan && S.plan.date === dayKey(Date.now()) && S.plan.inst === S.cur ? S.plan[f] || [] : []);
-const unloggedReady = ex => readyKeys(ex).filter(k => P().bpm[exKey(ex, k)] == null);
+const unloggedReady = ex => ex.noTempo ? [] : readyKeys(ex).filter(k => P().bpm[exKey(ex, k)] == null);
 function pickNew(items) {
   const p = P(), inPlan = new Set(items.filter(i => i.t === 'ex').map(i => i.id)), out = exOutToday('newOut');
   // categories you haven't worked on recently first (days since anything in the category, capped at 60, ±1 day of chance);
@@ -1395,7 +1398,7 @@ function pickNew(items) {
   if (!c) return null; const ks = unloggedReady(c.o.ex);
   return { t: 'ex', id: c.o.ex.id, key: ks[Math.floor(Math.random() * ks.length)], nu: 1 };
 }
-const hasNew = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); return o && !o.sec.phrases && P().bpm[exKey(o.ex, it.key)] == null; });
+const hasNew = items => items.some(it => { if (it.t !== 'ex') return false; const o = findEx(it.id); return o && !o.sec.phrases && !o.ex.noTempo && P().bpm[exKey(o.ex, it.key)] == null; });
 // Aim for NEW_MIN open new-key items; the first is always kept, further ones only while the plan has < PLAN_MAX items.
 const NEW_MIN = 2, PLAN_MAX = 7;
 const newCount = items => items.filter(i => !planItemDone(i) && hasNew([i])).length;
@@ -1773,6 +1776,7 @@ function itemLabel(k) {
 function exRow(ex) {
   const i = exInfo(ex);
   let meta;
+  if (i.nt) { const t = P().touched['x:' + ex.id]; return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${t ? 'played ' + esc(ago(t)) : 'no tempo'}</span></div></button>`; }
   if (i.n === 1) meta = i.vals[0] ? `<b>${Tk(exKey(ex, ex.keys[0]), i.vals[0])}</b>` : '—';
   else if (i.floor) meta = i.full ? `floor <b>${Tk(exKey(ex, i.mk), i.min)}</b> · ${esc(i.mk)}` : `${i.logged}/${i.n} keys${i.min ? ` · slowest ${Tk(exKey(ex, i.mk), i.min)}` : ''}`;
   else meta = i.vals.map((v, j) => v ? `<b>${Tk(exKey(ex, ex.keys[j]), v)}</b>` : '—').join(' / ');
@@ -1793,8 +1797,8 @@ function vEx() {
   if (reorderMode) return vExReorder();
   return `<div class="row" style="margin-bottom:12px"><input type="search" id="exFilter" placeholder="Filter exercises…" class="grow"><button class="btn sm" data-act="gotoTab" data-tab2="grid">Table entry</button>${reorderBtn()}</div>` +
     libSecs().map(sec => {
-      const full = sec.ex.filter(ex => exInfo(ex).full).length;
-      return `<details class="sec" data-sec="${esc(sec.id)}" ${openSecs.has(sec.id) ? 'open' : ''}><summary><span class="grow"><b>${esc(sec.name)}</b>${secDone(sec) ? '<span class="donebadge">✓ complete</span>' : ''}</span><small>${full}/${sec.ex.length}</small></summary>
+      const full = sec.ex.filter(ex => exInfo(ex).full).length, nTempo = sec.ex.filter(tempoEx).length;
+      return `<details class="sec" data-sec="${esc(sec.id)}" ${openSecs.has(sec.id) ? 'open' : ''}><summary><span class="grow"><b>${esc(sec.name)}</b>${secDone(sec) ? '<span class="donebadge">✓ complete</span>' : ''}</span><small>${nTempo ? full + '/' + nTempo : ''}</small></summary>
       <div class="body">${sec.ordered ? `<p class="muted" style="margin:0 0 8px;font-size:.9rem">Practise in order${nextInOrder(sec) ? ' – next: <b>' + esc(nextInOrder(sec).name) + '</b>' : ' – all done'}.</p>` : ''}${sec.ex.map(exRow).join('')}
       <div class="row"><button class="btn ghost" data-act="${isPhraseSec(sec) ? 'addPhrase' : 'addEx'}" data-sec="${esc(sec.id)}">${isPhraseSec(sec) ? '+ Phrase' : '+ Exercise'}</button><button class="btn ghost" data-act="editSec" data-sec="${esc(sec.id)}">Edit category</button></div></div></details>`;
     }).join('') + `<button class="btn ghost" data-act="addSec">+ Add category</button>`;
@@ -1807,7 +1811,7 @@ function vGrid() {
   const sections = libSecs().map(sec => {
     // group exercises sharing the same key set so each table has one header row
     const groups = [];
-    for (const ex of sec.ex) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
+    for (const ex of sec.ex.filter(tempoEx)) { const sig = ex.keys.join('|'); let g = groups.find(g => g.sig === sig); if (!g) groups.push(g = { sig, keys: ex.keys, ex: [] }); g.ex.push(ex); }
     // single-tempo trios ("X – Ascending/Descending/Alternating") share one row, one column per direction
     const trioHtml = g => {
       if (g.keys.length !== 1 || g.keys[0] !== '—') return '';
@@ -2081,12 +2085,12 @@ function sheetEx(id, planKey) {
       <label style="display:flex;align-items:center;gap:6px"><small class="muted">Key</small><select id="nfK">${nf.keys.map(k => `<option value="${esc(k)}" ${k === nfK ? 'selected' : ''}>${esc(nf.label(k))}</option>`).join('')}</select></label></div><div id="nfNotes" class="cbnotes"><small class="muted">Loading notation…</small></div>` : ''}
     ${ph ? phraseBlock(ex, phK) : ''}
     ${cb ? `<p class="muted" style="margin:4px 0 6px;font-size:.9rem"><small>${esc(cb[0])}</small><br>${esc(cb[2])}</p><div id="cbNotes" class="cbnotes"></div>` : ''}
-    <div class="floorbox" id="floorbox">${floorHtml()}</div>
+    ${ex.noTempo ? `<p class="muted" style="margin:6px 0 10px;font-size:.9rem">Not a tempo exercise – tap ✓ Practiced when you've played it.</p>` : `<div class="floorbox" id="floorbox">${floorHtml()}</div>
     <div class="row" style="margin:6px 0 10px"><p class="muted grow" style="margin:0;font-size:.9rem">${ph ? 'Your best clean tempo through all 12 keys.' : ex.keys.length === 1 ? `Type your best clean tempo – or, if this one isn't about tempo, just tap ✓ Practiced.` : `Type your best clean tempo for ${ex.keys.length === 12 ? 'each key' : 'each of the ' + ex.keys.length}. Tap a row's note to switch just that one between quarter and half notes.`}</p>${unitBtn('ex', ex, true)}</div>
-    <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>
+    <div class="keys ${ex.keys.length === 1 ? 'one' : ''}">${rows}</div>`}
     <div class="sp"></div>
     <div class="row"><button class="btn grow${isToday(p.touched['x:' + ex.id]) ? ' primary' : ''}" data-act="practiced" data-ex="${esc(ex.id)}">✓ Practiced</button><button class="btn grow" data-act="planAddDirect" data-t="ex" data-id="${esc(ex.id)}">+ Today's plan</button></div>
-    ${histList('e:' + ex.id + '|', k => k.split('|')[1] === '—' ? ex.name : k.split('|')[1])}
+    ${ex.noTempo ? '' : histList('e:' + ex.id + '|', k => k.split('|')[1] === '—' ? ex.name : k.split('|')[1])}
     <div class="row" style="margin-top:14px">
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx - 1 + list.length) % list.length].ex.id)}">← Prev</button>
       <button class="btn grow" data-act="openEx" data-id="${esc(list[(idx + 1) % list.length].ex.id)}">Next →</button></div>
@@ -2313,7 +2317,7 @@ function quizFinish() {
 function pickerSheet(t) {
   const p = P(); let rows;
   if (t === 'ex') rows = libSecs().map(sec => `<h3 style="margin:12px 0 4px" data-grp>${esc(sec.name)}</h3>` + sec.ex.map(ex => { const i = exInfo(ex);
-    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? Tk(exKey(ex, ex.keys[0]), i.vals[0]) : ''}</small></button>`; }).join('')).join('');
+    return `<button class="trow" data-act="pickItem" data-t="ex" data-id="${esc(ex.id)}" data-name="${esc((sec.name + ' ' + ex.name).toLowerCase())}"><span class="grow">${esc(ex.name)}</span><small>${i.nt ? '' : i.n > 1 ? i.logged + '/' + i.n : i.vals[0] ? Tk(exKey(ex, ex.keys[0]), i.vals[0]) : ''}</small></button>`; }).join('')).join('');
   else if (t === 'lick') rows = S.lib.licks.map(l => `<button class="trow" data-act="pickItem" data-t="lick" data-id="${esc(l.id)}" data-name="${esc(l.name.toLowerCase())}"><span class="grow">${esc(l.name)}</span><small>${p.bpm['l:' + l.id] ? T(l, p.bpm['l:' + l.id]) : ''}</small></button>`).join('');
   else rows = allVersions().map(v => `<button class="trow" data-act="pickItem" data-t="tune" data-id="${esc(v)}" data-name="${esc(vLabel(v).toLowerCase())}"><span class="grow">${esc(vLabel(v))}</span>${tunePips(v)}</button>`).join('');
   openSheet(`${head('Add ' + (t === 'ex' ? 'an exercise' : t === 'lick' ? 'a lick' : 'a tune') + ' to today')}
@@ -3736,8 +3740,9 @@ const A = {
     formSheet('Edit exercise', `<label class="f">Name</label><input type="text" name="name" value="${esc(ex.name)}" required>
       <label class="f">Category</label><select name="sec">${S.lib.sections.map(x => `<option value="${esc(x.id)}" ${x === sec ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>${keysetFields(ex.keys)}
       <label class="f">Notes per click <small class="muted">(so tempo colours compare fairly)</small></label><select name="npc">${[...new Set([...NPC_OPTS, npcOf(ex)])].sort((a, b) => a - b).map(n => `<option value="${n}" ${npcOf(ex) === n ? 'selected' : ''}>${n}${n === npcDefault(ex) ? ' (default)' : ''}</option>`).join('')}</select>
-      <p class="muted" style="font-size:.85rem">Counted per ${unitOf(ex) === 2 ? 'half' : 'quarter'}-note click: 16ths = ${4 * unitOf(ex)}, 6/8 triads = 3. Tempos for keys you remove stay in backups but won't show.</p>`,
-      fd => { ex.name = fd.name.trim() || ex.name; const k = keysFrom(fd); if (k.length) ex.keys = k;
+      <p class="muted" style="font-size:.85rem">Counted per ${unitOf(ex) === 2 ? 'half' : 'quarter'}-note click: 16ths = ${4 * unitOf(ex)}, 6/8 triads = 3. Tempos for keys you remove stay in backups but won't show.</p>
+      <div class="stages" style="margin-top:10px"><label><input type="checkbox" name="noTempo" ${ex.noTempo ? 'checked' : ''}><span class="grow">Not a tempo exercise – no tempo boxes, just ✓ Practiced</span></label></div>`,
+      fd => { ex.name = fd.name.trim() || ex.name; if (fd.noTempo) ex.noTempo = 1; else delete ex.noTempo; const k = keysFrom(fd); if (k.length) ex.keys = k;
         const npc = +fd.npc; if (npc === npcDefault(ex)) delete ex.npq; else ex.npq = npc / unitOf(ex);
         const to = S.lib.sections.find(x => x.id === fd.sec);
         if (to && to !== sec) { sec.ex = sec.ex.filter(x => x !== ex); to.ex.push(ex); openSecs.add(to.id); toast('Moved to ' + to.name); }
