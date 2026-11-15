@@ -17,7 +17,9 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
   exercises with notation. `PHRASES` (built-ins) is empty since 2026-10-25 (owner adds their own; rev 10 removed them); the user's carry `ex.abc` + `ex.abcKey`
   (ABC body, L:1/8, 4/4, chords in quotes). Categories by length since rev 11: `phrases-2` / `phrases-4` (`sec.len`);
   a saved phrase goes to the one matching its bar count. Since rev 12 minor ii–V–i phrases have their own `phrases-m2` / `phrases-m4`
-  (`sec.minor`); a phrase goes by its written key (`isMinorKey(ex.abcKey)`, `phraseSecFor(bars, minor)`). One tempo for all 12 keys (`keys: ['—']`); shown in any key, octave chosen to
+  (`sec.minor`); a phrase goes by its written key (`isMinorKey(ex.abcKey)`, `phraseSecFor(bars, minor)`). Other phrase categories (no `sec.len`, since libRev 17): Edit category → "Phrase category" checkbox sets `sec.phrases`,
+  optional `sec.chords` (default chords in C, a bar per |, transposed to the written key); 2/4/8-bar takes; phrases stay in their category
+  (only the ii–V–I ones re-sort by length/mode). libRev 17 made the owner's "Rhythm changes middle 8" one (`isRhythmBridge`, `RHYTHM_BRIDGE` = III7 VI7 II7 V7). One tempo for all 12 keys (`keys: ['—']`); shown in any key, octave chosen to
   stay in the sax range, played with melody over `playChords`; "All 12 keys" (`S.settings.phAll`, default on) plays it round the
   cycle of fourths from the chosen key, re-rendering the notation a beat before each key (`phrasePlay` `keys`/`onKey`). The phrase editor can record a take from the mic
   (`recordPhrase`: AudioWorklet capture → YIN pitch → grid of 6 units per beat (eighths, swung or straight, or a triplet beat) → ABC in the written key);
