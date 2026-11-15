@@ -63,6 +63,11 @@ main{padding:14px 16px;max-width:720px;margin:0 auto}
 .rorow:last-child{border-bottom:0}
 .rorow.sub{padding-left:12px;font-size:.95rem}
 .mv{display:flex;gap:2px;flex:none}
+.dh{flex:none;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;font-size:1.3rem;line-height:1;padding:8px 10px;margin:-4px 0 -4px -6px;color:var(--muted)}
+.dragging{position:relative;z-index:5;background:var(--card);box-shadow:0 4px 14px rgba(0,0,0,.45);border-radius:8px;opacity:.95}
+details.rosec>summary{list-style:none;cursor:pointer}details.rosec>summary::-webkit-details-marker{display:none}
+details.rosec>summary .rorow{border-bottom:0}details.rosec[open]>summary .rorow{border-bottom:1px solid var(--line)}
+.rocnt{color:var(--muted);font-size:.85rem;flex:none}
 .mv .iconbtn{font-size:1.2rem;padding:6px 12px;color:var(--text)}
 .mv .iconbtn:disabled{opacity:.25}
 .row{display:flex;gap:8px;align-items:center}
@@ -1790,16 +1795,57 @@ function exRow(ex) {
   const strip = i.n > 1 ? `<div class="strip">${i.vals.map((v, j) => `<i style="background:${heatColor(v, ex)}" class="${i.floor && i.full && ex.keys[j] === i.mk ? 'fl' : ''}"></i>`).join('')}</div>` : '';
   return `<button class="exrow" data-act="openEx" data-id="${esc(ex.id)}" data-name="${esc(ex.name.toLowerCase())}"><div class="top"><span>${esc(ex.name)}</span><span class="meta">${meta}</span></div>${strip}</button>`;
 }
-// Reorder mode (Exercises and Licks tabs): rows get ↑/↓ buttons instead of opening.
+// Reorder mode (Exercises and Licks tabs): rows get a ☰ drag handle and ↑/↓ buttons instead of opening.
+// A drag list is a parent with data-dlist="<kind>" (+ data-sec for exercises) holding .drow children with data-id.
 let reorderMode = false;
+const openRo = new Set(); // categories expanded in reorder mode
 const mvBtns = (kind, id, i, n) => `<span class="mv"><button type="button" class="iconbtn" data-act="mv" data-kind="${kind}" data-id="${esc(id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button type="button" class="iconbtn" data-act="mv" data-kind="${kind}" data-id="${esc(id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="Move down">↓</button></span>`;
+const dragH = '<span class="dh" aria-hidden="true">☰</span>';
 const reorderBtn = () => `<button class="btn sm ${reorderMode ? 'primary' : ''}" data-act="reorderToggle">${reorderMode ? 'Done' : 'Reorder'}</button>`;
 function vExReorder() {
   const secs = S.lib.sections;
-  return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Move categories and exercises with the arrows. To move an exercise to another category, open it and tap Edit exercise.</span>${reorderBtn()}</div>` +
-    secs.map((sec, si) => `<section class="card"><div class="rorow"><b class="grow">${esc(sec.name)}</b>${mvBtns('sec', sec.id, si, secs.length)}</div>
-      ${sec.ex.map((ex, i) => `<div class="rorow sub"><span class="grow">${esc(ex.name)}</span>${mvBtns('ex', ex.id, i, sec.ex.length)}</div>`).join('') || '<p class="muted">No exercises.</p>'}</section>`).join('');
+  return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Drag ☰ (or use the arrows) to move categories and exercises. Tap a category to show its exercises. To move an exercise to another category, open it and tap Edit exercise.</span>${reorderBtn()}</div>
+    <div data-dlist="sec">` +
+    secs.map((sec, si) => `<details class="card rosec drow" data-id="${esc(sec.id)}" ${openRo.has(sec.id) ? 'open' : ''}><summary><div class="rorow">${dragH}<b class="grow">${esc(sec.name)}${secShown(sec) ? '' : ' <span class="muted" style="font-weight:normal">(other instrument)</span>'}</b><span class="rocnt">${sec.ex.length}</span>${mvBtns('sec', sec.id, si, secs.length)}</div></summary>
+      <div data-dlist="ex" data-sec="${esc(sec.id)}">${sec.ex.map((ex, i) => `<div class="rorow sub drow" data-id="${esc(ex.id)}">${dragH}<span class="grow">${esc(ex.name)}</span>${mvBtns('ex', ex.id, i, sec.ex.length)}</div>`).join('') || '<p class="muted">No exercises.</p>'}</div></details>`).join('') + '</div>';
 }
+// Drag a ☰ handle: the row follows the finger, siblings make room; on release the list takes the new order.
+function dragList(e) {
+  const h = e.target.closest('.dh'); if (!h || !reorderMode) return;
+  const row = h.closest('.drow'), box = row && row.parentElement; if (!box || !box.dataset.dlist) return;
+  e.preventDefault(); e.stopPropagation();
+  const rows = () => [...box.children].filter(c => c.classList.contains('drow'));
+  const start = rows().map(r => r.dataset.id);
+  let lastY = e.clientY, raf = 0, ty = 0;
+  const grab = e.clientY - row.getBoundingClientRect().top;
+  const off = () => { ty = lastY - grab - (row.getBoundingClientRect().top - ty); row.style.transform = `translateY(${ty}px)`; };
+  row.classList.add('dragging');
+  const place = () => { // move the row in the DOM past any sibling whose middle the finger crossed
+    const others = rows().filter(r => r !== row);
+    let before = null; for (const r of others) { const b = r.getBoundingClientRect(); if (lastY < b.top + b.height / 2) { before = r; break; } }
+    if (before) { if (row.nextElementSibling !== before) box.insertBefore(row, before); }
+    else { const last = others[others.length - 1]; if (last && last.nextElementSibling !== row) last.after(row); }
+    off();
+  };
+  const scroll = () => { // keep scrolling while held near the top/bottom edge
+    const m = 60, v = lastY < m ? -(m - lastY) / 4 : lastY > innerHeight - m ? (lastY - innerHeight + m) / 4 : 0;
+    if (v) { scrollBy(0, v); place(); } raf = requestAnimationFrame(scroll);
+  };
+  raf = requestAnimationFrame(scroll);
+  const move = ev => { lastY = ev.clientY; place(); };
+  const up = () => {
+    cancelAnimationFrame(raf); removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    row.classList.remove('dragging'); row.style.transform = '';
+    const order = rows().map(r => r.dataset.id); if (order.join() === start.join()) return;
+    const kind = box.dataset.dlist, list = kind === 'sec' ? S.lib.sections : kind === 'lick' ? S.lib.licks : (S.lib.sections.find(s => s.id === box.dataset.sec) || {}).ex;
+    if (!list) return;
+    const byId = new Map(list.map(x => [x.id, x])), sorted = order.map(id => byId.get(id)).filter(Boolean);
+    if (sorted.length !== list.length) return; // DOM and data disagree: leave the data alone
+    list.splice(0, list.length, ...sorted); save(); render();
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+document.addEventListener('pointerdown', dragList);
 function vEx() {
   if (reorderMode) return vExReorder();
   return `<div class="row" style="margin-bottom:12px"><input type="search" id="exFilter" placeholder="Filter exercises…" class="grow"><button class="btn sm" data-act="gotoTab" data-tab2="grid">Table entry</button>${reorderBtn()}</div>` +
@@ -1868,8 +1914,8 @@ function bindGrid() {
 
 function vLicks() {
   const p = P(), L = S.lib.licks;
-  if (reorderMode) return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Move licks with the arrows.</span>${reorderBtn()}</div>
-    <section class="card">${L.map((l, i) => `<div class="rorow"><span class="grow">${esc(l.name)}</span>${mvBtns('lick', l.id, i, L.length)}</div>`).join('')}</section>`;
+  if (reorderMode) return `<div class="row" style="margin-bottom:12px"><span class="grow muted">Drag ☰ (or use the arrows) to move licks.</span>${reorderBtn()}</div>
+    <section class="card" data-dlist="lick">${L.map((l, i) => `<div class="rorow drow" data-id="${esc(l.id)}">${dragH}<span class="grow">${esc(l.name)}</span>${mvBtns('lick', l.id, i, L.length)}</div>`).join('')}</section>`;
   // ii–V–I phrases live with the exercises (tempo, plan) but are licks in spirit, so they're listed here too
   const phSecs = S.lib.sections.filter(isPhraseSec);
   const phCard = phSecs.length ? `<section class="card"><h3>ii–V–I phrases</h3>${phSecs.map(sec => `<div class="row" style="margin:8px 0 4px"><small class="muted grow">${sec.len ? (sec.minor ? 'Minor · ' : 'Major · ') + sec.len + ' bars' : esc(sec.name)}</small><button class="btn sm" data-act="addPhrase" data-sec="${esc(sec.id)}">+ Phrase</button></div>
@@ -1979,6 +2025,7 @@ function render() {
   $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'grid' ? 'ex' : tab === 'fing' ? 'train' : tab)));
   $('#instSel').innerHTML = S.inst.map(i => `<option value="${i.id}" ${i.id === S.cur ? 'selected' : ''}>${esc(i.name)}</option>`).join('');
   if (tab === 'licks') hydrateImgs(v);
+  if (tab === 'ex' && reorderMode) $$('details.rosec').forEach(d => d.addEventListener('toggle', () => d.open ? openRo.add(d.dataset.id) : openRo.delete(d.dataset.id)));
   if (tab === 'ex' && !reorderMode) {
     const f = $('#exFilter'); f.value = exFilterVal; applyExFilter();
     f.oninput = () => { exFilterVal = f.value; applyExFilter(); };
