@@ -389,6 +389,10 @@ const PHRASES = [   // built-in phrases: none for now (the owner adds their own)
 // Other phrase categories (no sec.len): any length, own default chords in C (sec.chords, a bar per |), never re-sorted by length.
 const RHYTHM_BRIDGE = 'E7 | E7 | A7 | A7 | D7 | D7 | G7 | G7';   // III7 VI7 II7 V7, in C
 const isRhythmBridge = sec => /rhythm/i.test(sec.name) && /middle|bridge/i.test(sec.name);
+// A sections (first two As, turnaround back to the top): I VI | ii V | iii VI | ii V | v I7 | IV #iv° | iii VI | ii V, in C
+const RHYTHM_A = 'C6 A7 | Dm7 G7 | Em7 A7 | Dm7 G7 | Gm7 C7 | Fmaj7 F#dim7 | Em7 A7 | Dm7 G7';
+const isRhythmA = sec => /rhythm/i.test(sec.name) && /\bA\b|A[ -]?section/i.test(sec.name);
+const rhythmChords = sec => isRhythmBridge(sec) ? RHYTHM_BRIDGE : isRhythmA(sec) ? RHYTHM_A : '';
 const PHRASE_LEN_SECS = [['phrases-2', 'ii–V–I phrases · 2 bars', 2], ['phrases-4', 'ii–V–I phrases · 4 bars', 4]];
 // minor ii–V–i phrases have their own categories (rev 12); a phrase goes by its written key (Cm, F#m … = minor)
 const PHRASE_MIN_SECS = [['phrases-m2', 'Minor ii–V–i phrases · 2 bars', 2], ['phrases-m4', 'Minor ii–V–i phrases · 4 bars', 4]];
@@ -598,6 +602,10 @@ function migrate() {
   if (S.libRev < 17) {   // a rhythm changes bridge / middle 8 category is a phrase category (owner, 2026-11-15)
     for (const x of S.lib.sections) if (!x.phrases && isRhythmBridge(x)) { x.phrases = 1; x.chords = x.chords || RHYTHM_BRIDGE; }
     S.libRev = 17;
+  }
+  if (S.libRev < 18) {   // rhythm changes A section category: a phrase category with the A-section changes (owner, 2026-11-15)
+    for (const x of S.lib.sections) if (!x.len && isRhythmA(x)) { x.phrases = 1; x.chords = x.chords || RHYTHM_A; }
+    S.libRev = 18;
   }
   applyTuneTypes();
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
@@ -3771,12 +3779,13 @@ const A = {
     const i = list.findIndex(x => x.id === id), j = i + d; if (i < 0 || j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]]; save(); render(); },
   addSec: () => formSheet('New category', `<label class="f">Name</label><input type="text" name="name" required>`, fd => { const n = fd.name.trim(); if (!n) return false;
-    S.lib.sections.push({ id: slug(n) + '-' + uid(), name: n, ex: [] }); save(); }),
+    const sec = { id: slug(n) + '-' + uid(), name: n, ex: [] }, rc = rhythmChords(sec); if (rc) Object.assign(sec, { phrases: 1, chords: rc });   // rhythm changes A / bridge: phrase category with its changes
+    S.lib.sections.push(sec); save(); }),
   editSec: el => { const sec = S.lib.sections.find(s => s.id === el.dataset.sec);
     const fixed = !!sec.len;   // the ii–V–I categories are always phrase categories
     formSheet('Edit category', `<label class="f">Name</label><input type="text" name="name" value="${esc(sec.name)}" required>
       ${fixed ? '' : `<label class="f" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="phr" ${sec.phrases ? 'checked' : ''} onchange="document.getElementById('phrCh').classList.toggle('hide', !this.checked)"> Phrase category <small class="muted">(written out in notation, played in any key over chords)</small></label>
-      <div id="phrCh" class="${sec.phrases ? '' : 'hide'}"><label class="f">Chords for new phrases <small class="muted">(in C, a bar per |; blank = ii–V–I)</small></label><input type="text" name="chords" autocapitalize="off" spellcheck="false" value="${esc(sec.chords || (isRhythmBridge(sec) ? RHYTHM_BRIDGE : ''))}"></div>`}`,
+      <div id="phrCh" class="${sec.phrases ? '' : 'hide'}"><label class="f">Chords for new phrases <small class="muted">(in C, a bar per |; blank = ii–V–I)</small></label><input type="text" name="chords" autocapitalize="off" spellcheck="false" value="${esc(sec.chords || rhythmChords(sec))}"></div>`}`,
       fd => { sec.name = fd.name.trim() || sec.name;
         if (!fixed) { if (fd.phr) { sec.phrases = 1; const c = (fd.chords || '').trim(); if (c) sec.chords = c; else delete sec.chords; } else { delete sec.phrases; delete sec.chords; } }
         save(); },
