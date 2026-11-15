@@ -607,6 +607,11 @@ function migrate() {
     for (const x of S.lib.sections) if (!x.len && isRhythmA(x)) { x.phrases = 1; x.chords = x.chords || RHYTHM_A; }
     S.libRev = 18;
   }
+  if (S.libRev < 19) {   // phrases are numbered within their category, not across all of them (owner, 2026-11-15); order kept
+    for (const x of S.lib.sections) if (x.phrases) x.ex.filter(e => phraseNum(e) > 0).sort((a, b) => phraseNum(a) - phraseNum(b))
+      .forEach((e, i) => { const d = phraseDesc(e); e.num = i + 1; e.name = phraseName(i + 1, d); });
+    S.libRev = 19;
+  }
   applyTuneTypes();
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -3165,7 +3170,8 @@ async function recordPhrase({ key, chordText, bpm, mode, swing, triplets = true,
 const phraseExs = () => S.lib.sections.filter(isPhraseSec).flatMap(s => s.ex);
 const phraseNum = ex => ex.num || +((/^Phrase (\d+)/.exec(ex.name) || [])[1]) || 0;
 const phraseDesc = ex => ex.num || /^Phrase \d+/.test(ex.name) ? ex.name.replace(/^Phrase \d+( – )?/, '') : ex.name;
-const nextPhraseNum = () => Math.max(0, ...phraseExs().map(phraseNum)) + 1;
+const nextPhraseNum = sec => Math.max(0, ...sec.ex.map(phraseNum)) + 1;   // numbered within each category (since libRev 19)
+const phraseName = (num, desc) => 'Phrase ' + num + (desc ? ' – ' + desc : '');
 // The phrase editor: name, the key it's written in, which keys to practise, and the ABC with a live preview.
 function phraseEditor(sec, ex) {
   const ph = ex ? phraseOf(ex) : { abc: '', key: sec && sec.minor ? 'Cm' : 'C' };
@@ -3174,7 +3180,7 @@ function phraseEditor(sec, ex) {
   let recLen = ex ? nearLen(phraseLenOf(ex) || 2) : (sec.len || (sec.chords ? nearLen(parseChordText(sec.chords).length) : 2));   // the take's length; a saved ii–V–I phrase goes to the category for its bar count
   const chordsFor = (k, n) => sec && sec.chords && !sec.len && parseChordText(sec.chords).length === n ? chordTextIn(sec.chords, k) : defaultChordText(k, n);
   const keyOpts = [...MAJOR_KEYS, ...MINOR_KEYS].map(x => `<option ${x === ph.key ? 'selected' : ''}>${x}</option>`).join('');
-  formSheet(ex ? 'Edit phrase' : 'New phrase', `<label class="f">Description <small class="muted">(optional – it's numbered: Phrase ${(ex && phraseNum(ex)) || nextPhraseNum()})</small></label><input type="text" name="desc" value="${esc(ex ? phraseDesc(ex) : '')}" placeholder="e.g. altered">
+  formSheet(ex ? 'Edit phrase' : 'New phrase', `<label class="f">Description <small class="muted">(optional – it's numbered: Phrase ${(ex && phraseNum(ex)) || nextPhraseNum(sec)})</small></label><input type="text" name="desc" value="${esc(ex ? phraseDesc(ex) : '')}" placeholder="e.g. altered">
     <label class="f">Written in</label><select name="wkey">${keyOpts}</select>
     <label class="f">Notes <small class="muted">(ABC notation, written part)</small></label>
     <textarea name="abc" id="phAbc" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:.9rem" spellcheck="false" autocapitalize="off" placeholder='e.g. "Dm7"DFAc edcA | "G7"Bdfa gfed | "Cmaj7"e4 z4 |]'>${esc(ph.abc)}</textarea>
@@ -3195,9 +3201,9 @@ function phraseEditor(sec, ex) {
       Lengths: <b>A</b> = 8th, <b>A2</b> = quarter, <b>A4</b> = half, <b>A/</b> = 16th, <b>A3</b> = dotted quarter.
       <b>(3ABc</b> = triplet, <b>z</b> = rest, notes written together (<b>DFAc</b>) are beamed, <b>|</b> bar line, <b>|]</b> end, <b>A-A</b> tie.
       Chords in quotes before a note: <b>"Dm7" D</b>. Use b and # in chord names (G7b9, F#m7).</p></details>`,
-    fd => { const desc = fd.desc.trim(), num = (ex && phraseNum(ex)) || nextPhraseNum(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!abc) { toast('Add some notes'); return false; }
-      const name = 'Phrase ' + num + (desc ? ' – ' + desc : '');
+    fd => { const desc = fd.desc.trim(), keys = ex ? ex.keys : [...NONE], abc = fd.abc.trim(); if (!abc) { toast('Add some notes'); return false; }
       const to = sec.len ? phraseSecFor(abcBarCount(abc), isMinorKey(fd.wkey)) || sec : sec;   // only the ii–V–I categories sort by length / mode
+      const num = (ex && to === sec && phraseNum(ex)) || nextPhraseNum(to), name = phraseName(num, desc);   // a phrase that moves takes the next number there
       if (ex) { Object.assign(ex, { name, num, keys, abc, abcKey: fd.wkey }); if (to !== sec) { sec.ex = sec.ex.filter(x => x !== ex); to.ex.push(ex); } }
       else { ex = { id: 'phrase-' + num + '-' + uid(), name, num, keys, abc, abcKey: fd.wkey }; to.ex.push(ex); }
       openSecs.add(to.id); if (to !== sec) toast('Saved under ' + to.name);
