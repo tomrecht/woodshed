@@ -3,3 +3,4 @@
 !books/*.pdf
 tools/bridge_book/ex.json
 tools/bridge_book/book.html
+__pycache__/
