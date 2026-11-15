@@ -3197,7 +3197,7 @@ function phraseEditor(sec, ex) {
   const ta = $('#phAbc'), wk = $('#fm [name=wkey]'); let tm;
   const prev = () => { clearTimeout(tm); tm = setTimeout(async () => {
     if (!$('#phPrev')) return;   // the editor has closed
-    try { await loadAbc(); if (!$('#phPrev')) return; const r = ABCJS.renderAbc('phPrev', abcDoc({ abc: ta.value, key: wk.value }), { responsive: 'resize' })[0];
+    try { await loadAbc(); if (!$('#phPrev')) return; const r = ABCJS.renderAbc('phPrev', abcDoc({ abc: ta.value, key: wk.value }), { responsive: 'resize', paddingleft: 0, paddingright: 0, staffwidth: 520, wrap: { minSpacing: 1.4, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } })[0];   // 2 bars a line, like the sheet
       const w = (r && r.warnings) || []; $('#phErr').textContent = w.length ? '⚠ ' + w[0].replace(/<[^>]+>/g, '') : ''; }
     catch (e) { const er = $('#phErr'); if (er) er.textContent = e.message; } }, 250); };
   ta.addEventListener('input', prev); wk.addEventListener('change', prev); prev();
