@@ -392,7 +392,9 @@ const isRhythmBridge = sec => /rhythm/i.test(sec.name) && /middle|bridge/i.test(
 // A sections (first two As, turnaround back to the top): I VI | ii V | iii VI | ii V | v I7 | IV #iv° | iii VI | ii V, in C
 const RHYTHM_A = 'C6 A7 | Dm7 G7 | Em7 A7 | Dm7 G7 | Gm7 C7 | Fmaj7 F#dim7 | Em7 A7 | Dm7 G7';
 const isRhythmA = sec => /rhythm/i.test(sec.name) && /\bA\b|A[ -]?section/i.test(sec.name);
-const rhythmChords = sec => isRhythmBridge(sec) ? RHYTHM_BRIDGE : isRhythmA(sec) ? RHYTHM_A : '';
+const TURNAROUND = 'Cmaj7 A7 | Dm7 G7';   // I VI ii V, in C
+const isTurnaround = sec => /turn ?around/i.test(sec.name);
+const rhythmChords = sec => isRhythmBridge(sec) ? RHYTHM_BRIDGE : isRhythmA(sec) ? RHYTHM_A : isTurnaround(sec) ? TURNAROUND : '';   // default changes a category's name implies
 const PHRASE_LEN_SECS = [['phrases-2', 'ii–V–I phrases · 2 bars', 2], ['phrases-4', 'ii–V–I phrases · 4 bars', 4]];
 // minor ii–V–i phrases have their own categories (rev 12); a phrase goes by its written key (Cm, F#m … = minor)
 const PHRASE_MIN_SECS = [['phrases-m2', 'Minor ii–V–i phrases · 2 bars', 2], ['phrases-m4', 'Minor ii–V–i phrases · 4 bars', 4]];
@@ -611,6 +613,10 @@ function migrate() {
     for (const x of S.lib.sections) if (x.phrases) x.ex.filter(e => phraseNum(e) > 0).sort((a, b) => phraseNum(a) - phraseNum(b))
       .forEach((e, i) => { const d = phraseDesc(e); e.num = i + 1; e.name = phraseName(i + 1, d); });
     S.libRev = 19;
+  }
+  if (S.libRev < 20) {   // Turnarounds category: a phrase category over I VI ii V (owner, 2026-11-15); exercises without notation keep it ordinary
+    for (const x of S.lib.sections) if (!x.len && isTurnaround(x) && x.ex.every(e => e.abc)) { x.phrases = 1; x.chords = x.chords || TURNAROUND; }
+    S.libRev = 20;
   }
   applyTuneTypes();
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
