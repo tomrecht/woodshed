@@ -392,7 +392,7 @@ const isRhythmBridge = sec => /rhythm/i.test(sec.name) && /middle|bridge/i.test(
 // A sections (first two As, turnaround back to the top): I VI | ii V | iii VI | ii V | v I7 | IV #iv° | iii VI | ii V, in C
 const RHYTHM_A = 'C6 A7 | Dm7 G7 | Em7 A7 | Dm7 G7 | Gm7 C7 | Fmaj7 F#dim7 | Em7 A7 | Dm7 G7';
 const isRhythmA = sec => /rhythm/i.test(sec.name) && /\bA\b|A[ -]?section/i.test(sec.name);
-const TURNAROUND = 'Cmaj7 A7 | Dm7 G7';   // I VI ii V, in C
+const TURNAROUND = 'Em7 A7 | Dm7 G7 | Cmaj7 | Cmaj7';   // iii VI ii V (2 beats each) → I, 4 bars, in C (owner, 2026-11-15)
 const isTurnaround = sec => /turn ?around/i.test(sec.name);
 const rhythmChords = sec => isRhythmBridge(sec) ? RHYTHM_BRIDGE : isRhythmA(sec) ? RHYTHM_A : isTurnaround(sec) ? TURNAROUND : '';   // default changes a category's name implies
 const PHRASE_LEN_SECS = [['phrases-2', 'ii–V–I phrases · 2 bars', 2], ['phrases-4', 'ii–V–I phrases · 4 bars', 4]];
@@ -617,6 +617,10 @@ function migrate() {
   if (S.libRev < 20) {   // Turnarounds category: a phrase category over I VI ii V (owner, 2026-11-15); exercises without notation keep it ordinary
     for (const x of S.lib.sections) if (!x.len && isTurnaround(x) && x.ex.every(e => e.abc)) { x.phrases = 1; x.chords = x.chords || TURNAROUND; }
     S.libRev = 20;
+  }
+  if (S.libRev < 21) {   // turnarounds became 4 bars: iii VI | ii V | I | I; replace the old default (not chords the owner typed)
+    for (const x of S.lib.sections) if (isTurnaround(x) && x.chords === 'Cmaj7 A7 | Dm7 G7') x.chords = TURNAROUND;
+    S.libRev = 21;
   }
   applyTuneTypes();
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
