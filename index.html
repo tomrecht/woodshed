@@ -622,6 +622,9 @@ function migrate() {
     for (const x of S.lib.sections) if (isTurnaround(x) && x.chords === 'Cmaj7 A7 | Dm7 G7') x.chords = TURNAROUND;
     S.libRev = 21;
   }
+  if (!S.offRev) {   // owner travelling Thu 2026-11-19 – Fri 2026-11-27: those weeks don't count against the streak
+    S.off = [...(S.off || []), { from: '2026-11-19', to: '2026-11-27' }]; S.offRev = 1;
+  }
   applyTuneTypes();
   // sheet music became per pitch: pages added before that belong to the instrument they were added on
   for (const t of S.lib.tunes) if (Array.isArray(t.imgs)) { if (t.imgs.length) { t.sheets = t.sheets || {}; t.sheets[instTr()] = [...(t.sheets[instTr()] || []), ...t.imgs]; } delete t.imgs; }
@@ -1105,20 +1108,22 @@ function weekDaysCount(mon, dm) { let c = 0; for (let i = 0; i < 7; i++) if (dm[
    A week counts toward the streak when you practise on at least `goal` days. Every 4 streak weeks earns a freeze (max 2),
    used automatically on a missed week. Practice XP is multiplied by 1 + 0.1 × the streak going into the week (max ×2). */
 const weekMinGoal = () => S.settings.minGoal ?? 300;
+// Away days (S.off = [{from, to}] day keys, inclusive): a week that has any and misses the goal neither breaks the streak nor uses a freeze.
+const isOffDay = k => (S.off || []).some(o => k >= o.from && k <= o.to);
 function weekHistory(p = P()) {
   // days/min: what the weekly goals are judged on (all instruments when shared); own: this instrument's minutes, for XP
   const dm = goalDayMins(p), odm = dayMins(p), goal = S.settings.goal, minGoal = weekMinGoal(), now = monday(Date.now()), all = goalSessions(p);
   if (!all.length) return { weeks: [], cur: 0, best: 0, freezes: 0 };
   let m = monday(Math.min(...all.map(x => x.start))), streak = 0, best = 0, freezes = 0; const weeks = [];
   while (m <= now) {
-    let days = 0, min = 0, own = 0; for (let i = 0; i < 7; i++) { const k = dayKey(addDays(m, i)), v = dm[k] || 0; if (v) days++; min += v; own += odm[k] || 0; }
+    let days = 0, min = 0, own = 0, off = 0; for (let i = 0; i < 7; i++) { const k = dayKey(addDays(m, i)), v = dm[k] || 0; if (v) days++; min += v; own += odm[k] || 0; if (isOffDay(k)) off++; }
     const current = +m === +now, met = days >= goal, minMet = min >= minGoal, before = streak; let frozen = false;
     if (met) { streak++; if (streak % 4 === 0 && freezes < 2) freezes++; }
-    else if (!current) { if (freezes > 0 && streak > 0) { freezes--; frozen = true; } else streak = 0; }
+    else if (!current && !off) { if (freezes > 0 && streak > 0) { freezes--; frozen = true; } else streak = 0; }
     best = Math.max(best, streak);
     const mult = 1 + 0.1 * Math.min(10, before);
     const bonus = (met ? 50 + 10 * Math.min(10, before) : 0) + (minMet ? 50 : 0);
-    weeks.push({ mon: new Date(m), key: dayKey(m), days, min, own, met, minMet, frozen, before, streak, mult, bonus, current });
+    weeks.push({ mon: new Date(m), key: dayKey(m), days, min, own, off, met, minMet, frozen, before, streak, mult, bonus, current });
     m = addDays(m, 7);
   }
   return { weeks, cur: streak, best, freezes };
@@ -2503,7 +2508,7 @@ function sessionRecap(sess, xpBefore, got) {
   const daysLeft = 6 - (new Date().getDay() + 6) % 7, need = Math.max(0, goal - w.days);
   const streakMsg = w.met ? `🔥 Weekly goal reached – ${wh.cur}-week streak` : need <= daysLeft
     ? `${need} more practice day${need === 1 ? '' : 's'} this week ${wh.cur ? 'keeps your ' + wh.cur + '-week streak going' : 'starts a streak'}`
-    : wh.freezes && wh.cur ? `Can't make ${goal} days this week – a 🧊 freeze will save your ${wh.cur}-week streak` : `Next week is a fresh start for the streak`;
+    : w.off && wh.cur ? `Away days this week – your ${wh.cur}-week streak is safe` : wh.freezes && wh.cur ? `Can't make ${goal} days this week – a 🧊 freeze will save your ${wh.cur}-week streak` : `Next week is a fresh start for the streak`;
   const H = t => `<h3 style="margin:14px 0 4px">${t}</h3>`, now = Date.now(), inSess = t => t >= sess.start && t <= now;
   let body = '';
   if (sess.live) {
