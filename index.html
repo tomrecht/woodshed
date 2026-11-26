@@ -1109,6 +1109,7 @@ function weekDaysCount(mon, dm) { let c = 0; for (let i = 0; i < 7; i++) if (dm[
    used automatically on a missed week. Practice XP is multiplied by 1 + 0.1 × the streak going into the week (max ×2). */
 const weekMinGoal = () => S.settings.minGoal ?? 300;
 // Away days (S.off = [{from, to}] day keys, inclusive): a week that has any and misses the goal neither breaks the streak nor uses a freeze.
+const offFmt = o => { const f = k => new Date(k + 'T12:00').toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }); return o.from === o.to ? f(o.from) : f(o.from) + ' – ' + f(o.to); };
 const isOffDay = k => (S.off || []).some(o => k >= o.from && k <= o.to);
 function weekHistory(p = P()) {
   // days/min: what the weekly goals are judged on (all instruments when shared); own: this instrument's minutes, for XP
@@ -2016,6 +2017,9 @@ function vMore() {
     <div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="celeChk" ${S.settings.celeSound !== false ? 'checked' : ''}><span class="grow">Sound with celebrations</span></label></div>
     <details style="margin-top:10px"><summary class="muted">How XP works</summary><p class="muted" style="font-size:.88rem">1 XP per practice minute, multiplied by your streak (+10% per streak week, up to ×2). Weekly goal met: +50, plus 10 per streak week (up to +150). Weekly time goal met: +50. Weekly challenge: +100. Tempo record +3 per BPM gained (min 5, max 50; first tempo +2), exercise complete (every key logged) +25, tune checkpoint +10, review +5, quiz +2 per correct chord, ear training +2 per right answer, rhythm passed +2, badge +50. Every 4 streak weeks earns a 🧊 freeze (max 2) that covers a missed week.</p></details>
     <label class="f">Weekly goal (practice days)</label><select id="goalSel">${[1, 2, 3, 4, 5, 6, 7].map(n => `<option ${n === S.settings.goal ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <label class="f">Away days</label><p class="muted" style="font-size:.88rem;margin:0 0 6px">A week with away days that misses the goal doesn't break your streak or use a freeze.</p>
+    ${(S.off || []).length ? `<ul class="list">${S.off.map((o, i) => `<li><span class="grow">${offFmt(o)}</span><button class="btn sm" data-act="offDel" data-i="${i}">✕</button></li>`).join('')}</ul>` : ''}
+    <button class="btn sm ghost" data-act="offAdd">+ Add away days</button>
   </section>
   <section class="card"><h3>Instruments</h3><ul class="list">${S.inst.map(i => `<li><span class="grow">${esc(i.name)}${i.id === S.cur ? ' <small>(current)</small>' : ''}<br><small>${fmtHM(totalHours(S.prog[i.id]))}</small><span class="row" style="gap:6px;margin-top:6px">${THEME_IDS.map(id => `<button class="swatch ${themeOf(i) === THEMES[id] ? 'on' : ''}" style="background:${THEMES[id].accent}" title="${THEMES[id].name}" aria-label="${THEMES[id].name}" data-act="setTheme" data-id="${i.id}" data-theme="${id}"></button>`).join('')}</span></span><button class="btn sm" data-act="renameInst" data-id="${i.id}">Rename</button>${S.inst.length > 1 ? `<button class="btn sm danger" data-act="delInst" data-id="${i.id}">Delete</button>` : ''}</li>`).join('')}</ul>
     ${S.inst.length > 1 ? `<div class="stages" style="margin-top:10px"><label class="cprow"><input type="checkbox" id="streakPerInstChk" ${S.settings.streakPerInst ? 'checked' : ''}><span class="grow">Separate streaks per instrument<br><small class="muted">Off: practice on any instrument counts toward your weekly goals and streak.</small></span></label></div>` : ''}
@@ -3880,6 +3884,10 @@ const A = {
       <label class="f">Reads in</label><select name="tr"><option value="Eb">E♭ (alto, baritone sax)</option><option value="Bb">B♭ (tenor, soprano sax, trumpet, clarinet)</option><option value="C">C (concert: flute, piano, guitar…)</option></select>
       <p class="muted" style="font-size:.9rem">Uses the same exercises, licks and tunes, with its own tempos, sessions and badges.</p>`,
     fd => { const n = fd.name.trim(); if (!n) return false; const id = slug(n) + '-' + uid(); S.inst.push({ id, name: n, tr: fd.tr || 'Eb', theme: freeTheme() }); S.prog[id] = Object.assign(newProg(), { priorHours: priorFrom(fd.ph, fd.pm) }); S.cur = id; S.plan = null; save(); checkBadges(); toast('Switched to ' + n); }),
+  offAdd: () => formSheet('Away days', `<label class="f">From</label><input type="date" name="from" value="${dayKey(Date.now())}"><label class="f">To</label><input type="date" name="to" value="${dayKey(Date.now())}">`,
+    fd => { let a = fd.from, b = fd.to || fd.from; if (!a) return false; if (b < a) [a, b] = [b, a];
+      S.off = [...(S.off || []), { from: a, to: b }].sort((x, y) => x.from < y.from ? -1 : 1); save(); checkAchievements({ silent: true }); render(); }),
+  offDel: el => { const o = S.off[+el.dataset.i]; if (!o || !confirm('Remove away days ' + offFmt(o) + '?')) return; S.off.splice(+el.dataset.i, 1); save(); checkAchievements({ silent: true }); render(); },
   setTheme: el => { const i = S.inst.find(x => x.id === el.dataset.id); i.theme = el.dataset.theme; save(); render(); },
   renameInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); const n = prompt('Instrument name', i.name); if (n && n.trim()) { i.name = n.trim(); save(); render(); } },
   delInst: el => { const i = S.inst.find(x => x.id === el.dataset.id); if (prompt(`This deletes all progress for ${i.name}. Type DELETE to confirm.`) !== 'DELETE') return;

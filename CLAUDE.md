@@ -88,6 +88,7 @@ The owner plays alto sax and often asks for changes from their phone. Keep repli
 - Non-tempo exercises (`ex.noTempo`, Edit exercise checkbox, 2026-11-14): the sheet shows no tempo boxes/floor/history, only ✓ Practiced;
   `exInfo` returns `nt: true` (no floor, never `full`), and they are left out of new keys (`unloggedReady`), completion (`secDone`, `exDone`), the Table entry grid,
   and an ordered category counts one as done once practised (`nextInOrder`). libRev 16 marks clarinet bridge 1–4 and études 47, 48, 50 (`CB_NO_TEMPO`).
+- Away days (`S.off` = `[{from, to}]` day keys, Progress → under Weekly goal; `isOffDay`): a week with any that misses the goal keeps the streak and uses no freeze (`weekHistory`).
 - Every day's plan gets one ii–V–I phrase (`pickPhrase`, the one practised longest ago; `S.plan.ph` marks it done for the day).
 - Stretch reminder: every `S.settings.stretchMin` (default 30, 0 = off) minutes of running session time (`S.session.brk` = session ms at the last one);
   `stretchCheck` (from `tickSession`) waits while a sheet is open or anything plays, so it never interrupts an exercise.
